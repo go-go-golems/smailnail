@@ -3,6 +3,7 @@ package dsl
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
@@ -214,16 +215,25 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 		Int("messages_fetched", len(messages)).
 		Msg("Completed first fetch (metadata and structure)")
 
-	// 7. Process each message
+	// 7. Process messages in batches to reduce round trips
 	result := make([]*EmailMessage, 0, len(messages))
+
+	// First pass: determine all MIME parts we need to fetch
+	type MessageFetchInfo struct {
+		Message          *imapclient.FetchMessageBuffer
+		MimePartMetadata []MimePartMetadata
+		Index            int
+	}
+
+	messagesToFetch := make([]MessageFetchInfo, 0, len(messages))
+
 	for msgIdx, msg := range messages {
-		msgStartTime := time.Now()
 		log.Debug().
 			Str("rule", rule.Name).
 			Int("msg_index", msgIdx).
 			Uint32("seq_num", msg.SeqNum).
 			Str("uid", fmt.Sprintf("%d", msg.UID)).
-			Msg("Processing message")
+			Msg("Analyzing message structure")
 
 		// Determine required body sections based on structure
 		bodyStructure := msg.BodyStructure
@@ -232,114 +242,221 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 			return nil, fmt.Errorf("failed to determine required body sections: %w", err)
 		}
 
-		log.Debug().
-			Str("rule", rule.Name).
-			Int("msg_index", msgIdx).
-			Str("uid", fmt.Sprintf("%d", msg.UID)).
-			Int("mime_parts_count", len(mimePartMetadata)).
-			Msg("Determined required MIME parts")
-
-		var mimeParts []MimePart
-		var fetchSections []*imap.FetchItemBodySection
-
-		// Collect all fetch sections
-		for _, metadata := range mimePartMetadata {
-			fetchSections = append(fetchSections, metadata.FetchSection)
-		}
-
-		// If we need body sections, do a second fetch
-		if len(fetchSections) > 0 {
-			secondFetchStartTime := time.Now()
-
-			// Create a sequence set for just this message
-			msgSeqSet := imap.SeqSetNum(msg.SeqNum)
-
-			// Second fetch: get required body sections
-			bodyFetchOptions, err := BuildFetchOptions(rule.Output)
+		// Only add to fetch list if it has MIME parts to fetch
+		if len(mimePartMetadata) > 0 {
+			messagesToFetch = append(messagesToFetch, MessageFetchInfo{
+				Message:          msg,
+				MimePartMetadata: mimePartMetadata,
+				Index:            msgIdx,
+			})
+		} else {
+			// If no MIME parts to fetch, process it immediately
+			email, err := NewEmailMessageFromIMAP(msg, nil)
 			if err != nil {
-				return nil, fmt.Errorf("failed to build fetch options: %w", err)
+				return nil, fmt.Errorf("failed to convert message: %w", err)
 			}
-			bodyFetchOptions.BodyStructure = &imap.FetchItemBodyStructure{}
-			bodyFetchOptions.BodySection = fetchSections
-
-			fetchCmd := client.Fetch(msgSeqSet, bodyFetchOptions)
-			defer fetchCmd.Close()
-
-			fetchedMsg := fetchCmd.Next()
-			if fetchedMsg == nil {
-				return nil, fmt.Errorf("failed to fetch message body")
-			}
-
-			// Create a map to store content for each path
-			contentMap := make(map[string][]byte)
-
-			for {
-				item := fetchedMsg.Next()
-				if item == nil {
-					break
-				}
-
-				if data, ok := item.(imapclient.FetchItemDataBodySection); ok {
-					// Read the body content
-					content, err := io.ReadAll(data.Literal)
-					if err != nil {
-						return nil, fmt.Errorf("failed to read body section: %w", err)
-					}
-
-					// Create a key from the section
-					pathKey := fmt.Sprintf("%v", data.Section.Part)
-					contentMap[pathKey] = content
-				}
-			}
-
-			err = fetchCmd.Close()
-			if err != nil {
-				return nil, fmt.Errorf("failed to close fetch command: %w", err)
-			}
-
-			// Create MimeParts using metadata and content
-			for _, metadata := range mimePartMetadata {
-				pathKey := fmt.Sprintf("%v", metadata.Path)
-				content := contentMap[pathKey]
-
-				mimePart := MimePart{
-					Type:     metadata.Type,
-					Subtype:  metadata.Subtype,
-					Content:  string(content),
-					Size:     uint32(len(content)),
-					Charset:  metadata.Params["charset"],
-					Filename: metadata.Filename,
-				}
-				mimeParts = append(mimeParts, mimePart)
-			}
+			email.TotalCount = uint32(totalFound)
+			result = append(result, email)
 
 			log.Debug().
 				Str("rule", rule.Name).
 				Int("msg_index", msgIdx).
 				Str("uid", fmt.Sprintf("%d", msg.UID)).
-				Int("mime_parts_fetched", len(mimeParts)).
-				Str("duration", time.Since(secondFetchStartTime).String()).
-				Msg("Completed second fetch (message content)")
+				Msg("Processed message (no MIME parts)")
+		}
+	}
+
+	// Skip the batch fetch if no messages need MIME parts
+	if len(messagesToFetch) == 0 {
+		log.Debug().
+			Str("rule", rule.Name).
+			Msg("No MIME parts needed for any message, skipping content fetch")
+		return result, nil
+	}
+
+	// Second pass: batch fetch MIME parts for all messages
+	batchFetchStartTime := time.Now()
+
+	// Create a combined sequence set with all messages that need MIME parts
+	var batchSeqSet imap.SeqSet
+	allFetchSections := []*imap.FetchItemBodySection{}
+
+	// Map to track which sections belong to which message
+	sectionToMessageMap := make(map[string]MessageFetchInfo)
+
+	for _, msgInfo := range messagesToFetch {
+		// Add message to the sequence set
+		batchSeqSet.AddNum(msgInfo.Message.SeqNum)
+
+		// Add all sections for this message, with a mapping back to the message
+		for _, metadata := range msgInfo.MimePartMetadata {
+			// Create a unique identifier for this section
+			sectionKey := fmt.Sprintf("%d:%v", msgInfo.Message.SeqNum, metadata.Path)
+
+			// Store the mapping
+			sectionToMessageMap[sectionKey] = msgInfo
+
+			// Add the section to the fetch request
+			allFetchSections = append(allFetchSections, metadata.FetchSection)
+		}
+	}
+
+	// Create batch fetch options
+	batchFetchOptions, err := BuildFetchOptions(rule.Output)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build batch fetch options: %w", err)
+	}
+	batchFetchOptions.BodyStructure = &imap.FetchItemBodyStructure{}
+	batchFetchOptions.BodySection = allFetchSections
+
+	log.Debug().
+		Str("rule", rule.Name).
+		Int("messages_to_fetch", len(messagesToFetch)).
+		Int("total_sections", len(allFetchSections)).
+		Msg("Starting batch fetch for MIME parts")
+
+	// Execute the batch fetch
+	batchFetchCmd := client.Fetch(batchSeqSet, batchFetchOptions)
+	defer batchFetchCmd.Close()
+
+	// Process the batch fetch results
+	contentMap := make(map[string][]byte)
+
+	for {
+		fetchedMsg := batchFetchCmd.Next()
+		if fetchedMsg == nil {
+			break
+		}
+
+		for {
+			item := fetchedMsg.Next()
+			if item == nil {
+				break
+			}
+
+			if data, ok := item.(imapclient.FetchItemDataBodySection); ok {
+				// Read the body content
+				content, err := io.ReadAll(data.Literal)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read body section: %w", err)
+				}
+
+				// Create a key from the sequence number and section
+				sectionKey := fmt.Sprintf("%d:%v", fetchedMsg.SeqNum, data.Section.Part)
+				contentMap[sectionKey] = content
+			}
+		}
+	}
+
+	err = batchFetchCmd.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close batch fetch command: %w", err)
+	}
+
+	log.Debug().
+		Str("rule", rule.Name).
+		Int("sections_fetched", len(contentMap)).
+		Str("duration", time.Since(batchFetchStartTime).String()).
+		Msg("Completed batch fetch for MIME parts")
+
+	// Third pass: process all messages with their fetched content
+	processStartTime := time.Now()
+
+	// Group content by message sequence number
+	messageContents := make(map[uint32]map[string][]byte)
+	for sectionKey, content := range contentMap {
+		parts := strings.SplitN(sectionKey, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		seqNum := uint32(0)
+		_, err := fmt.Sscanf(parts[0], "%d", &seqNum)
+		if err != nil {
+			continue
+		}
+
+		if _, exists := messageContents[seqNum]; !exists {
+			messageContents[seqNum] = make(map[string][]byte)
+		}
+
+		messageContents[seqNum][parts[1]] = content
+	}
+
+	// Process each message with its content
+	for _, msgInfo := range messagesToFetch {
+		msgStartTime := time.Now()
+		seqNum := msgInfo.Message.SeqNum
+
+		// Get content for this message
+		msgContent, exists := messageContents[seqNum]
+		if !exists {
+			log.Warn().
+				Str("rule", rule.Name).
+				Uint32("seq_num", seqNum).
+				Msg("No content found for message in batch fetch results")
+
+			// Create a message without content
+			email, err := NewEmailMessageFromIMAP(msgInfo.Message, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert message: %w", err)
+			}
+			email.TotalCount = uint32(totalFound)
+			result = append(result, email)
+			continue
+		}
+
+		// Create MIME parts from fetched content
+		var mimeParts []MimePart
+		for _, metadata := range msgInfo.MimePartMetadata {
+			pathKey := fmt.Sprintf("%v", metadata.Path)
+			content, exists := msgContent[pathKey]
+
+			if !exists {
+				log.Warn().
+					Str("rule", rule.Name).
+					Uint32("seq_num", seqNum).
+					Str("path", pathKey).
+					Msg("MIME part not found in fetch results")
+				continue
+			}
+
+			mimePart := MimePart{
+				Type:     metadata.Type,
+				Subtype:  metadata.Subtype,
+				Content:  string(content),
+				Size:     uint32(len(content)),
+				Charset:  metadata.Params["charset"],
+				Filename: metadata.Filename,
+			}
+			mimeParts = append(mimeParts, mimePart)
 		}
 
 		// Convert to our internal format
-		email, err := NewEmailMessageFromIMAP(msg, mimeParts)
+		email, err := NewEmailMessageFromIMAP(msgInfo.Message, mimeParts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert message: %w", err)
 		}
 
-		// Set the total count field on each message
+		// Set the total count field
 		email.TotalCount = uint32(totalFound)
 
 		result = append(result, email)
 
 		log.Debug().
 			Str("rule", rule.Name).
-			Int("msg_index", msgIdx).
-			Str("uid", fmt.Sprintf("%d", msg.UID)).
+			Int("msg_index", msgInfo.Index).
+			Str("uid", fmt.Sprintf("%d", msgInfo.Message.UID)).
+			Int("mime_parts_processed", len(mimeParts)).
 			Str("duration", time.Since(msgStartTime).String()).
-			Msg("Finished processing message")
+			Msg("Processed message with content")
 	}
+
+	log.Debug().
+		Str("rule", rule.Name).
+		Int("messages_processed", len(result)).
+		Str("duration", time.Since(processStartTime).String()).
+		Msg("Finished processing all messages")
 
 	log.Info().
 		Str("rule", rule.Name).

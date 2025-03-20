@@ -16,6 +16,7 @@ type MimePartMetadata struct {
 	IsAttachment bool
 	Filename     string
 	Path         []int
+	SeqNum       uint32 // Sequence number of the message this part belongs to
 }
 
 // determineRequiredBodySections analyzes the output config and body structure to determine which parts need to be fetched
@@ -124,6 +125,7 @@ func determineRequiredBodySections(
 				IsAttachment: isAttachment,
 				Filename:     filename,
 				Path:         path,
+				SeqNum:       0, // Assuming a default value, actual sequence number should be set
 			}
 
 			parts = append(parts, metadata)
