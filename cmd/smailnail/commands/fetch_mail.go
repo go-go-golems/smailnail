@@ -40,6 +40,9 @@ type FetchMailSettings struct {
 
 	// Output settings
 	Limit                int    `glazed.parameter:"limit"`
+	Offset               int    `glazed.parameter:"offset"`
+	AfterUID             uint32 `glazed.parameter:"after-uid"`
+	BeforeUID            uint32 `glazed.parameter:"before-uid"`
 	Format               string `glazed.parameter:"format"`
 	IncludeContent       bool   `glazed.parameter:"include-content"`
 	ConcatenateMimeParts bool   `glazed.parameter:"concatenate-mime-parts"`
@@ -139,6 +142,12 @@ func NewFetchMailCommand() (*FetchMailCommand, error) {
 					parameters.WithDefault(10),
 				),
 				parameters.NewParameterDefinition(
+					"offset",
+					parameters.ParameterTypeInteger,
+					parameters.WithHelp("Number of messages to skip (for pagination)"),
+					parameters.WithDefault(0),
+				),
+				parameters.NewParameterDefinition(
 					"format",
 					parameters.ParameterTypeString,
 					parameters.WithHelp("Output format (json, text, table)"),
@@ -173,6 +182,18 @@ func NewFetchMailCommand() (*FetchMailCommand, error) {
 					parameters.ParameterTypeBool,
 					parameters.WithHelp("Print the equivalent YAML rule instead of executing it"),
 					parameters.WithDefault(false),
+				),
+				parameters.NewParameterDefinition(
+					"after-uid",
+					parameters.ParameterTypeInteger,
+					parameters.WithHelp("Fetch messages with UIDs greater than this value"),
+					parameters.WithDefault(0),
+				),
+				parameters.NewParameterDefinition(
+					"before-uid",
+					parameters.ParameterTypeInteger,
+					parameters.WithHelp("Fetch messages with UIDs less than this value"),
+					parameters.WithDefault(0),
 				),
 			),
 			cmds.WithLayersList(imapLayer, layer),
@@ -363,6 +384,38 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 		}
 	}
 
+	// Add pagination metadata to the last row
+	if len(msgs) > 0 {
+		// Create pagination metadata row
+		paginationRow := types.NewRow()
+
+		// Add regular pagination info
+		paginationRow.Set("type", "pagination_metadata")
+		paginationRow.Set("total_results", len(msgs)) // We only know about fetched messages
+		paginationRow.Set("limit", settings.Limit)
+		paginationRow.Set("offset", settings.Offset)
+
+		// Add UID-based pagination info
+		var lowestUID, highestUID uint32
+		for i, msg := range msgs {
+			uid := uint32(msg.UID)
+			if i == 0 || uid < lowestUID {
+				lowestUID = uid
+			}
+			if i == 0 || uid > highestUID {
+				highestUID = uid
+			}
+		}
+
+		paginationRow.Set("lowest_uid", lowestUID)
+		paginationRow.Set("highest_uid", highestUID)
+
+		// Add the pagination metadata row
+		if err := gp.AddRow(ctx, paginationRow); err != nil {
+			log.Error().Err(err).Msg("Failed to add pagination metadata row")
+		}
+	}
+
 	return nil
 }
 
@@ -431,9 +484,12 @@ func (c *FetchMailCommand) buildRuleFromSettings(settings *FetchMailSettings) (*
 
 	// Create output config
 	outputConfig := dsl.OutputConfig{
-		Format: settings.Format,
-		Limit:  settings.Limit,
-		Fields: fields,
+		Format:    settings.Format,
+		Limit:     settings.Limit,
+		Offset:    settings.Offset,
+		AfterUID:  settings.AfterUID,
+		BeforeUID: settings.BeforeUID,
+		Fields:    fields,
 	}
 
 	// Create the rule

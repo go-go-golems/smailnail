@@ -9,7 +9,7 @@ import (
 )
 
 // BuildSearchCriteria converts SearchConfig to imap.SearchCriteria
-func BuildSearchCriteria(config SearchConfig) (*imap.SearchCriteria, error) {
+func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, error) {
 	criteria := &imap.SearchCriteria{}
 
 	// Process date criteria
@@ -148,6 +148,27 @@ func BuildSearchCriteria(config SearchConfig) (*imap.SearchCriteria, error) {
 			}
 
 			criteria.Smaller = int64(size)
+		}
+	}
+
+	// Process UID-based pagination if provided in the output config
+	if outputConfig != nil {
+		if outputConfig.AfterUID > 0 || outputConfig.BeforeUID > 0 {
+			// Create a UID range for pagination
+			uidSet := &imap.SeqSet{}
+
+			if outputConfig.AfterUID > 0 && outputConfig.BeforeUID > 0 {
+				// Between AfterUID+1 and BeforeUID-1
+				uidSet.AddRange(outputConfig.AfterUID+1, outputConfig.BeforeUID-1)
+			} else if outputConfig.AfterUID > 0 {
+				// Greater than AfterUID
+				uidSet.AddRange(outputConfig.AfterUID+1, 0) // 0 means "*" (unlimited) in go-imap
+			} else if outputConfig.BeforeUID > 0 {
+				// Less than BeforeUID
+				uidSet.AddRange(1, outputConfig.BeforeUID-1)
+			}
+
+			criteria.SeqNum = []imap.SeqSet{*uidSet}
 		}
 	}
 

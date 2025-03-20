@@ -143,9 +143,12 @@ func (s *SearchConfig) Validate() error {
 
 // OutputConfig defines output formatting
 type OutputConfig struct {
-	Format string        `yaml:"format,omitempty"` // json, text, table
-	Limit  int           `yaml:"limit,omitempty"`  // Maximum number of messages to return
-	Fields []interface{} `yaml:"fields,omitempty"`
+	Format    string        `yaml:"format,omitempty"`     // json, text, table
+	Limit     int           `yaml:"limit,omitempty"`      // Maximum number of messages to return
+	Offset    int           `yaml:"offset,omitempty"`     // Number of messages to skip for pagination
+	AfterUID  uint32        `yaml:"after_uid,omitempty"`  // Fetch messages with UIDs greater than this value
+	BeforeUID uint32        `yaml:"before_uid,omitempty"` // Fetch messages with UIDs less than this value
+	Fields    []interface{} `yaml:"fields,omitempty"`
 }
 
 // Validate checks if the output config is valid
