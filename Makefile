@@ -35,14 +35,14 @@ tag-patch:
 
 release:
 	git push --tags
-	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/XXX@$(shell svu current)
+	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/smailnail@$(shell svu current)
 
 bump-glazed:
 	go get github.com/go-go-golems/glazed@latest
 	go get github.com/go-go-golems/clay@latest
 	go mod tidy
 
-XXX_BINARY=$(shell which XXX)
+smailnail_BINARY=$(shell which smailnail)
 install:
-	go build -o ./dist/XXX ./cmd/XXX && \
-		cp ./dist/XXX $(XXX_BINARY)
+	go build -o ./dist/smailnail ./cmd/smailnail && \
+		cp ./dist/smailnail $(smailnail_BINARY)
