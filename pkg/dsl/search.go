@@ -176,30 +176,19 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 		// Set search options to optimize the search
 		// Only request as many results as needed (limit + offset)
 		if outputConfig.Limit > 0 {
-			// If ReturnCount is true, the server will only return the count of messages
-			// If there's an offset, we need the full list to apply the offset client-side
-			// Otherwise, limit the returned results to the needed amount
-			if outputConfig.Offset == 0 {
-				// When there's no offset, we can use ESEARCH to limit the results
-				// returned by the server (more efficient)
-				log.Debug().
-					Int("limit", outputConfig.Limit).
-					Msg("Using server-side limit via ESEARCH")
+			// We need to always set ReturnAll to true to get sequence numbers
+			// that we can use for fetching the messages
+			options.ReturnAll = true
 
-				// Set ReturnAll to false to avoid getting all message numbers
-				options.ReturnAll = false
+			// We also want to get a count of total results if possible
+			options.ReturnCount = true
 
-				// Set ReturnCount to true to get the total count of messages matching the search
-				options.ReturnCount = true
-			} else {
-				log.Debug().
-					Int("limit", outputConfig.Limit).
-					Int("offset", outputConfig.Offset).
-					Msg("Using client-side limit and offset since offset > 0")
-
-				// We need all messages to apply offset client-side
-				options.ReturnAll = true
-			}
+			log.Debug().
+				Int("limit", outputConfig.Limit).
+				Int("offset", outputConfig.Offset).
+				Bool("return_all", options.ReturnAll).
+				Bool("return_count", options.ReturnCount).
+				Msg("Search options set")
 		}
 	}
 

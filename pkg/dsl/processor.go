@@ -66,8 +66,79 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 		Bool("uid", searchData.UID).
 		Msg("Search completed")
 
-	if len(seqNums) == 0 {
+	if totalFound == 0 {
 		return nil, nil
+	}
+
+	// If no sequence numbers were returned but we have a count,
+	// we need to fetch the most recent messages manually
+	if len(seqNums) == 0 && totalFound > 0 {
+		log.Debug().
+			Str("rule", rule.Name).
+			Int("total_count", totalFound).
+			Msg("No sequence numbers returned but count > 0, fetching most recent messages")
+
+		// Create a sequence set for the most recent messages
+		var manualSeqSet imap.SeqSet
+		startSeq := totalFound // Most recent message
+		endSeq := 1            // First message
+
+		// Apply limit if set
+		limit := totalFound
+		if rule.Output.Limit > 0 && rule.Output.Limit < limit {
+			limit = rule.Output.Limit
+		}
+
+		// Apply offset if specified
+		offset := rule.Output.Offset
+		if offset > totalFound {
+			log.Warn().
+				Str("rule", rule.Name).
+				Int("offset", offset).
+				Int("total_messages", totalFound).
+				Msg("Offset exceeds total messages count, no messages will be fetched")
+			return nil, nil
+		}
+
+		// Calculate range based on offset and limit
+		startSeq = totalFound - offset
+		endSeq = startSeq - limit + 1
+		if endSeq < 1 {
+			endSeq = 1
+		}
+
+		log.Debug().
+			Str("rule", rule.Name).
+			Int("start_seq", startSeq).
+			Int("end_seq", endSeq).
+			Int("will_fetch", startSeq-endSeq+1).
+			Msg("Fetching messages by sequence range")
+
+		manualSeqSet.AddRange(uint32(endSeq), uint32(startSeq))
+
+		// Fetch message UIDs first
+		var uidFetchOptions imap.FetchOptions
+		uidFetchOptions.UID = true
+
+		uidMessages, err := client.Fetch(manualSeqSet, &uidFetchOptions).Collect()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch message UIDs: %w", err)
+		}
+
+		log.Debug().
+			Str("rule", rule.Name).
+			Int("messages_fetched", len(uidMessages)).
+			Msg("Fetched UIDs for messages")
+
+		// Convert to sequence numbers (just for consistency with the existing code path)
+		for _, msg := range uidMessages {
+			seqNums = append(seqNums, msg.SeqNum)
+		}
+
+		// Sort sequence numbers in descending order (newest first)
+		for i, j := 0, len(seqNums)-1; i < j; i, j = i+1, j-1 {
+			seqNums[i], seqNums[j] = seqNums[j], seqNums[i]
+		}
 	}
 
 	// 4. Create sequence set from results, respecting the limit and offset if set
