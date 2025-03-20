@@ -386,14 +386,27 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 
 	// Add pagination metadata to the last row
 	if len(msgs) > 0 {
+		// Get total count from first message (all should have the same count)
+		totalMessagesFound := int(msgs[0].TotalCount)
+		if totalMessagesFound == 0 {
+			// Fallback to number of returned messages
+			totalMessagesFound = len(msgs)
+		}
+
 		// Create pagination metadata row
 		paginationRow := types.NewRow()
 
 		// Add regular pagination info
 		paginationRow.Set("type", "pagination_metadata")
-		paginationRow.Set("total_results", len(msgs)) // We only know about fetched messages
+		paginationRow.Set("total_results", totalMessagesFound)
+		paginationRow.Set("fetched_results", len(msgs))
 		paginationRow.Set("limit", settings.Limit)
 		paginationRow.Set("offset", settings.Offset)
+		// Calculate if there are more results
+		paginationRow.Set("has_more", totalMessagesFound > (settings.Offset+len(msgs)))
+		if totalMessagesFound > (settings.Offset + len(msgs)) {
+			paginationRow.Set("next_offset", settings.Offset+len(msgs))
+		}
 
 		// Add UID-based pagination info
 		var lowestUID, highestUID uint32

@@ -6,17 +6,19 @@ import (
 	"time"
 
 	"github.com/emersion/go-imap/v2"
+	"github.com/rs/zerolog/log"
 )
 
-// BuildSearchCriteria converts SearchConfig to imap.SearchCriteria
-func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, error) {
+// BuildSearchCriteria converts SearchConfig to imap.SearchCriteria and returns appropriate SearchOptions
+func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, *imap.SearchOptions, error) {
 	criteria := &imap.SearchCriteria{}
+	options := &imap.SearchOptions{}
 
 	// Process date criteria
 	if config.Since != "" {
 		since, err := parseDate(config.Since)
 		if err != nil {
-			return nil, fmt.Errorf("invalid 'since' date: %w", err)
+			return nil, nil, fmt.Errorf("invalid 'since' date: %w", err)
 		}
 		criteria.Since = since
 	}
@@ -24,7 +26,7 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 	if config.Before != "" {
 		before, err := parseDate(config.Before)
 		if err != nil {
-			return nil, fmt.Errorf("invalid 'before' date: %w", err)
+			return nil, nil, fmt.Errorf("invalid 'before' date: %w", err)
 		}
 		criteria.Before = before
 	}
@@ -32,7 +34,7 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 	if config.On != "" {
 		on, err := parseDate(config.On)
 		if err != nil {
-			return nil, fmt.Errorf("invalid 'on' date: %w", err)
+			return nil, nil, fmt.Errorf("invalid 'on' date: %w", err)
 		}
 
 		// For "on" date, we need to set both since and before to cover the entire day
@@ -135,7 +137,7 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 		if config.Size.LargerThan != "" {
 			size, err := parseSize(config.Size.LargerThan)
 			if err != nil {
-				return nil, fmt.Errorf("invalid 'larger_than' size: %w", err)
+				return nil, nil, fmt.Errorf("invalid 'larger_than' size: %w", err)
 			}
 
 			criteria.Larger = int64(size)
@@ -144,7 +146,7 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 		if config.Size.SmallerThan != "" {
 			size, err := parseSize(config.Size.SmallerThan)
 			if err != nil {
-				return nil, fmt.Errorf("invalid 'smaller_than' size: %w", err)
+				return nil, nil, fmt.Errorf("invalid 'smaller_than' size: %w", err)
 			}
 
 			criteria.Smaller = int64(size)
@@ -155,24 +157,53 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 	if outputConfig != nil {
 		if outputConfig.AfterUID > 0 || outputConfig.BeforeUID > 0 {
 			// Create a UID range for pagination
-			uidSet := &imap.SeqSet{}
+			uidSet := imap.UIDSet{}
 
 			if outputConfig.AfterUID > 0 && outputConfig.BeforeUID > 0 {
 				// Between AfterUID+1 and BeforeUID-1
-				uidSet.AddRange(outputConfig.AfterUID+1, outputConfig.BeforeUID-1)
+				uidSet.AddRange(imap.UID(outputConfig.AfterUID+1), imap.UID(outputConfig.BeforeUID-1))
 			} else if outputConfig.AfterUID > 0 {
 				// Greater than AfterUID
-				uidSet.AddRange(outputConfig.AfterUID+1, 0) // 0 means "*" (unlimited) in go-imap
+				uidSet.AddRange(imap.UID(outputConfig.AfterUID+1), 0) // 0 means "*" (unlimited) in go-imap
 			} else if outputConfig.BeforeUID > 0 {
 				// Less than BeforeUID
-				uidSet.AddRange(1, outputConfig.BeforeUID-1)
+				uidSet.AddRange(imap.UID(1), imap.UID(outputConfig.BeforeUID-1))
 			}
 
-			criteria.SeqNum = []imap.SeqSet{*uidSet}
+			criteria.UID = []imap.UIDSet{uidSet}
+		}
+
+		// Set search options to optimize the search
+		// Only request as many results as needed (limit + offset)
+		if outputConfig.Limit > 0 {
+			// If ReturnCount is true, the server will only return the count of messages
+			// If there's an offset, we need the full list to apply the offset client-side
+			// Otherwise, limit the returned results to the needed amount
+			if outputConfig.Offset == 0 {
+				// When there's no offset, we can use ESEARCH to limit the results
+				// returned by the server (more efficient)
+				log.Debug().
+					Int("limit", outputConfig.Limit).
+					Msg("Using server-side limit via ESEARCH")
+
+				// Set ReturnAll to false to avoid getting all message numbers
+				options.ReturnAll = false
+
+				// Set ReturnCount to true to get the total count of messages matching the search
+				options.ReturnCount = true
+			} else {
+				log.Debug().
+					Int("limit", outputConfig.Limit).
+					Int("offset", outputConfig.Offset).
+					Msg("Using client-side limit and offset since offset > 0")
+
+				// We need all messages to apply offset client-side
+				options.ReturnAll = true
+			}
 		}
 	}
 
-	return criteria, nil
+	return criteria, options, nil
 }
 
 // parseDate parses a date string in RFC3339 or ISO8601 format

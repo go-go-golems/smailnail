@@ -28,18 +28,19 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 
 	// 1. Build search criteria
 	criteriaStartTime := time.Now()
-	criteria, err := BuildSearchCriteria(rule.Search, &rule.Output)
+	criteria, options, err := BuildSearchCriteria(rule.Search, &rule.Output)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build search criteria: %w", err)
 	}
 	log.Debug().
 		Str("rule", rule.Name).
 		Str("duration", time.Since(criteriaStartTime).String()).
-		Msg("Built search criteria")
+		Interface("search_options", options).
+		Msg("Built search criteria and options")
 
 	// 2. Execute search
 	searchStartTime := time.Now()
-	searchCmd := client.Search(criteria, nil)
+	searchCmd := client.Search(criteria, options)
 	searchData, err := searchCmd.Wait()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute search: %w", err)
@@ -48,10 +49,21 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 
 	// 3. Check if we have results
 	seqNums := searchData.AllSeqNums()
+	totalFound := len(seqNums)
+	if searchData.Count > 0 {
+		// If we have count from the server, use that as the total
+		totalFound = int(searchData.Count)
+	}
+
 	log.Debug().
 		Str("rule", rule.Name).
 		Str("duration", searchDuration.String()).
-		Int("total_messages_found", len(seqNums)).
+		Int("total_messages_found", totalFound).
+		Int("seqnums_returned", len(seqNums)).
+		Uint32("min", searchData.Min).
+		Uint32("max", searchData.Max).
+		Uint32("count", searchData.Count).
+		Bool("uid", searchData.UID).
 		Msg("Search completed")
 
 	if len(seqNums) == 0 {
@@ -244,6 +256,10 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert message: %w", err)
 		}
+
+		// Set the total count field on each message
+		email.TotalCount = uint32(totalFound)
+
 		result = append(result, email)
 
 		log.Debug().
@@ -256,7 +272,7 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 
 	log.Info().
 		Str("rule", rule.Name).
-		Int("total_messages_found", len(seqNums)).
+		Int("total_messages_found", totalFound).
 		Int("messages_fetched", len(messages)).
 		Int("messages_processed", len(result)).
 		Str("duration", time.Since(startTime).String()).

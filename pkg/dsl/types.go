@@ -411,3 +411,13 @@ func isValidFlag(flag string) bool {
 	match, _ := regexp.MatchString(`^[a-zA-Z0-9_.-]+$`, flag)
 	return match
 }
+
+// Add the EmailMessage struct definition or update it if it exists
+type EmailMessage struct {
+	UID        uint32     `json:"uid"`
+	Envelope   *Envelope  `json:"envelope,omitempty"`
+	Flags      []string   `json:"flags,omitempty"`
+	Size       uint32     `json:"size,omitempty"`
+	MimeParts  []MimePart `json:"mime_parts,omitempty"`
+	TotalCount uint32     `json:"total_count,omitempty"` // Total number of messages from search
+}

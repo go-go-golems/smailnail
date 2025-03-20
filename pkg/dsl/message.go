@@ -17,6 +17,7 @@ type EmailMessage struct {
 	Size       uint32
 	MimeParts  []MimePart
 	RawContent map[string][]byte // Store different body sections by their part specifier
+	TotalCount uint32            // Total number of messages from search
 }
 
 // EmailEnvelope contains the message envelope information
