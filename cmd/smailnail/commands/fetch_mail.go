@@ -214,6 +214,9 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 		return err
 	}
 
+	log.Debug().Interface("settings", settings).Msg("Settings")
+
+	log.Debug().Msg("Building rule from settings")
 	// Build rule from command line arguments
 	rule, err := c.buildRuleFromSettings(settings)
 	if err != nil {
@@ -242,6 +245,7 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 	}
 
 	// Connect to IMAP server
+	log.Debug().Msg("Connecting to IMAP server")
 	client, err := settings.IMAPSettings.ConnectToIMAPServer()
 	if err != nil {
 		return fmt.Errorf("error connecting to IMAP server: %w", err)
@@ -249,11 +253,13 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 	defer client.Close()
 
 	// Select mailbox
+	log.Debug().Msg("Selecting mailbox")
 	if err := c.selectMailbox(client, settings.Mailbox); err != nil {
 		return fmt.Errorf("error selecting mailbox: %w", err)
 	}
 
 	// Fetch messages
+	log.Debug().Msg("Fetching messages")
 	msgs, err := rule.FetchMessages(client)
 	if err != nil {
 		return fmt.Errorf("error fetching messages: %w", err)

@@ -335,6 +335,15 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 			}
 
 			if data, ok := item.(imapclient.FetchItemDataBodySection); ok {
+				if data.Literal == nil {
+					log.Warn().
+						Str("rule", rule.Name).
+						Uint32("seq_num", fetchedMsg.SeqNum).
+						Str("section", fmt.Sprintf("%v", data.Section)).
+						Msg("No literal found for body section")
+					continue
+				}
+
 				// Read the body content
 				content, err := io.ReadAll(data.Literal)
 				if err != nil {
