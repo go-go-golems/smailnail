@@ -6,7 +6,7 @@ Today I want to:
     - LATER: generate attachments for the interesting email
     - [x] support multiple config files at once
     - [x] what is this pick thing for / go deeper into useful sprig functions
-  - [ ] store the generated mail in IMAP box
+  - [x] store the generated mail in IMAP box
 
 - once I have the server running I want to use it to test smailnail and different complex rules
 
