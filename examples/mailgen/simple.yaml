@@ -1,0 +1,47 @@
+variables:
+  sender_name: "John Doe"
+  sender_email: "john@example.com"
+  subjects:
+    - "Hello there!"
+    - "Important update"
+    - "Weekly newsletter"
+  greetings:
+    - "Hello"
+    - "Hi"
+    - "Dear"
+
+templates:
+  basic:
+    subject: "{{ .subject }}"
+    from: "{{ .sender_name }} <{{ .sender_email }}>"
+    to: "{{ .recipient }}"
+    body: |
+      {{ .greeting }} {{ .recipient_name }},
+      
+      {{ .content }}
+      
+      Best regards,
+      {{ .sender_name }}
+
+rules:
+  welcome:
+    template: basic
+    variations:
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        subject: "{{ index .variables.subjects 0 }}"
+        recipient: "user@example.com"
+        recipient_name: "User"
+        greeting: "{{ index .variables.greetings 0 }}"
+        content: "Welcome to our service! We're glad to have you on board."
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        subject: "{{ index .variables.subjects 1 }}"
+        recipient: "customer@example.com"
+        recipient_name: "Customer"
+        greeting: "{{ index .variables.greetings 2 }}"
+        content: "Thank you for signing up for our service. We appreciate your trust."
+
+generate:
+  - rule: welcome
+    count: 3 
