@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/go-go-golems/smailnail/pkg/dsl"
+	"github.com/go-go-golems/smailnail/pkg/imap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,7 +29,7 @@ type MailRulesSettings struct {
 	RuleFile             string `glazed.parameter:"rule"`
 	ConcatenateMimeParts bool   `glazed.parameter:"concatenate-mime-parts"`
 	PrintRule            bool   `glazed.parameter:"print-rule"`
-	IMAPSettings
+	imap.IMAPSettings
 }
 
 func NewMailRulesCommand() (*MailRulesCommand, error) {
@@ -37,7 +38,7 @@ func NewMailRulesCommand() (*MailRulesCommand, error) {
 		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
 	}
 
-	imapLayer, err := NewIMAPParameterLayer()
+	imapLayer, err := imap.NewIMAPParameterLayer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
 	}

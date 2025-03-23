@@ -13,10 +13,10 @@ import (
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
+	"github.com/go-go-golems/smailnail/pkg/dsl"
+	"github.com/go-go-golems/smailnail/pkg/imap"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
-
-	"github.com/go-go-golems/smailnail/pkg/dsl"
 )
 
 type FetchMailCommand struct {
@@ -51,7 +51,7 @@ type FetchMailSettings struct {
 	PrintRule            bool   `glazed.parameter:"print-rule"`
 
 	// IMAP settings
-	IMAPSettings
+	imap.IMAPSettings
 }
 
 func NewFetchMailCommand() (*FetchMailCommand, error) {
@@ -60,7 +60,7 @@ func NewFetchMailCommand() (*FetchMailCommand, error) {
 		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
 	}
 
-	imapLayer, err := NewIMAPParameterLayer()
+	imapLayer, err := imap.NewIMAPParameterLayer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
 	}

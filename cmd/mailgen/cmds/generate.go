@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
+	smailnail_imap "github.com/go-go-golems/smailnail/pkg/imap"
 	"github.com/go-go-golems/smailnail/pkg/mailgen"
 	mailgenTypes "github.com/go-go-golems/smailnail/pkg/types"
 	"github.com/pkg/errors"
@@ -30,12 +34,17 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 		return nil, errors.Wrap(err, "failed to create glazed parameter layers")
 	}
 
+	imapLayer, err := smailnail_imap.NewIMAPParameterLayer()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create IMAP parameter layer")
+	}
+
 	return &GenerateCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"generate",
 			cmds.WithShort("Generate emails from template"),
 			cmds.WithLong("Generate emails from template using YAML configuration"),
-			cmds.WithLayersList(glazedLayer),
+			cmds.WithLayersList(glazedLayer, imapLayer),
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
 					"config",
@@ -55,9 +64,23 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 					parameters.WithHelp("Write emails to files"),
 					parameters.WithDefault(false),
 				),
+				parameters.NewParameterDefinition(
+					"store-imap",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Store generated emails in IMAP server"),
+					parameters.WithDefault(false),
+				),
 			),
 		),
 	}, nil
+}
+
+type GenerateSettings struct {
+	ConfigFile []string `glazed.parameter:"config"`
+	OutputDir  string   `glazed.parameter:"output-dir"`
+	WriteFiles bool     `glazed.parameter:"write-files"`
+	StoreIMAP  bool     `glazed.parameter:"store-imap"`
+	smailnail_imap.IMAPSettings
 }
 
 // RunIntoGlazeProcessor generates emails and outputs them as structured data
@@ -67,14 +90,11 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 	gp middlewares.Processor,
 ) error {
 	// Parse command settings
-	type GenerateSettings struct {
-		ConfigFile []string `glazed.parameter:"config"`
-		OutputDir  string   `glazed.parameter:"output-dir"`
-		WriteFiles bool     `glazed.parameter:"write-files"`
-	}
-
 	settings := &GenerateSettings{}
 	if err := parsedLayers.InitializeStruct("default", settings); err != nil {
+		return err
+	}
+	if err := parsedLayers.InitializeStruct("imap", &settings.IMAPSettings); err != nil {
 		return err
 	}
 
@@ -109,6 +129,22 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 	if settings.WriteFiles {
 		if err := os.MkdirAll(settings.OutputDir, 0755); err != nil {
 			return errors.Wrapf(err, "failed to create output directory '%s'", settings.OutputDir)
+		}
+	}
+
+	// Connect to IMAP server if needed
+	var imapClient *imapclient.Client
+	if settings.StoreIMAP {
+		var err error
+		imapClient, err = settings.IMAPSettings.ConnectToIMAPServer()
+		if err != nil {
+			return errors.Wrap(err, "failed to connect to IMAP server")
+		}
+		defer imapClient.Close()
+
+		// Select the target mailbox
+		if _, err := imapClient.Select(settings.Mailbox, nil).Wait(); err != nil {
+			return errors.Wrapf(err, "failed to select mailbox '%s'", settings.Mailbox)
 		}
 	}
 
@@ -155,6 +191,38 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 			// Write to file
 			if err := os.WriteFile(filePath, []byte(emailText), 0644); err != nil {
 				return errors.Wrapf(err, "failed to write email %d to file '%s'", i, filePath)
+			}
+		}
+
+		// Store email in IMAP server if requested
+		if settings.StoreIMAP {
+			// Create IMAP message
+			msg := imap.NewMessage()
+			msg.SetFlag(imap.FlagSeen)
+			msg.SetInternalDate(time.Now())
+
+			// Set headers
+			msg.SetSubject(email.Subject)
+			msg.SetFrom(email.From)
+			if email.To != "" {
+				msg.SetTo(email.To)
+			}
+			if email.Cc != "" {
+				msg.SetCc(email.Cc)
+			}
+			if email.Bcc != "" {
+				msg.SetBcc(email.Bcc)
+			}
+			if email.ReplyTo != "" {
+				msg.SetReplyTo(email.ReplyTo)
+			}
+
+			// Set body
+			msg.SetBodyString(imap.TypeTextPlain, email.Body)
+
+			// Append message to mailbox
+			if err := imapClient.Append(settings.Mailbox, msg).Wait(); err != nil {
+				return errors.Wrapf(err, "failed to store email %d in IMAP server", i)
 			}
 		}
 	}
