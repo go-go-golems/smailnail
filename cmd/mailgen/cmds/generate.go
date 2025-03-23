@@ -39,8 +39,8 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
 					"config",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Path to YAML config file"),
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("Path to YAML config files"),
 					parameters.WithRequired(true),
 				),
 				parameters.NewParameterDefinition(
@@ -68,9 +68,9 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 ) error {
 	// Parse command settings
 	type GenerateSettings struct {
-		ConfigFile string `glazed.parameter:"config"`
-		OutputDir  string `glazed.parameter:"output-dir"`
-		WriteFiles bool   `glazed.parameter:"write-files"`
+		ConfigFile []string `glazed.parameter:"config"`
+		OutputDir  string   `glazed.parameter:"output-dir"`
+		WriteFiles bool     `glazed.parameter:"write-files"`
 	}
 
 	settings := &GenerateSettings{}
@@ -78,24 +78,31 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 		return err
 	}
 
-	// Read and parse config file
-	configData, err := os.ReadFile(settings.ConfigFile)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read config file '%s'", settings.ConfigFile)
-	}
+	var allEmails []*mailgenTypes.Email
 
-	var config mailgenTypes.TemplateConfig
-	if err := yaml.Unmarshal(configData, &config); err != nil {
-		return errors.Wrapf(err, "failed to parse config file '%s'", settings.ConfigFile)
-	}
+	// Process each config file independently
+	for _, configFile := range settings.ConfigFile {
+		// Read and parse config file
+		configData, err := os.ReadFile(configFile)
+		if err != nil {
+			return errors.Wrapf(err, "failed to read config file '%s'", configFile)
+		}
 
-	// Create mail generator
-	generator := mailgen.NewMailGenerator(&config)
+		var config mailgenTypes.TemplateConfig
+		if err := yaml.Unmarshal(configData, &config); err != nil {
+			return errors.Wrapf(err, "failed to parse config file '%s'", configFile)
+		}
 
-	// Generate emails
-	emails, err := generator.Generate(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to generate emails")
+		// Create mail generator for this config
+		generator := mailgen.NewMailGenerator(&config)
+
+		// Generate emails for this config
+		emails, err := generator.Generate(ctx)
+		if err != nil {
+			return errors.Wrapf(err, "failed to generate emails from config file '%s'", configFile)
+		}
+
+		allEmails = append(allEmails, emails...)
 	}
 
 	// Create output directory if needed
@@ -105,8 +112,8 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 		}
 	}
 
-	// Process generated emails
-	for i, email := range emails {
+	// Process all generated emails
+	for i, email := range allEmails {
 		// Create a glazed row for each email
 		row := types.NewRow(
 			types.MRP("index", i),

@@ -29,17 +29,17 @@ rules:
     variations:
       - sender_name: "{{ .variables.sender_name }}"
         sender_email: "{{ .variables.sender_email }}"
-        subject: "{{ pick-random .variables.subjects }}"
+        subject: "{{ pickRandom .variables.subjects }}"
         recipient: "user@example.com"
         recipient_name: "User"
-        greeting: "{{ index .variables.greetings 0 }}"
+        greeting: "{{ pickRandom .variables.greetings }}"
         content: "Welcome to our service! We're glad to have you on board."
       - sender_name: "{{ .variables.sender_name }}"
         sender_email: "{{ .variables.sender_email }}"
-        subject: "{{ index .variables.subjects 1 }}"
+        subject: "{{ pickRandom .variables.subjects }}"
         recipient: "customer@example.com"
         recipient_name: "Customer"
-        greeting: "{{ index .variables.greetings 2 }}"
+        greeting: "{{ pickRandom .variables.greetings }}"
         content: "Thank you for signing up for our service. We appreciate your trust."
 
 generate:
