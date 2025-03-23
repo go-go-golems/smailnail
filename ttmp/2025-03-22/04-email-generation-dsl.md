@@ -112,8 +112,8 @@ rules:
       - sender_name: "{{ .variables.sender_name }}"
         sender_email: "{{ .variables.sender_email }}"
         recipient_name: "User"
-        greeting: "{{ pick .variables.greetings.formal }}"
-        subject: "{{ pick .variables.subjects }}"
+        greeting: "{{ pickRandom .variables.greetings.formal }}"
+        subject: "{{ pickRandom .variables.subjects }}"
         content: "Welcome to our service!"
         closing: "Best regards"
 ```
@@ -155,7 +155,7 @@ All properties defined in the current variation are available at the root level:
 
 ## Common Sprig Functions
 
-- `pick` - Randomly select from a list - `{{ pick .variables.some_list }}`
+- `pickRandom` - Randomly select from a list - `{{ pickRandom .variables.some_list }}`
 - `randInt` - Generate random integer - `{{ randInt 1 100 }}`
 - `lower`/`upper` - Case conversion - `{{ lower .some_string }}`
 - `title` - Title case - `{{ title .some_string }}`

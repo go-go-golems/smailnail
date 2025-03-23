@@ -1,0 +1,75 @@
+variables:
+  sender_name: "John Smith"
+  sender_email: "john.smith@example.com"
+  subjects:
+    - "Your Daily Tech Update"
+    - "Weekly Newsletter Highlights"
+    - "Important System Notification"
+  greetings:
+    formal:
+      - "Dear"
+      - "Greetings"
+      - "To"
+    informal:
+      - "Hey"
+      - "Hi"
+      - "Hello"
+  content_blocks:
+    - "This is your daily technology update."
+    - "Here are your weekly highlights."
+    - "Important system changes have been made."
+  user_types:
+    - "admin"
+    - "user"
+    - "guest"
+
+templates:
+  function_test:
+    subject: "{{ pickRandom .variables.subjects }} - ID:{{ randInt 1000 9999 }}"
+    from: "{{ title .sender_name }} <{{ lower .sender_email }}>"
+    to: "{{ .recipient }}"
+    cc: "{{ default .cc \"team@example.com\" }}"
+    reply_to: "{{ quote .sender_email }}"
+    body: |
+      {{ .greeting }} {{ title .recipient_name }},
+      
+      {{ if eq .user_type "admin" }}
+      [ADMIN NOTICE]
+      {{ end }}
+      
+      {{ .content }}
+      
+      Generated on: {{ now | date "2006-01-02 15:04:05" }}
+      
+      Message ID: {{ list "MSG" (.message_id | upper) | join "-" }}
+      
+      {{ replace "FOOTER_TEXT" .footer_text "Best regards,\nThe Team" }}
+
+rules:
+  test_all_functions:
+    template: function_test
+    variations:
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        recipient: "test1@example.com"
+        recipient_name: "test user one"
+        user_type: "{{ pickRandom .variables.user_types }}"
+        greeting: "{{ pickRandom .variables.greetings.formal }}"
+        content: "{{ pickRandom .variables.content_blocks }}"
+        message_id: "test123"
+        footer_text: "FOOTER_TEXT"
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        recipient: "test2@example.com"
+        recipient_name: "test user two"
+        user_type: "{{ pickRandom .variables.user_types }}"
+        greeting: "{{ pickRandom .variables.greetings.informal }}"
+        content: "{{ pickRandom .variables.content_blocks }}"
+        message_id: "test456"
+        footer_text: "FOOTER_TEXT"
+        cc: "supervisor@example.com"
+
+generate:
+  - rule: test_all_functions
+    count: 5
+    output: "emails/test_{{ now | date \"2006-01-02\" }}/email_{{ .index }}.txt" 

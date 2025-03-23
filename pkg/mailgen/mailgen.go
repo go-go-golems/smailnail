@@ -10,6 +10,18 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Option is a function that configures a MailGenerator
+type Option func(*MailGenerator)
+
+// WithFuncMap adds additional template functions to the MailGenerator
+func WithFuncMap(funcs template.FuncMap) Option {
+	return func(g *MailGenerator) {
+		for name, fn := range funcs {
+			g.funcs[name] = fn
+		}
+	}
+}
+
 // MailGenerator is the main email generator
 type MailGenerator struct {
 	config *types.TemplateConfig
@@ -17,16 +29,25 @@ type MailGenerator struct {
 }
 
 // NewMailGenerator creates a new MailGenerator
-func NewMailGenerator(config *types.TemplateConfig) *MailGenerator {
+func NewMailGenerator(config *types.TemplateConfig, opts ...Option) *MailGenerator {
 	funcs := sprig.TxtFuncMap()
 
-	// Add any additional custom functions here if needed
-	// funcs["customFunc"] = customFunc
+	// Add built-in functions
+	for name, fn := range builtinFuncs() {
+		funcs[name] = fn
+	}
 
-	return &MailGenerator{
+	g := &MailGenerator{
 		config: config,
 		funcs:  funcs,
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(g)
+	}
+
+	return g
 }
 
 // Generate generates emails based on the configuration
@@ -158,7 +179,9 @@ func (g *MailGenerator) processEmailTemplate(emailTemplate types.EmailTemplate, 
 // processTemplate processes a template string with the given context
 func (g *MailGenerator) processTemplate(name, tmpl string, ctx map[string]interface{}) (string, error) {
 	// Parse the template
-	t, err := template.New(name).Funcs(g.funcs).Parse(tmpl)
+	t, err := template.New(name).
+		Funcs(g.funcs).
+		Parse(tmpl)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse template '%s'", name)
 	}
@@ -166,7 +189,7 @@ func (g *MailGenerator) processTemplate(name, tmpl string, ctx map[string]interf
 	// Execute the template
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, ctx); err != nil {
-		return "", errors.Wrapf(err, "failed to execute template '%s'", name)
+		return "", errors.Wrapf(err, "failed to execute template '%s' with context %+v", name, ctx)
 	}
 
 	return buf.String(), nil

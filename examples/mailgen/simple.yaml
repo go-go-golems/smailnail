@@ -29,7 +29,7 @@ rules:
     variations:
       - sender_name: "{{ .variables.sender_name }}"
         sender_email: "{{ .variables.sender_email }}"
-        subject: "{{ index .variables.subjects 0 }}"
+        subject: "{{ pick-random .variables.subjects }}"
         recipient: "user@example.com"
         recipient_name: "User"
         greeting: "{{ index .variables.greetings 0 }}"
