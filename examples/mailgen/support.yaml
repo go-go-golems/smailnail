@@ -1,0 +1,74 @@
+variables:
+  sender_name: "Customer Support"
+  sender_email: "support@example.com"
+  support_topics:
+    - "Account Access"
+    - "Billing Issue"
+    - "Technical Problem"
+    - "Feature Request"
+  response_times:
+    - "24 hours"
+    - "48 hours"
+    - "3-5 business days"
+  closing_phrases:
+    - "We appreciate your patience"
+    - "Thank you for your understanding"
+    - "We value your business"
+
+templates:
+  support_ticket:
+    subject: "{{ .subject }}"
+    from: "{{ .sender_name }} <{{ .sender_email }}>"
+    to: "{{ .recipient }}"
+    body: |
+      Dear {{ .customer_name }},
+      
+      Thank you for contacting {{ .company_name }} Support. This email confirms that we have received your inquiry regarding {{ .topic }}.
+      
+      Ticket ID: {{ .ticket_id }}
+      Priority: {{ .priority }}
+      
+      {{ .acknowledgment }}
+      
+      Expected Response Time: {{ .response_time }}
+      
+      {{ .additional_info }}
+      
+      {{ .closing }},
+      {{ .sender_name }}
+      {{ .company_name }} Support Team
+
+rules:
+  ticket_responses:
+    template: support_ticket
+    variations:
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        company_name: "ExampleCo"
+        subject: "[Ticket #{{ randInt 10000 99999 }}] {{ index .variables.support_topics 0 }} - Confirmation"
+        recipient: "customer@example.com"
+        customer_name: "Valued Customer"
+        topic: "{{ index .variables.support_topics 0 }}"
+        ticket_id: "TICK-{{ randInt 100000 999999 }}"
+        priority: "High"
+        acknowledgment: "We understand that you're experiencing issues with your account access. Our support team has been notified and will investigate this matter promptly."
+        response_time: "{{ index .variables.response_times 0 }}"
+        additional_info: "In the meantime, you can check our FAQ section for common solutions: https://example.com/faq"
+        closing: "{{ index .variables.closing_phrases 0 }}"
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        company_name: "ExampleCo"
+        subject: "[Ticket #{{ randInt 10000 99999 }}] {{ index .variables.support_topics 3 }} - Update"
+        recipient: "client@example.com"
+        customer_name: "Premium Client"
+        topic: "{{ index .variables.support_topics 3 }}"
+        ticket_id: "TICK-{{ randInt 100000 999999 }}"
+        priority: "Normal"
+        acknowledgment: "We have received your feature request and our product team will review it carefully."
+        response_time: "{{ index .variables.response_times 2 }}"
+        additional_info: "You can track the status of your request in your account dashboard: https://example.com/dashboard"
+        closing: "{{ index .variables.closing_phrases 1 }}"
+
+generate:
+  - rule: ticket_responses
+    count: 3 

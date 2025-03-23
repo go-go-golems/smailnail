@@ -1,0 +1,63 @@
+variables:
+  sender_name: "Marketing Team"
+  sender_email: "marketing@example.com"
+  brand_name: "ExampleCo"
+  product_lines:
+    - "Premium Widget"
+    - "Super Gadget"
+    - "Ultra Device"
+  discount_amounts:
+    - "20%"
+    - "30%"
+    - "50%"
+  cta_buttons:
+    - "Shop Now"
+    - "Learn More"
+    - "Get Started"
+
+templates:
+  promotional:
+    subject: "{{ .subject }}"
+    from: "{{ .sender_name }} <{{ .sender_email }}>"
+    to: "{{ .recipient }}"
+    body: |
+      Hi {{ .recipient_name }},
+      
+      {{ .promo_headline }}
+      
+      {{ .promo_details }}
+      
+      {{ .cta_text }}
+      {{ .cta_link }}
+      
+      Best regards,
+      {{ .brand_name }} Team
+
+rules:
+  seasonal_sale:
+    template: promotional
+    variations:
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        brand_name: "{{ .variables.brand_name }}"
+        subject: "🎉 Special Offer: {{ index .variables.discount_amounts 0 }} Off!"
+        recipient: "customer1@example.com"
+        recipient_name: "Valued Customer"
+        promo_headline: "Don't Miss Our Biggest Sale of the Season!"
+        promo_details: "For a limited time, get {{ index .variables.discount_amounts 1 }} off on our {{ index .variables.product_lines 0 }}. This exclusive offer won't last long!"
+        cta_text: "{{ index .variables.cta_buttons 0 }}"
+        cta_link: "https://example.com/sale"
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        brand_name: "{{ .variables.brand_name }}"
+        subject: "🌟 VIP Access: {{ index .variables.product_lines 1 }} Launch"
+        recipient: "vip@example.com"
+        recipient_name: "VIP Member"
+        promo_headline: "Exclusive Early Access Just for You"
+        promo_details: "As a valued VIP member, you get first access to our new {{ index .variables.product_lines 2 }} with an exclusive {{ index .variables.discount_amounts 2 }} discount!"
+        cta_text: "{{ index .variables.cta_buttons 1 }}"
+        cta_link: "https://example.com/vip"
+
+generate:
+  - rule: seasonal_sale
+    count: 4 

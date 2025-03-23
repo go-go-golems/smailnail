@@ -1,0 +1,62 @@
+variables:
+  sender_name: "System Notifications"
+  sender_email: "noreply@example.com"
+  alert_levels:
+    - "Critical"
+    - "Warning"
+    - "Info"
+  system_components:
+    - "Database"
+    - "API Server"
+    - "Load Balancer"
+    - "Cache Service"
+  action_items:
+    - "Please check the system dashboard"
+    - "Review the logs for more details"
+    - "Contact the on-call engineer"
+
+templates:
+  system_alert:
+    subject: "{{ .subject }}"
+    from: "{{ .sender_name }} <{{ .sender_email }}>"
+    to: "{{ .recipient }}"
+    body: |
+      Alert Level: {{ .alert_level }}
+      Component: {{ .component }}
+      Time: {{ now | date "2006-01-02 15:04:05" }}
+      
+      {{ .alert_message }}
+      
+      {{ .action_required }}
+      
+      Dashboard: {{ .dashboard_link }}
+      
+      --
+      This is an automated message. Please do not reply.
+
+rules:
+  system_notifications:
+    template: system_alert
+    variations:
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        subject: "[{{ index .variables.alert_levels 0 }}] {{ index .variables.system_components 0 }} Alert"
+        recipient: "ops@example.com"
+        alert_level: "{{ index .variables.alert_levels 0 }}"
+        component: "{{ index .variables.system_components 0 }}"
+        alert_message: "High resource usage detected. System performance may be affected."
+        action_required: "{{ index .variables.action_items 0 }}"
+        dashboard_link: "https://dashboard.example.com"
+      - sender_name: "{{ .variables.sender_name }}"
+        sender_email: "{{ .variables.sender_email }}"
+        subject: "[{{ index .variables.alert_levels 1 }}] Maintenance Required"
+        recipient: "admin@example.com"
+        alert_level: "{{ index .variables.alert_levels 1 }}"
+        component: "{{ index .variables.system_components 1 }}"
+        alert_message: "Scheduled maintenance is required for optimal performance."
+        action_required: "{{ index .variables.action_items 1 }}"
+        dashboard_link: "https://dashboard.example.com/maintenance"
+
+generate:
+  - rule: system_notifications
+    count: 3 
