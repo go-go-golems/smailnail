@@ -1,6 +1,7 @@
 package cmds
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-message/mail"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
@@ -197,31 +199,69 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 		// Store email in IMAP server if requested
 		if settings.StoreIMAP {
 			// Create IMAP message
-			msg := imap.NewMessage()
-			msg.SetFlag(imap.FlagSeen)
-			msg.SetInternalDate(time.Now())
+			var buf bytes.Buffer
 
-			// Set headers
-			msg.SetSubject(email.Subject)
-			msg.SetFrom(email.From)
+			// Create mail header
+			h := mail.Header{}
+			h.SetDate(time.Now())
+			h.SetAddressList("From", []*mail.Address{{Address: email.From}})
 			if email.To != "" {
-				msg.SetTo(email.To)
+				h.SetAddressList("To", []*mail.Address{{Address: email.To}})
 			}
 			if email.Cc != "" {
-				msg.SetCc(email.Cc)
+				h.SetAddressList("Cc", []*mail.Address{{Address: email.Cc}})
 			}
 			if email.Bcc != "" {
-				msg.SetBcc(email.Bcc)
+				h.SetAddressList("Bcc", []*mail.Address{{Address: email.Bcc}})
 			}
 			if email.ReplyTo != "" {
-				msg.SetReplyTo(email.ReplyTo)
+				h.SetAddressList("Reply-To", []*mail.Address{{Address: email.ReplyTo}})
+			}
+			h.SetSubject(email.Subject)
+
+			// Create message writer
+			w, err := mail.CreateSingleInlineWriter(&buf, h)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create message writer for email %d", i)
 			}
 
-			// Set body
-			msg.SetBodyString(imap.TypeTextPlain, email.Body)
+			// Write body
+			if _, err := w.Write([]byte(email.Body)); err != nil {
+				return errors.Wrapf(err, "failed to write message body for email %d", i)
+			}
 
-			// Append message to mailbox
-			if err := imapClient.Append(settings.Mailbox, msg).Wait(); err != nil {
+			// Close writer
+			if err := w.Close(); err != nil {
+				return errors.Wrapf(err, "failed to close message writer for email %d", i)
+			}
+
+			messageData := buf.Bytes()
+
+			// Prepare flags
+			var flags []imap.Flag
+			flags = append(flags, imap.FlagSeen)
+
+			// Set the append options
+			options := &imap.AppendOptions{
+				Flags: flags,
+				Time:  time.Now(),
+			}
+
+			// Create append command
+			cmd := imapClient.Append(settings.Mailbox, int64(len(messageData)), options)
+
+			// Write message data
+			if _, err := cmd.Write(messageData); err != nil {
+				return errors.Wrapf(err, "failed to write message data for email %d", i)
+			}
+
+			// Close writer
+			if err := cmd.Close(); err != nil {
+				return errors.Wrapf(err, "failed to close append command for email %d", i)
+			}
+
+			// Wait for command to complete
+			if _, err := cmd.Wait(); err != nil {
 				return errors.Wrapf(err, "failed to store email %d in IMAP server", i)
 			}
 		}
