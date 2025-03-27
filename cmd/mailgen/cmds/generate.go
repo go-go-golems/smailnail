@@ -21,6 +21,7 @@ import (
 	"github.com/go-go-golems/smailnail/pkg/mailgen"
 	mailgenTypes "github.com/go-go-golems/smailnail/pkg/types"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,7 +50,7 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 			cmds.WithLayersList(glazedLayer, imapLayer),
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
-					"config",
+					"configs",
 					parameters.ParameterTypeStringList,
 					parameters.WithHelp("Path to YAML config files"),
 					parameters.WithRequired(true),
@@ -78,7 +79,7 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 }
 
 type GenerateSettings struct {
-	ConfigFile []string `glazed.parameter:"config"`
+	ConfigFile []string `glazed.parameter:"configs"`
 	OutputDir  string   `glazed.parameter:"output-dir"`
 	WriteFiles bool     `glazed.parameter:"write-files"`
 	StoreIMAP  bool     `glazed.parameter:"store-imap"`
@@ -93,14 +94,18 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 ) error {
 	// Parse command settings
 	settings := &GenerateSettings{}
-	if err := parsedLayers.InitializeStruct("default", settings); err != nil {
+	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, settings); err != nil {
 		return err
 	}
-	if err := parsedLayers.InitializeStruct("imap", &settings.IMAPSettings); err != nil {
+	if err := parsedLayers.InitializeStruct(smailnail_imap.IMAPParameterLayerSlug, &settings.IMAPSettings); err != nil {
 		return err
 	}
 
+	log.Info().Msgf("Settings: %+v", settings)
+
 	var allEmails []*mailgenTypes.Email
+
+	log.Info().Msgf("Generating emails from %d config files", len(settings.ConfigFile))
 
 	// Process each config file independently
 	for _, configFile := range settings.ConfigFile {

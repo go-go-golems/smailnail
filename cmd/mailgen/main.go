@@ -5,8 +5,14 @@ import (
 	"os"
 
 	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/middlewares"
+	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/go-go-golems/smailnail/cmd/mailgen/cmds"
+
+	clay "github.com/go-go-golems/clay/pkg"
+
 	"github.com/spf13/cobra"
 )
 
@@ -21,13 +27,18 @@ func main() {
 	helpSystem := help.NewHelpSystem()
 	helpSystem.SetupCobraRootCommand(rootCmd)
 
+	err := clay.InitViper("smailnail", rootCmd)
+	cobra.CheckErr(err)
+
 	// Create and register the generate command
 	generateCommand, err := cmds.NewGenerateCommand()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building generate command: %v\n", err)
 		os.Exit(1)
 	}
-	generateCmd, err := cli.BuildCobraCommandFromCommand(generateCommand)
+	generateCmd, err := cli.BuildCobraCommandFromCommand(generateCommand,
+		cli.WithCobraMiddlewaresFunc(GetCobraCommandSmailnailMiddlewares),
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building generate command: %v\n", err)
 		os.Exit(1)
@@ -39,4 +50,33 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func GetCobraCommandSmailnailMiddlewares(
+	parsedCommandLayers *layers.ParsedLayers,
+	cmd *cobra.Command,
+	args []string,
+) ([]middlewares.Middleware, error) {
+	commandSettings := &cli.CommandSettings{}
+	err := parsedCommandLayers.InitializeStruct(cli.CommandSettingsSlug, commandSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	middlewares_ := []middlewares.Middleware{
+		middlewares.ParseFromCobraCommand(cmd,
+			parameters.WithParseStepSource("cobra"),
+		),
+		middlewares.GatherArguments(args,
+			parameters.WithParseStepSource("arguments"),
+		),
+	}
+
+	middlewares_ = append(middlewares_,
+		// viper and default
+		middlewares.GatherFlagsFromViper(parameters.WithParseStepSource("viper")),
+		middlewares.SetFromDefaults(parameters.WithParseStepSource("defaults")),
+	)
+
+	return middlewares_, nil
 }

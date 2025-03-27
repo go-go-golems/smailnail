@@ -19,10 +19,12 @@ type IMAPSettings struct {
 	Insecure bool   `glazed.parameter:"insecure"`
 }
 
+const IMAPParameterLayerSlug = "imap"
+
 // NewIMAPParameterLayer creates a new parameter layer for IMAP server settings
 func NewIMAPParameterLayer() (layers.ParameterLayer, error) {
 	return layers.NewParameterLayer(
-		"imap",
+		IMAPParameterLayerSlug,
 		"IMAP Server Connection Settings",
 		layers.WithParameterDefinitions(
 			parameters.NewParameterDefinition(
