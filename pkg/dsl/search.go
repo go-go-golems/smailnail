@@ -14,6 +14,25 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 	criteria := &imap.SearchCriteria{}
 	options := &imap.SearchOptions{}
 
+	// Process complex conditions first
+	if config.Operator != "" {
+		// Validate that we have conditions for the operator
+		if len(config.Conditions) == 0 {
+			switch config.Operator {
+			case OperatorAnd:
+				return nil, nil, fmt.Errorf("empty conditions list for AND operator")
+			case OperatorOr:
+				return nil, nil, fmt.Errorf("empty conditions list for OR operator")
+			case OperatorNot:
+				return nil, nil, fmt.Errorf("NOT operator requires at least one condition")
+			default:
+				return nil, nil, fmt.Errorf("unsupported operator: %s", config.Operator)
+			}
+		}
+
+		return buildComplexSearchCriteria(config, outputConfig)
+	}
+
 	// Process date criteria
 	if config.Since != "" {
 		since, err := parseDate(config.Since)
@@ -193,6 +212,143 @@ func BuildSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap
 	}
 
 	return criteria, options, nil
+}
+
+// buildComplexSearchCriteria handles the conversion of complex nested conditions
+func buildComplexSearchCriteria(config SearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, *imap.SearchOptions, error) {
+	options := &imap.SearchOptions{}
+
+	// Set search options for pagination
+	if outputConfig != nil {
+		// Copy the same pagination logic as in BuildSearchCriteria
+		if outputConfig.Limit > 0 {
+			options.ReturnAll = true
+			options.ReturnCount = true
+		}
+	}
+
+	// Process nested conditions based on operator
+	switch config.Operator {
+	case OperatorAnd:
+		return buildAndCondition(config.Conditions, outputConfig)
+	case OperatorOr:
+		return buildOrCondition(config.Conditions, outputConfig)
+	case OperatorNot:
+		if len(config.Conditions) == 0 {
+			return nil, nil, fmt.Errorf("NOT operator requires at least one condition")
+		}
+
+		// NOT operator should have exactly one condition
+		if len(config.Conditions) > 1 {
+			return nil, nil, fmt.Errorf("operator 'not' can only have one condition, but %d were provided", len(config.Conditions))
+		}
+
+		return buildNotCondition(config.Conditions[0], outputConfig)
+	default:
+		return nil, nil, fmt.Errorf("unsupported operator: %s", config.Operator)
+	}
+}
+
+// buildAndCondition creates a criteria with AND logic for multiple conditions
+func buildAndCondition(conditions []ComplexSearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, *imap.SearchOptions, error) {
+	if len(conditions) == 0 {
+		return nil, nil, fmt.Errorf("empty conditions list for AND operator")
+	}
+
+	// Start with the first condition
+	mainCriteria, options, err := buildSingleCondition(conditions[0], outputConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// AND with each subsequent condition
+	for i := 1; i < len(conditions); i++ {
+		subCriteria, _, err := buildSingleCondition(conditions[i], nil)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Use the And method to combine criteria
+		mainCriteria.And(subCriteria)
+	}
+
+	return mainCriteria, options, nil
+}
+
+// buildOrCondition creates a criteria with OR logic for multiple conditions
+func buildOrCondition(conditions []ComplexSearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, *imap.SearchOptions, error) {
+	if len(conditions) == 0 {
+		return nil, nil, fmt.Errorf("empty conditions list for OR operator")
+	}
+
+	// Handle special case of a single condition
+	if len(conditions) == 1 {
+		return buildSingleCondition(conditions[0], outputConfig)
+	}
+
+	// Create the result criteria
+	resultCriteria := &imap.SearchCriteria{}
+	var options *imap.SearchOptions
+
+	// Process each pair of conditions and create OR operations
+	for i := 0; i < len(conditions); i += 2 {
+		// Get first condition
+		c1, opts, err := buildSingleCondition(conditions[i], nil)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Save options from first iteration
+		if i == 0 && outputConfig != nil {
+			options = opts
+		}
+
+		// If we have an odd number of conditions and this is the last one
+		if i == len(conditions)-1 {
+			// Handle special case: last single condition in odd-length list
+			orPair := [2]imap.SearchCriteria{*c1, 
+			resultCriteria.Or = append(resultCriteria.Or, orPair)
+			continue
+		}
+
+		// Get second condition
+		c2, _, err := buildSingleCondition(conditions[i+1], nil)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Create OR pair
+		orPair := [2]imap.SearchCriteria{*c1, *c2}
+		resultCriteria.Or = append(resultCriteria.Or, orPair)
+	}
+
+	return resultCriteria, options, nil
+}
+
+// buildNotCondition creates a criteria with NOT logic for a condition
+func buildNotCondition(condition ComplexSearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, *imap.SearchOptions, error) {
+	subCriteria, options, err := buildSingleCondition(condition, outputConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create the result with NOT logic
+	resultCriteria := &imap.SearchCriteria{
+		Not: []imap.SearchCriteria{*subCriteria},
+	}
+
+	return resultCriteria, options, nil
+}
+
+// buildSingleCondition builds search criteria for a single complex condition
+func buildSingleCondition(condition ComplexSearchConfig, outputConfig *OutputConfig) (*imap.SearchCriteria, *imap.SearchOptions, error) {
+	// If this is itself a complex condition with an operator, recursively process it
+	if condition.Operator != "" && len(condition.Conditions) > 0 {
+		return buildComplexSearchCriteria(condition.SearchConfig, outputConfig)
+	}
+
+	// Otherwise, treat it as a flat condition
+	return BuildSearchCriteria(condition.SearchConfig, outputConfig)
 }
 
 // parseDate parses a date string in RFC3339 or ISO8601 format

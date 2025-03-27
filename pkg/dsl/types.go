@@ -9,6 +9,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Operator represents a boolean logic operator
+type Operator string
+
+const (
+	OperatorAnd Operator = "and"
+	OperatorOr  Operator = "or"
+	OperatorNot Operator = "not"
+)
+
 // Rule represents a complete IMAP DSL rule
 type Rule struct {
 	Name        string       `yaml:"name"`
@@ -60,6 +69,16 @@ type SearchConfig struct {
 
 	// Size-based search
 	Size *SizeCriteria `yaml:"size,omitempty"`
+
+	// Complex conditions with boolean operators
+	Operator   Operator              `yaml:"operator,omitempty"`
+	Conditions []ComplexSearchConfig `yaml:"conditions,omitempty"`
+}
+
+// ComplexSearchConfig defines a search condition that can contain nested conditions
+type ComplexSearchConfig struct {
+	// Base search criteria fields (same as SearchConfig fields)
+	SearchConfig `yaml:",inline"`
 }
 
 // HeaderCriteria defines criteria for searching specific headers
@@ -138,7 +157,36 @@ func (s *SearchConfig) Validate() error {
 		}
 	}
 
+	// Validate complex conditions
+	if s.Operator != "" {
+		if s.Operator != OperatorAnd && s.Operator != OperatorOr && s.Operator != OperatorNot {
+			return fmt.Errorf("invalid operator: %s (must be 'and', 'or', or 'not')", s.Operator)
+		}
+
+		if len(s.Conditions) == 0 {
+			return fmt.Errorf("operator %s specified but no conditions provided", s.Operator)
+		}
+
+		// NOT operator should have exactly one condition
+		if s.Operator == OperatorNot && len(s.Conditions) > 1 {
+			return fmt.Errorf("operator 'not' can only have one condition, but %d were provided", len(s.Conditions))
+		}
+
+		// Validate each nested condition
+		for i, condition := range s.Conditions {
+			if err := condition.Validate(); err != nil {
+				return fmt.Errorf("invalid condition at index %d: %w", i, err)
+			}
+		}
+	}
+
 	return nil
+}
+
+// Validate checks if the complex search config is valid
+func (c *ComplexSearchConfig) Validate() error {
+	// Validate base criteria
+	return c.SearchConfig.Validate()
 }
 
 // OutputConfig defines output formatting

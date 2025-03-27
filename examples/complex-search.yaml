@@ -1,0 +1,107 @@
+name: "Complex Search Example"
+description: "Demonstration of complex nested boolean operators for IMAP search"
+
+---
+name: "Find Important Team Emails"
+description: "Search for important team emails with various criteria"
+search:
+  operator: and
+  conditions:
+    - from: "team@company.com"
+    - operator: or
+      conditions:
+        - flags:
+            has: ["flagged"]
+        - subject_contains: "URGENT"
+
+output:
+  format: json
+  fields:
+    - uid
+    - subject
+    - from
+    - date
+
+---
+name: "Find Non-Newsletter Emails"
+description: "Find emails that are not newsletters"
+search:
+  operator: not
+  conditions:
+    - operator: and
+      conditions:
+        - from: "newsletter@example.com"
+        - subject_contains: "Weekly"
+
+output:
+  format: table
+  fields:
+    - subject
+    - from
+    - date
+
+---
+name: "Specific Date Range with Multiple Senders"
+description: "Find emails within a date range from specific senders"
+search:
+  operator: and
+  conditions:
+    - since: "2024-01-01"
+    - before: "2024-03-01"
+    - operator: or
+      conditions:
+        - from: "alice@example.com"
+        - from: "bob@example.com"
+        - from: "charlie@example.com"
+
+output:
+  format: json
+  fields:
+    - uid
+    - subject
+    - from
+    - date
+
+---
+name: "Complex Nested Query"
+description: "A complex query with multiple levels of nesting"
+search:
+  operator: and
+  conditions:
+    # Must be received this year
+    - since: "2024-01-01"
+    
+    # Must either be flagged OR have URGENT in subject
+    - operator: or
+      conditions:
+        - flags:
+            has: ["flagged"]
+        - subject_contains: "URGENT"
+    
+    # Must NOT be from spam domains
+    - operator: not
+      conditions:
+        - operator: or
+          conditions:
+            - from: "*@spam.com"
+            - from: "*@unwanted.org"
+    
+    # Must either be large or have attachments in the subject line
+    - operator: or
+      conditions:
+        - size:
+            larger_than: "5M"
+        - subject_contains: "attachment"
+
+output:
+  format: json
+  fields:
+    - uid
+    - subject
+    - from
+    - date
+    - size
+    - flags
+    - body:
+        type: "text/plain"
+        max_length: 200 
