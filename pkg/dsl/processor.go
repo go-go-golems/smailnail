@@ -37,6 +37,7 @@ package dsl
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"time"
 
@@ -543,6 +544,25 @@ func ProcessRule(client *imapclient.Client, rule *Rule) error {
 		Str("rule", rule.Name).
 		Int("messages_output", len(messages)).
 		Str("output_duration", time.Since(outputStartTime).String()).
+		Msg("Messages output complete")
+
+	// 3. Execute actions if specified
+	if !reflect.DeepEqual(rule.Actions, ActionConfig{}) {
+		actionsStartTime := time.Now()
+		err = ExecuteActions(client, messages, &rule.Actions)
+		if err != nil {
+			return fmt.Errorf("failed to execute actions: %w", err)
+		}
+
+		log.Info().
+			Str("rule", rule.Name).
+			Str("actions_duration", time.Since(actionsStartTime).String()).
+			Msg("Actions executed successfully")
+	}
+
+	log.Info().
+		Str("rule", rule.Name).
+		Int("messages_processed", len(messages)).
 		Str("total_duration", time.Since(startTime).String()).
 		Msg("Rule processing complete")
 

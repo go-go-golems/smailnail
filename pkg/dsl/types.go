@@ -24,6 +24,7 @@ type Rule struct {
 	Description string       `yaml:"description"`
 	Search      SearchConfig `yaml:"search"`
 	Output      OutputConfig `yaml:"output"`
+	Actions     ActionConfig `yaml:"actions,omitempty"`
 }
 
 // Validate checks if the rule is valid
@@ -38,6 +39,11 @@ func (r *Rule) Validate() error {
 
 	if err := r.Output.Validate(); err != nil {
 		return fmt.Errorf("invalid output config: %w", err)
+	}
+
+	// Validate actions if present
+	if err := r.Actions.Validate(); err != nil {
+		return fmt.Errorf("invalid actions config: %w", err)
 	}
 
 	return nil
@@ -458,4 +464,106 @@ func isValidFlag(flag string) bool {
 	// Allow keywords (alphanumeric plus some special chars)
 	match, _ := regexp.MatchString(`^[a-zA-Z0-9_.-]+$`, flag)
 	return match
+}
+
+// ActionConfig defines actions to perform on matched messages
+type ActionConfig struct {
+	// Flag operations
+	Flags *FlagActions `yaml:"flags,omitempty"`
+
+	// Move/Copy operations
+	MoveTo string `yaml:"move_to,omitempty"`
+	CopyTo string `yaml:"copy_to,omitempty"`
+
+	// Delete operation
+	Delete interface{} `yaml:"delete,omitempty"` // Can be bool or DeleteConfig
+
+	// Export operation
+	Export *ExportConfig `yaml:"export,omitempty"`
+}
+
+// FlagActions defines add/remove flag operations
+type FlagActions struct {
+	Add    []string `yaml:"add,omitempty"`
+	Remove []string `yaml:"remove,omitempty"`
+}
+
+// Validate checks if the action config is valid
+func (a *ActionConfig) Validate() error {
+	// Validate flag actions
+	if a.Flags != nil {
+		if err := a.Flags.Validate(); err != nil {
+			return fmt.Errorf("invalid flag actions: %w", err)
+		}
+	}
+
+	// Validate export config
+	if a.Export != nil {
+		if err := a.Export.Validate(); err != nil {
+			return fmt.Errorf("invalid export config: %w", err)
+		}
+	}
+
+	// Validate delete configuration
+	if a.Delete != nil {
+		switch deleteConfig := a.Delete.(type) {
+		case bool:
+			// Boolean is always valid
+		case map[string]interface{}:
+			// If it's a map, it should be convertible to DeleteConfig
+			if _, ok := deleteConfig["trash"]; !ok {
+				return fmt.Errorf("delete config must have a 'trash' field")
+			}
+		default:
+			return fmt.Errorf("delete config must be a boolean or an object with a 'trash' field")
+		}
+	}
+
+	return nil
+}
+
+// Validate checks if the flag actions are valid
+func (f *FlagActions) Validate() error {
+	// Validate add flags
+	for _, flag := range f.Add {
+		if !isValidFlag(flag) {
+			return fmt.Errorf("invalid flag in 'add' list: %s", flag)
+		}
+	}
+
+	// Validate remove flags
+	for _, flag := range f.Remove {
+		if !isValidFlag(flag) {
+			return fmt.Errorf("invalid flag in 'remove' list: %s", flag)
+		}
+	}
+
+	return nil
+}
+
+// Validate checks if the export config is valid
+func (e *ExportConfig) Validate() error {
+	// Validate format
+	if e.Format != "" && e.Format != "eml" && e.Format != "mbox" {
+		return fmt.Errorf("invalid format: %s (must be 'eml' or 'mbox')", e.Format)
+	}
+
+	// If no format is specified, default to "eml"
+	if e.Format == "" {
+		e.Format = "eml"
+	}
+
+	return nil
+}
+
+// DeleteConfig provides options for delete operations
+type DeleteConfig struct {
+	Trash bool `yaml:"trash,omitempty"` // If true, move to trash; if false, delete permanently
+}
+
+// ExportConfig defines options for exporting messages
+type ExportConfig struct {
+	Format           string `yaml:"format,omitempty"`            // eml, mbox
+	Directory        string `yaml:"directory,omitempty"`         // Where to save files
+	FilenameTemplate string `yaml:"filename_template,omitempty"` // Template for filenames
 }

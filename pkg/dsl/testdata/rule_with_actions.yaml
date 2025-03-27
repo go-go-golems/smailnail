@@ -1,0 +1,23 @@
+name: Test Rule with Actions
+description: A test rule that demonstrates actions functionality
+search:
+  flags:
+    not_has: ["seen"]
+  subject_contains: "Important"
+output:
+  format: json
+  fields:
+    - uid
+    - subject
+    - from
+    - flags
+actions:
+  flags:
+    add: ["seen", "flagged"]
+    remove: ["draft"]
+  copy_to: "Archive/2025"
+  # move_to: "Important" # Uncomment to test move operation
+  # delete: true # Uncomment to test delete operation
+  export:
+    format: eml
+    directory: "./exported_emails" 
