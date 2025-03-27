@@ -1,3 +1,37 @@
+/*
+Package dsl implements a domain-specific language for IMAP interactions.
+
+The processor.go file is responsible for executing IMAP DSL rules against an IMAP server.
+It handles the end-to-end workflow of taking a Rule structure, executing the corresponding
+search, fetching the matching messages, and processing their content according to the
+rule's output configuration.
+
+Key components:
+- FetchMessages: Retrieves messages from an IMAP server based on the search criteria in a rule
+- ProcessRule: Orchestrates the entire rule execution process
+- Message content handling: Efficiently fetches and processes message MIME parts
+- Pagination and batching: Handles large result sets with pagination and batched MIME part fetching
+
+The processor implements a multi-stage workflow:
+1. Convert the rule's search criteria to IMAP search commands
+2. Execute the search to get matching message sequence numbers
+3. First fetch: retrieve message metadata and structure
+4. Analyze message structure to determine required MIME parts
+5. Second fetch: batch retrieve content for all required MIME parts
+6. Process messages and their content into the internal EmailMessage format
+7. Output the processed messages according to the rule's output configuration
+
+The system is optimized to reduce round trips to the server through:
+- Batching requests for multiple messages
+- Fetching only the required MIME parts based on content type
+- Processing messages in a streaming fashion where possible
+
+For large result sets, the processor respects pagination settings through:
+- An offset-based approach for skipping messages
+- Limiting the number of messages fetched
+- Supporting UID-based pagination ranges
+*/
+
 package dsl
 
 import (

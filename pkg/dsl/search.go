@@ -1,3 +1,29 @@
+/*
+Package dsl implements a domain-specific language for IMAP interactions.
+
+The search.go file provides the core search functionality for the IMAP DSL. It converts
+search criteria from the DSL format into the go-imap library's SearchCriteria objects.
+This translation layer is what allows users to write simple YAML rules that get mapped to
+complex IMAP protocol search operations.
+
+Key components:
+- BuildSearchCriteria: The main entry point that converts SearchConfig structs to imap.SearchCriteria
+- Complex conditions: Support for nested boolean operators (AND, OR, NOT) that can be arbitrarily nested
+- Date handling: Converting date specifications (since, before, on, within_days) to precise time ranges
+- Header matching: Searching across email headers (from, to, cc, subject, etc.)
+- Flag operations: Searching by message flags (seen, flagged, etc.)
+- Size constraints: Filtering by message size (larger/smaller than)
+
+The search functionality supports both simple flat search criteria and complex nested boolean
+expressions. Complex conditions are processed through a recursive tree structure where each
+node can be a boolean operator (AND, OR, NOT) with child conditions. The implementation correctly
+handles the conversion between the DSL model and the imap.SearchCriteria representation used by
+the underlying go-imap library.
+
+For pagination, the search system also handles both offset-based pagination and UID-based
+pagination (using afterUID and beforeUID parameters).
+*/
+
 package dsl
 
 import (
@@ -306,7 +332,9 @@ func buildOrCondition(conditions []ComplexSearchConfig, outputConfig *OutputConf
 		// If we have an odd number of conditions and this is the last one
 		if i == len(conditions)-1 {
 			// Handle special case: last single condition in odd-length list
-			orPair := [2]imap.SearchCriteria{*c1, 
+			// Create an empty criteria for the second part of the OR pair
+			emptyC2 := imap.SearchCriteria{}
+			orPair := [2]imap.SearchCriteria{*c1, emptyC2}
 			resultCriteria.Or = append(resultCriteria.Or, orPair)
 			continue
 		}
