@@ -25,10 +25,6 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "smailnail",
 		Short: "Process mail rules on an IMAP server",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			err := clay.InitLogger()
-			cobra.CheckErr(err)
-		},
 	}
 
 	helpSystem := help.NewHelpSystem()
@@ -36,8 +32,6 @@ func main() {
 
 	// initializing as snailmail-service to get all the environment variables
 	err := clay.InitViper("smailnail", rootCmd)
-	cobra.CheckErr(err)
-	err = clay.InitLogger()
 	cobra.CheckErr(err)
 
 	log.Debug().Msg("Starting smailnail")
