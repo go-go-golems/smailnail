@@ -23,7 +23,7 @@ type CreateMailboxCommand struct {
 type CreateMailboxSettings struct {
 	NewMailbox string `glazed.parameter:"new-mailbox"`
 	Force      bool   `glazed.parameter:"force"`
-	
+
 	// IMAP settings
 	imap.IMAPSettings
 }
@@ -181,4 +181,4 @@ func listMailboxes(client *imapclient.Client) ([]string, error) {
 	}
 
 	return mailboxes, nil
-} 
+}
