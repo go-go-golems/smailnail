@@ -11,5 +11,5 @@ Today I want to:
 - once I have the server running I want to use it to test smailnail and different complex rules
 
 
-- implement nested logical rules in my DSL
+- [ ] implement nested logical rules in my DSL
 - implement actions in my DSL as well
