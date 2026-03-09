@@ -15,7 +15,15 @@ func AddMCPCommand(rootCmd *cobra.Command) error {
 			embeddable.WithStringArg("code", "JavaScript source to execute", true),
 		),
 		embeddable.WithTool("getIMAPJSDocumentation", getIMAPJSDocumentationHandler,
-			embeddable.WithDescription("Documentation query tool placeholder; implementation added in a later slice"),
+			embeddable.WithDescription("Query the structured smailnail JavaScript API documentation by mode, symbol, concept, example, or render output"),
+			embeddable.WithStringArg("mode", "Documentation query mode: overview, package, symbol, example, concept, search, or render", false),
+			embeddable.WithStringArg("package", "Package name for package or overview mode", false),
+			embeddable.WithStringArg("symbol", "Symbol name for symbol mode", false),
+			embeddable.WithStringArg("example", "Example id for example mode", false),
+			embeddable.WithStringArg("concept", "Concept name for concept mode", false),
+			embeddable.WithStringArg("query", "Free-text query for search mode", false),
+			embeddable.WithIntArg("limit", "Maximum number of symbols or examples to return", false),
+			embeddable.WithBoolArg("includeBody", "Include example source bodies in results", false),
 		),
 	)
 }
