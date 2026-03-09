@@ -8,6 +8,11 @@ It currently contains three CLIs:
 - `mailgen`: generate synthetic email from YAML templates and optionally append it to IMAP
 - `imap-tests`: helper commands for creating mailboxes and storing fixture messages
 
+The repository now also contains an initial reusable JavaScript surface:
+
+- `pkg/services/smailnailjs`: a Go service package for rule parsing/building and JS-friendly result shaping
+- `pkg/js/modules/smailnail`: a native `go-go-goja` module exposed as `require("smailnail")`
+
 ## Build
 
 ```bash
@@ -133,3 +138,14 @@ make smoke-docker-imap
 ```
 
 If the fixture lives somewhere else locally, override it with `DOCKER_IMAP_FIXTURE_ROOT=/path/to/docker-test-dovecot`.
+
+## JavaScript module smoke
+
+To validate the initial JavaScript service/module slice:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+make smoke-js-module
+```
+
+That smoke path runs the service-layer tests and the goja runtime integration tests that prove `require("smailnail")` works.

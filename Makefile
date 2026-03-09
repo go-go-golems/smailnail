@@ -1,4 +1,4 @@
-.PHONY: gifs smoke-docker-imap
+.PHONY: gifs smoke-docker-imap smoke-js-module
 
 all: gifs
 
@@ -53,3 +53,6 @@ install:
 
 smoke-docker-imap:
 	./scripts/docker-imap-smoke.sh
+
+smoke-js-module:
+	./scripts/js-module-smoke.sh
