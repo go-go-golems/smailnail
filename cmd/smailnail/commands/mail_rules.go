@@ -9,8 +9,9 @@ import (
 
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -26,21 +27,21 @@ type MailRulesCommand struct {
 }
 
 type MailRulesSettings struct {
-	RuleFile             string `glazed.parameter:"rule"`
-	ConcatenateMimeParts bool   `glazed.parameter:"concatenate-mime-parts"`
-	PrintRule            bool   `glazed.parameter:"print-rule"`
+	RuleFile             string `glazed:"rule"`
+	ConcatenateMimeParts bool   `glazed:"concatenate-mime-parts"`
+	PrintRule            bool   `glazed:"print-rule"`
 	imap.IMAPSettings
 }
 
 func NewMailRulesCommand() (*MailRulesCommand, error) {
-	layer, err := settings.NewGlazedParameterLayers()
+	glazedSection, err := settings.NewGlazedSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
+		return nil, fmt.Errorf("failed to create glazed section: %w", err)
 	}
 
-	imapLayer, err := imap.NewIMAPParameterLayer()
+	imapSection, err := imap.NewIMAPSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
+		return nil, fmt.Errorf("failed to create IMAP section: %w", err)
 	}
 
 	return &MailRulesCommand{
@@ -49,40 +50,40 @@ func NewMailRulesCommand() (*MailRulesCommand, error) {
 			cmds.WithShort("Process mail rules on an IMAP server"),
 			cmds.WithLong("This command connects to an IMAP server and processes mail rules defined in a YAML file"),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"rule",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Path to YAML rule file"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Path to YAML rule file"),
+					fields.WithRequired(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"concatenate-mime-parts",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Concatenate all MIME parts into a single content string instead of showing structured output"),
-					parameters.WithDefault(true),
+					fields.TypeBool,
+					fields.WithHelp("Concatenate all MIME parts into a single content string instead of showing structured output"),
+					fields.WithDefault(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"print-rule",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Print the rule instead of executing it"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Print the rule instead of executing it"),
+					fields.WithDefault(false),
 				),
 			),
-			cmds.WithLayersList(imapLayer, layer),
+			cmds.WithSections(glazedSection, imapSection),
 		),
 	}, nil
 }
 
 func (c *MailRulesCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	settings := &MailRulesSettings{}
-	if err := parsedLayers.InitializeStruct("default", settings); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, settings); err != nil {
 		return err
 	}
-	if err := parsedLayers.InitializeStruct("imap", &settings.IMAPSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(imap.IMAPSectionSlug, &settings.IMAPSettings); err != nil {
 		return err
 	}
 

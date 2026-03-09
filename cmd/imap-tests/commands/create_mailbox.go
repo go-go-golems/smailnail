@@ -7,8 +7,9 @@ import (
 
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -21,22 +22,22 @@ type CreateMailboxCommand struct {
 }
 
 type CreateMailboxSettings struct {
-	NewMailbox string `glazed.parameter:"new-mailbox"`
-	Force      bool   `glazed.parameter:"force"`
+	NewMailbox string `glazed:"new-mailbox"`
+	Force      bool   `glazed:"force"`
 
 	// IMAP settings
 	imap.IMAPSettings
 }
 
 func NewCreateMailboxCommand() (*CreateMailboxCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
+	glazedSection, err := settings.NewGlazedSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create glazed parameter layer: %w", err)
+		return nil, fmt.Errorf("failed to create glazed section: %w", err)
 	}
 
-	imapLayer, err := imap.NewIMAPParameterLayer()
+	imapSection, err := imap.NewIMAPSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
+		return nil, fmt.Errorf("failed to create IMAP section: %w", err)
 	}
 
 	return &CreateMailboxCommand{
@@ -45,22 +46,22 @@ func NewCreateMailboxCommand() (*CreateMailboxCommand, error) {
 			cmds.WithShort("Create a new mailbox on an IMAP server"),
 			cmds.WithLong("This command creates a new mailbox on an IMAP server if it doesn't already exist"),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"new-mailbox",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Name of the mailbox to create"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Name of the mailbox to create"),
+					fields.WithRequired(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"force",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Force creation even if mailbox already exists (will delete and recreate)"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Force creation even if mailbox already exists (will delete and recreate)"),
+					fields.WithDefault(false),
 				),
 			),
-			cmds.WithLayersList(
-				glazedParameterLayer,
-				imapLayer,
+			cmds.WithSections(
+				glazedSection,
+				imapSection,
 			),
 		),
 	}, nil
@@ -68,14 +69,14 @@ func NewCreateMailboxCommand() (*CreateMailboxCommand, error) {
 
 func (c *CreateMailboxCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	settings := &CreateMailboxSettings{}
-	if err := parsedLayers.InitializeStruct("default", settings); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, settings); err != nil {
 		return err
 	}
-	if err := parsedLayers.InitializeStruct("imap", &settings.IMAPSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(imap.IMAPSectionSlug, &settings.IMAPSettings); err != nil {
 		return err
 	}
 

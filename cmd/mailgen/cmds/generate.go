@@ -12,8 +12,9 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/mail"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -32,14 +33,14 @@ type GenerateCommand struct {
 
 // NewGenerateCommand creates a new generate command
 func NewGenerateCommand() (*GenerateCommand, error) {
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedSection, err := settings.NewGlazedSection()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create glazed parameter layers")
+		return nil, errors.Wrap(err, "failed to create glazed section")
 	}
 
-	imapLayer, err := smailnail_imap.NewIMAPParameterLayer()
+	imapSection, err := smailnail_imap.NewIMAPSection()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create IMAP parameter layer")
+		return nil, errors.Wrap(err, "failed to create IMAP section")
 	}
 
 	return &GenerateCommand{
@@ -47,31 +48,31 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 			"generate",
 			cmds.WithShort("Generate emails from template"),
 			cmds.WithLong("Generate emails from template using YAML configuration"),
-			cmds.WithLayersList(glazedLayer, imapLayer),
+			cmds.WithSections(glazedSection, imapSection),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"configs",
-					parameters.ParameterTypeStringList,
-					parameters.WithHelp("Path to YAML config files"),
-					parameters.WithRequired(true),
+					fields.TypeStringList,
+					fields.WithHelp("Path to YAML config files"),
+					fields.WithRequired(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"output-dir",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Directory to output generated emails"),
-					parameters.WithDefault("./output"),
+					fields.TypeString,
+					fields.WithHelp("Directory to output generated emails"),
+					fields.WithDefault("./output"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"write-files",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Write emails to files"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Write emails to files"),
+					fields.WithDefault(false),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"store-imap",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Store generated emails in IMAP server"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Store generated emails in IMAP server"),
+					fields.WithDefault(false),
 				),
 			),
 		),
@@ -79,25 +80,25 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 }
 
 type GenerateSettings struct {
-	ConfigFile []string `glazed.parameter:"configs"`
-	OutputDir  string   `glazed.parameter:"output-dir"`
-	WriteFiles bool     `glazed.parameter:"write-files"`
-	StoreIMAP  bool     `glazed.parameter:"store-imap"`
+	ConfigFile []string `glazed:"configs"`
+	OutputDir  string   `glazed:"output-dir"`
+	WriteFiles bool     `glazed:"write-files"`
+	StoreIMAP  bool     `glazed:"store-imap"`
 	smailnail_imap.IMAPSettings
 }
 
 // RunIntoGlazeProcessor generates emails and outputs them as structured data
 func (c *GenerateCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse command settings
 	settings := &GenerateSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, settings); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, settings); err != nil {
 		return err
 	}
-	if err := parsedLayers.InitializeStruct(smailnail_imap.IMAPParameterLayerSlug, &settings.IMAPSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(smailnail_imap.IMAPSectionSlug, &settings.IMAPSettings); err != nil {
 		return err
 	}
 

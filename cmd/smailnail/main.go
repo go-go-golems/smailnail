@@ -6,11 +6,9 @@ import (
 	"os"
 	"os/signal"
 
-	clay "github.com/go-go-golems/clay/pkg"
 	"github.com/go-go-golems/glazed/pkg/cli"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/middlewares"
 	"github.com/go-go-golems/glazed/pkg/help"
+	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/go-go-golems/smailnail/cmd/smailnail/commands"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -28,33 +26,9 @@ func main() {
 	}
 
 	helpSystem := help.NewHelpSystem()
-	helpSystem.SetupCobraRootCommand(rootCmd)
-
-	// initializing as snailmail-service to get all the environment variables
-	err := clay.InitViper("smailnail", rootCmd)
-	cobra.CheckErr(err)
+	help_cmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
 	log.Debug().Msg("Starting smailnail")
-
-	// Configure middlewares for all commands
-	middlewaresFunc := func(
-		parsedLayers *layers.ParsedLayers,
-		cmd *cobra.Command,
-		args []string,
-	) ([]middlewares.Middleware, error) {
-		log.Debug().Msg("Setting up middlewares")
-		return []middlewares.Middleware{
-			// Command line args (highest priority)
-			middlewares.ParseFromCobraCommand(cmd),
-			middlewares.GatherArguments(args),
-
-			// Viper config for environment variables
-			middlewares.GatherFlagsFromViper(),
-
-			// Defaults (lowest priority)
-			middlewares.SetFromDefaults(),
-		}, nil
-	}
 
 	// Create and add the mail-rules command
 	mailRulesCmd, err := commands.NewMailRulesCommand()
@@ -64,7 +38,9 @@ func main() {
 	}
 
 	cobraMailRulesCmd, err := cli.BuildCobraCommandFromCommand(mailRulesCmd,
-		cli.WithCobraMiddlewaresFunc(middlewaresFunc),
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
 	)
 	if err != nil {
 		fmt.Printf("Error building Cobra command: %v\n", err)
@@ -80,7 +56,9 @@ func main() {
 	}
 
 	cobraFetchMailCmd, err := cli.BuildCobraCommandFromCommand(fetchMailCmd,
-		cli.WithCobraMiddlewaresFunc(middlewaresFunc),
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
 	)
 	if err != nil {
 		fmt.Printf("Error building Cobra command: %v\n", err)
