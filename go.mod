@@ -4,10 +4,12 @@ go 1.23.4
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
+	github.com/dop251/goja v0.0.0-20250630131328-58d95d85e994
 	github.com/emersion/go-imap/v2 v2.0.0-beta.5
 	github.com/emersion/go-message v0.18.2
 	github.com/go-go-golems/clay v0.1.34
 	github.com/go-go-golems/glazed v0.5.39
+	github.com/go-go-golems/go-go-goja v0.4.2
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/cobra v1.9.1

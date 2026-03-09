@@ -16,6 +16,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/smailnail/pkg/dsl"
 	"github.com/go-go-golems/smailnail/pkg/imap"
+	"github.com/go-go-golems/smailnail/pkg/services/smailnailjs"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
@@ -441,91 +442,30 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 
 // Build a Rule struct from command line settings
 func (c *FetchMailCommand) buildRuleFromSettings(settings *FetchMailSettings) (*dsl.Rule, error) {
-	// Start building the search config
-	searchConfig := dsl.SearchConfig{
-		Since:           settings.Since,
-		Before:          settings.Before,
-		WithinDays:      settings.WithinDays,
-		From:            settings.From,
-		To:              settings.To,
-		Subject:         settings.Subject,
-		SubjectContains: settings.SubjectContains,
-		BodyContains:    settings.BodyContains,
-	}
-
-	// Add flag criteria if specified
-	if len(settings.HasFlags) > 0 || len(settings.DoesNotHaveFlags) > 0 {
-		searchConfig.Flags = &dsl.FlagCriteria{
-			Has:    settings.HasFlags,
-			NotHas: settings.DoesNotHaveFlags,
-		}
-	}
-
-	// Add size criteria if specified
-	if settings.LargerThan != "" || settings.SmallerThan != "" {
-		searchConfig.Size = &dsl.SizeCriteria{
-			LargerThan:  settings.LargerThan,
-			SmallerThan: settings.SmallerThan,
-		}
-	}
-
-	// Build fields for output config
-	var fields []interface{}
-
-	// Always include basic email fields
-	fields = append(fields,
-		dsl.Field{Name: "uid"},
-		dsl.Field{Name: "subject"},
-		dsl.Field{Name: "from"},
-		dsl.Field{Name: "to"},
-		dsl.Field{Name: "date"},
-		dsl.Field{Name: "flags"},
-		dsl.Field{Name: "size"},
-	)
-
-	// Add content field if needed
-	if settings.IncludeContent {
-		contentField := &dsl.ContentField{
-			ShowContent: true,
-			MaxLength:   settings.ContentMaxLength,
-		}
-
-		// Set types for filtering
-		if settings.ContentType != "" {
-			contentField.Mode = "filter"
-			contentField.Types = []string{settings.ContentType}
-		}
-
-		fields = append(fields, dsl.Field{
-			Name:    "mime_parts",
-			Content: contentField,
-		})
-	}
-
-	// Create output config
-	outputConfig := dsl.OutputConfig{
-		Format:    settings.Format,
-		Limit:     settings.Limit,
-		Offset:    settings.Offset,
-		AfterUID:  settings.AfterUID,
-		BeforeUID: settings.BeforeUID,
-		Fields:    fields,
-	}
-
-	// Create the rule
-	rule := &dsl.Rule{
-		Name:        "cli-rule",
-		Description: "Rule generated from command line arguments",
-		Search:      searchConfig,
-		Output:      outputConfig,
-	}
-
-	// Validate the rule
-	if err := rule.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid rule: %w", err)
-	}
-
-	return rule, nil
+	return smailnailjs.BuildDSLRule(smailnailjs.BuildRuleOptions{
+		Name:             "cli-rule",
+		Description:      "Rule generated from command line arguments",
+		Since:            settings.Since,
+		Before:           settings.Before,
+		WithinDays:       settings.WithinDays,
+		From:             settings.From,
+		To:               settings.To,
+		Subject:          settings.Subject,
+		SubjectContains:  settings.SubjectContains,
+		BodyContains:     settings.BodyContains,
+		HasFlags:         settings.HasFlags,
+		NotHasFlags:      settings.DoesNotHaveFlags,
+		LargerThan:       settings.LargerThan,
+		SmallerThan:      settings.SmallerThan,
+		Limit:            settings.Limit,
+		Offset:           settings.Offset,
+		AfterUID:         settings.AfterUID,
+		BeforeUID:        settings.BeforeUID,
+		Format:           settings.Format,
+		IncludeContent:   settings.IncludeContent,
+		ContentType:      settings.ContentType,
+		ContentMaxLength: settings.ContentMaxLength,
+	})
 }
 
 func (c *FetchMailCommand) selectMailbox(client *imapclient.Client, mailbox string) error {
