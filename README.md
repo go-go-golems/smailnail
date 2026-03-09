@@ -8,6 +8,10 @@ It currently contains three CLIs:
 - `mailgen`: generate synthetic email from YAML templates and optionally append it to IMAP
 - `imap-tests`: helper commands for creating mailboxes and storing fixture messages
 
+There is also a dedicated MCP binary for the JavaScript runtime:
+
+- `smailnail-imap-mcp`: exposes `executeIMAPJS` and `getIMAPJSDocumentation`
+
 The repository now also contains an initial reusable JavaScript surface:
 
 - `pkg/services/smailnailjs`: a Go service package for rule parsing/building and JS-friendly result shaping
@@ -17,7 +21,7 @@ The repository now also contains an initial reusable JavaScript surface:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests
+go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp
 ```
 
 ## Commands
@@ -98,6 +102,27 @@ go run ./cmd/imap-tests store-text-message \
   --output json
 ```
 
+### `smailnail-imap-mcp`
+
+List the exposed MCP tools:
+
+```bash
+go run ./cmd/smailnail-imap-mcp mcp list-tools
+```
+
+Start the server over stdio, SSE, or streamable HTTP:
+
+```bash
+go run ./cmd/smailnail-imap-mcp mcp start --transport stdio
+go run ./cmd/smailnail-imap-mcp mcp start --transport sse --port 3201
+go run ./cmd/smailnail-imap-mcp mcp start --transport streamable_http --port 3201
+```
+
+The server intentionally exposes only two tools:
+
+- `executeIMAPJS`: run JavaScript against `require("smailnail")`
+- `getIMAPJSDocumentation`: query embedded package/symbol/example/concept docs or render markdown
+
 ## Environment variables
 
 The Cobra parser is configured with app name `smailnail`, so shared IMAP settings can be supplied with `SMAILNAIL_*` variables such as:
@@ -149,3 +174,10 @@ make smoke-js-module
 ```
 
 That smoke path runs the service-layer tests and the goja runtime integration tests that prove `require("smailnail")` works.
+
+To validate the dedicated MCP binary and docs registry:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+make smoke-imap-js-mcp
+```
