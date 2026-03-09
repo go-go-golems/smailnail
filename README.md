@@ -124,3 +124,12 @@ docker compose up -d --build
 ```
 
 The default test users are `a`, `b`, `c`, and `d`, each with password `pass`.
+
+To run the maintained end-to-end smoke test:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+make smoke-docker-imap
+```
+
+If the fixture lives somewhere else locally, override it with `DOCKER_IMAP_FIXTURE_ROOT=/path/to/docker-test-dovecot`.
