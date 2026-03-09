@@ -24,10 +24,6 @@ func determineRequiredBodySections(
 	bodyStructure imap.BodyStructure,
 	config OutputConfig,
 ) ([]MimePartMetadata, error) {
-	if bodyStructure == nil {
-		return nil, fmt.Errorf("no body structure provided")
-	}
-
 	var parts []MimePartMetadata
 
 	// Check if we need MIME parts
@@ -50,6 +46,10 @@ func determineRequiredBodySections(
 	// If we don't need MIME parts, return empty slice
 	if !needsMimeParts {
 		return parts, nil
+	}
+
+	if bodyStructure == nil {
+		return nil, fmt.Errorf("no body structure provided")
 	}
 
 	// Helper function to determine if we should include a part based on content field settings

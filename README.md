@@ -1,131 +1,126 @@
-# Mailgen
+# smailnail
 
-A command-line tool for generating test emails from YAML templates using the Go template engine and Sprig functions.
+`smailnail` is a Go repository for working with IMAP mailboxes and generated test email.
 
-## Installation
+It currently contains three CLIs:
+
+- `smailnail`: search, fetch, and process mail with a YAML DSL or direct CLI flags
+- `mailgen`: generate synthetic email from YAML templates and optionally append it to IMAP
+- `imap-tests`: helper commands for creating mailboxes and storing fixture messages
+
+## Build
 
 ```bash
-go install github.com/wesen/corporate-headquarters/smailnail/cmd/mailgen@latest
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests
 ```
 
-## Usage
+## Commands
+
+### `smailnail`
+
+Rule-driven execution:
 
 ```bash
-mailgen generate --config example.yaml [--output-dir ./output] [--write-files]
+go run ./cmd/smailnail mail-rules \
+  --rule examples/smailnail/recent-emails.yaml \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --output json
 ```
 
-### Options
+Direct fetch via flags:
 
-- `--config`: Path to YAML config file (required)
-- `--output-dir`: Directory to output generated emails (default: ./output)
-- `--write-files`: Write emails to files (default: false)
-- `--format`: Output format (default: table, options: table, json, yaml, csv)
-
-## YAML Configuration
-
-The YAML configuration consists of four main sections:
-
-1. `variables`: Global variable definitions
-2. `templates`: Email template definitions
-3. `rules`: Generation rule definitions
-4. `generate`: Generation execution configuration
-
-### Example
-
-```yaml
-variables:
-  senders:
-    - name: "John Doe"
-      email: "john@example.com"
-  subjects:
-    - "Hello there!"
-
-templates:
-  basic:
-    subject: "{{ .subject }}"
-    from: "{{ .sender.name }} <{{ .sender.email }}>"
-    to: "{{ .recipient }}"
-    body: |
-      Hello {{ .recipient_name }},
-      
-      {{ .content }}
-      
-      Best regards,
-      {{ .sender.name }}
-
-rules:
-  welcome:
-    template: basic
-    variations:
-      - sender: "{{ index .variables.senders 0 }}"
-        subject: "{{ index .variables.subjects 0 }}"
-        recipient: "user@example.com"
-        recipient_name: "User"
-        content: "Welcome to our service!"
-
-generate:
-  - rule: welcome
-    count: 5
+```bash
+go run ./cmd/smailnail fetch-mail \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --subject-contains "invoice" \
+  --output json
 ```
 
-## Template Context
+### `mailgen`
 
-During template processing, the following context is available:
-
-- `.variables`: All defined variables
-- `.index`: Current generation index (in generate section)
-- `.template`: Current template being processed
-- `.rule`: Current rule being processed
-
-Additionally, all properties defined in the current variation are available at the root level.
+```bash
+go run ./cmd/mailgen generate \
+  --configs examples/mailgen/simple.yaml \
+  --write-files \
+  --output-dir ./output \
+  --output json
 ```
 
-```
- _______  _______    _______  _______ 
-|       ||       |  |       ||       |
-|    ___||   _   |  |    ___||   _   |
-|   | __ |  | |  |  |   | __ |  | |  |
-|   ||  ||  |_|  |  |   ||  ||  |_|  |
-|   |_| ||       |  |   |_| ||       |
-|_______||_______|  |_______||_______|
- _______  _______  __   __  _______  ___      _______  _______  _______ 
-|       ||       ||  |_|  ||       ||   |    |   _   ||       ||       |
-|_     _||    ___||       ||    _  ||   |    |  |_|  ||_     _||    ___|
-  |   |  |   |___ |       ||   |_| ||   |    |       |  |   |  |   |___ 
-  |   |  |    ___||       ||    ___||   |___ |       |  |   |  |    ___|
-  |   |  |   |___ | ||_|| ||   |    |       ||   _   |  |   |  |   |___ 
-  |___|  |_______||_|   |_||___|    |_______||__| |__|  |___|  |_______|
+To append generated mail to IMAP:
+
+```bash
+go run ./cmd/mailgen generate \
+  --configs examples/mailgen/simple.yaml \
+  --store-imap \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --output json
 ```
 
----
+### `imap-tests`
 
+Create a mailbox:
+
+```bash
+go run ./cmd/imap-tests create-mailbox \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --new-mailbox Scratch \
+  --output json
 ```
- _______  _______  ___      _______  __   __  _______ 
-|       ||       ||   |    |       ||  |_|  ||       |
-|    ___||   _   ||   |    |    ___||       ||  _____|
-|   | __ |  | |  ||   |    |   |___ |       || |_____ 
-|   ||  ||  |_|  ||   |___ |    ___||       ||_____  |
-|   |_| ||       ||       ||   |___ | ||_|| | _____| |
-|_______||_______||_______||_______||_|   |_||_______|
- __   __  _______  ___   _  _______    __   __  _______  ______   _______ 
-|  |_|  ||   _   ||   | | ||       |  |  |_|  ||       ||    _ | |       |
-|       ||  |_|  ||   |_| ||    ___|  |       ||   _   ||   | || |    ___|
-|       ||       ||      _||   |___   |       ||  | |  ||   |_|| |   |___ 
-|       ||       ||     |_ |    ___|  |       ||  |_|  ||    __ ||    ___|
-| ||_|| ||   _   ||    _  ||   |___   | ||_|| ||       ||   |  |||   |___ 
-|_|   |_||__| |__||___| |_||_______|  |_|   |_||_______||___|  |||_______|
- _______  _______    _______  _______ 
-|       ||       |  |       ||       |
-|    ___||   _   |  |    ___||   _   |
-|   | __ |  | |  |  |   | __ |  | |  |
-|   ||  ||  |_|  |  |   ||  ||  |_|  |
-|   |_| ||       |  |   |_| ||       |
-|_______||_______|  |_______||_______|
- _______  _______  ___      _______  __   __  _______ 
-|       ||       ||   |    |       ||  |_|  ||       |
-|    ___||   _   ||   |    |    ___||       ||  _____|
-|   | __ |  | |  ||   |    |   |___ |       || |_____ 
-|   ||  ||  |_|  ||   |___ |    ___||       ||_____  |
-|   |_| ||       ||       ||   |___ | ||_|| | _____| |
-|_______||_______||_______||_______||_|   |_||_______|
+
+Store a text message:
+
+```bash
+go run ./cmd/imap-tests store-text-message \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --from "Sender <sender@example.com>" \
+  --to "Recipient <recipient@example.com>" \
+  --subject "Fixture message" \
+  --output json
 ```
+
+## Environment variables
+
+The Cobra parser is configured with app name `smailnail`, so shared IMAP settings can be supplied with `SMAILNAIL_*` variables such as:
+
+- `SMAILNAIL_SERVER`
+- `SMAILNAIL_PORT`
+- `SMAILNAIL_USERNAME`
+- `SMAILNAIL_PASSWORD`
+- `SMAILNAIL_MAILBOX`
+- `SMAILNAIL_INSECURE`
+
+## Examples
+
+- DSL examples: `examples/smailnail/*.yaml`
+- mailgen configs: `examples/mailgen/*.yaml`
+- quick start: `examples/smailnail/QUICK-START.md`
+
+## Docker IMAP fixture
+
+The repository is validated against the local Dovecot fixture at:
+
+`/home/manuel/code/others/docker-test-dovecot`
+
+Start it with:
+
+```bash
+cd /home/manuel/code/others/docker-test-dovecot
+docker compose up -d --build
+```
+
+The default test users are `a`, `b`, `c`, and `d`, each with password `pass`.

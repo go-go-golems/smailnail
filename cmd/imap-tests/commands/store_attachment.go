@@ -18,6 +18,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
 	smailnail_imap "github.com/go-go-golems/smailnail/pkg/imap"
+	"github.com/go-go-golems/smailnail/pkg/mailutil"
 	"github.com/rs/zerolog/log"
 )
 
@@ -260,8 +261,12 @@ func createMessageWithAttachment(from, to, subject, body string,
 	// Create the mail header
 	h := mail.Header{}
 	h.SetDate(time.Now())
-	h.SetAddressList("From", []*mail.Address{{Address: from}})
-	h.SetAddressList("To", []*mail.Address{{Address: to}})
+	if err := mailutil.SetSingleAddress(&h, "From", from); err != nil {
+		return nil, err
+	}
+	if err := mailutil.SetSingleAddress(&h, "To", to); err != nil {
+		return nil, err
+	}
 	h.SetSubject(subject)
 
 	// Create the multipart message

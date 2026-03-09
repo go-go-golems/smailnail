@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -268,6 +269,12 @@ func (c *MailRulesCommand) RunIntoGlazeProcessor(
 		// Add the row to the processor
 		if err := gp.AddRow(ctx, row); err != nil {
 			return fmt.Errorf("error adding row to processor: %w", err)
+		}
+	}
+
+	if !reflect.DeepEqual(rule.Actions, dsl.ActionConfig{}) {
+		if err := dsl.ExecuteActions(client, msgs, &rule.Actions); err != nil {
+			return fmt.Errorf("error executing rule actions: %w", err)
 		}
 	}
 

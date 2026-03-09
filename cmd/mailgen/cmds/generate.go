@@ -20,6 +20,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/types"
 	smailnail_imap "github.com/go-go-golems/smailnail/pkg/imap"
 	"github.com/go-go-golems/smailnail/pkg/mailgen"
+	"github.com/go-go-golems/smailnail/pkg/mailutil"
 	mailgenTypes "github.com/go-go-golems/smailnail/pkg/types"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -210,18 +211,28 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 			// Create mail header
 			h := mail.Header{}
 			h.SetDate(time.Now())
-			h.SetAddressList("From", []*mail.Address{{Address: email.From}})
+			if err := mailutil.SetSingleAddress(&h, "From", email.From); err != nil {
+				return errors.Wrapf(err, "failed to parse From address for email %d", i)
+			}
 			if email.To != "" {
-				h.SetAddressList("To", []*mail.Address{{Address: email.To}})
+				if err := mailutil.SetSingleAddress(&h, "To", email.To); err != nil {
+					return errors.Wrapf(err, "failed to parse To address for email %d", i)
+				}
 			}
 			if email.Cc != "" {
-				h.SetAddressList("Cc", []*mail.Address{{Address: email.Cc}})
+				if err := mailutil.SetSingleAddress(&h, "Cc", email.Cc); err != nil {
+					return errors.Wrapf(err, "failed to parse Cc address for email %d", i)
+				}
 			}
 			if email.Bcc != "" {
-				h.SetAddressList("Bcc", []*mail.Address{{Address: email.Bcc}})
+				if err := mailutil.SetSingleAddress(&h, "Bcc", email.Bcc); err != nil {
+					return errors.Wrapf(err, "failed to parse Bcc address for email %d", i)
+				}
 			}
 			if email.ReplyTo != "" {
-				h.SetAddressList("Reply-To", []*mail.Address{{Address: email.ReplyTo}})
+				if err := mailutil.SetSingleAddress(&h, "Reply-To", email.ReplyTo); err != nil {
+					return errors.Wrapf(err, "failed to parse Reply-To address for email %d", i)
+				}
 			}
 			h.SetSubject(email.Subject)
 

@@ -16,6 +16,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
 	smailnail_imap "github.com/go-go-golems/smailnail/pkg/imap"
+	"github.com/go-go-golems/smailnail/pkg/mailutil"
 	"github.com/rs/zerolog/log"
 )
 
@@ -219,8 +220,12 @@ func createHTMLMessage(from, to, subject, textBody, htmlBody string) ([]byte, er
 	// Create a new mail message
 	h := mail.Header{}
 	h.SetDate(time.Now())
-	h.SetAddressList("From", []*mail.Address{{Address: from}})
-	h.SetAddressList("To", []*mail.Address{{Address: to}})
+	if err := mailutil.SetSingleAddress(&h, "From", from); err != nil {
+		return nil, err
+	}
+	if err := mailutil.SetSingleAddress(&h, "To", to); err != nil {
+		return nil, err
+	}
 	h.SetSubject(subject)
 
 	// Create a multipart message with alternatives
