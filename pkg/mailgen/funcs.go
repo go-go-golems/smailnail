@@ -9,6 +9,7 @@ import (
 
 var (
 	// Initialize random seed
+	// #nosec G404 -- non-cryptographic randomness is sufficient for template/example mail generation.
 	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 

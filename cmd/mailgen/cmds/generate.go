@@ -112,6 +112,7 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 	// Process each config file independently
 	for _, configFile := range settings.ConfigFile {
 		// Read and parse config file
+		// #nosec G304 -- the CLI intentionally accepts user-specified config file paths.
 		configData, err := os.ReadFile(configFile)
 		if err != nil {
 			return errors.Wrapf(err, "failed to read config file '%s'", configFile)
@@ -136,7 +137,7 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 
 	// Create output directory if needed
 	if settings.WriteFiles {
-		if err := os.MkdirAll(settings.OutputDir, 0755); err != nil {
+		if err := os.MkdirAll(settings.OutputDir, 0700); err != nil {
 			return errors.Wrapf(err, "failed to create output directory '%s'", settings.OutputDir)
 		}
 	}
@@ -200,7 +201,7 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 			emailText += fmt.Sprintf("\n%s", email.Body)
 
 			// Write to file
-			if err := os.WriteFile(filePath, []byte(emailText), 0644); err != nil {
+			if err := os.WriteFile(filePath, []byte(emailText), 0600); err != nil {
 				return errors.Wrapf(err, "failed to write email %d to file '%s'", i, filePath)
 			}
 		}

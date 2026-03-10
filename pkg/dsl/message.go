@@ -40,11 +40,16 @@ func NewEmailMessageFromIMAP(msg *imapclient.FetchMessageBuffer, mimeParts []Mim
 		flags[i] = string(flag)
 	}
 
+	size, err := checkedUint32FromInt64(msg.RFC822Size, "rfc822_size")
+	if err != nil {
+		return nil, err
+	}
+
 	email := &EmailMessage{
 		UID:        uint32(msg.UID),
 		SeqNum:     msg.SeqNum,
 		Flags:      flags,
-		Size:       uint32(msg.RFC822Size),
+		Size:       size,
 		MimeParts:  mimeParts,
 		RawContent: make(map[string][]byte),
 	}

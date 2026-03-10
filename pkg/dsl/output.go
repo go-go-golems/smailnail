@@ -117,14 +117,14 @@ func formatOutputText(msg *EmailMessage, config OutputConfig) (string, error) {
 
 		switch field.Name {
 		case "uid":
-			sb.WriteString(fmt.Sprintf("UID: %d\n", msg.UID))
+			_, _ = fmt.Fprintf(&sb, "UID: %d\n", msg.UID)
 		case "subject":
 			if msg.Envelope != nil {
-				sb.WriteString(fmt.Sprintf("Subject: %s\n", msg.Envelope.Subject))
+				_, _ = fmt.Fprintf(&sb, "Subject: %s\n", msg.Envelope.Subject)
 			}
 		case "from":
 			if msg.Envelope != nil && len(msg.Envelope.From) > 0 {
-				sb.WriteString(fmt.Sprintf("From: %s\n", formatEmailAddress(msg.Envelope.From[0])))
+				_, _ = fmt.Fprintf(&sb, "From: %s\n", formatEmailAddress(msg.Envelope.From[0]))
 			}
 		case "to":
 			if msg.Envelope != nil && len(msg.Envelope.To) > 0 {
@@ -139,12 +139,12 @@ func formatOutputText(msg *EmailMessage, config OutputConfig) (string, error) {
 			}
 		case "date":
 			if msg.Envelope != nil {
-				sb.WriteString(fmt.Sprintf("Date: %s\n", msg.Envelope.Date.Format(time.RFC3339)))
+				_, _ = fmt.Fprintf(&sb, "Date: %s\n", msg.Envelope.Date.Format(time.RFC3339))
 			}
 		case "flags":
-			sb.WriteString(fmt.Sprintf("Flags: %v\n", msg.Flags))
+			_, _ = fmt.Fprintf(&sb, "Flags: %v\n", msg.Flags)
 		case "size":
-			sb.WriteString(fmt.Sprintf("Size: %d bytes\n", msg.Size))
+			_, _ = fmt.Fprintf(&sb, "Size: %d bytes\n", msg.Size)
 		case "mime_parts":
 			if len(msg.MimeParts) > 0 {
 				for _, part := range msg.MimeParts {

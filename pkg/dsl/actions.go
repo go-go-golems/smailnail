@@ -261,7 +261,7 @@ func executeExport(client *imapclient.Client, messages []*EmailMessage, exportCo
 		Msg("Exporting messages")
 
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(exportConfig.Directory, 0755); err != nil {
+	if err := os.MkdirAll(exportConfig.Directory, 0700); err != nil {
 		return fmt.Errorf("failed to create export directory: %w", err)
 	}
 
@@ -323,7 +323,7 @@ func executeExport(client *imapclient.Client, messages []*EmailMessage, exportCo
 
 		// Create the output file
 		filePath := filepath.Join(exportConfig.Directory, filename)
-		if err := os.WriteFile(filePath, messageContent, 0644); err != nil {
+		if err := os.WriteFile(filePath, messageContent, 0600); err != nil {
 			return fmt.Errorf("failed to write message to file %s: %w", filePath, err)
 		}
 

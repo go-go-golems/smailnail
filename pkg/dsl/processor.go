@@ -148,7 +148,15 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 			Int("will_fetch", startSeq-endSeq+1).
 			Msg("Fetching messages by sequence range")
 
-		manualSeqSet.AddRange(uint32(endSeq), uint32(startSeq))
+		startSeq32, err := checkedUint32FromInt(startSeq, "start_seq")
+		if err != nil {
+			return nil, err
+		}
+		endSeq32, err := checkedUint32FromInt(endSeq, "end_seq")
+		if err != nil {
+			return nil, err
+		}
+		manualSeqSet.AddRange(endSeq32, startSeq32)
 
 		// Fetch message UIDs first
 		var uidFetchOptions imap.FetchOptions
@@ -288,7 +296,11 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert message: %w", err)
 			}
-			email.TotalCount = uint32(totalFound)
+			totalCount32, err := checkedUint32FromInt(totalFound, "total_found")
+			if err != nil {
+				return nil, err
+			}
+			email.TotalCount = totalCount32
 			result = append(result, email)
 
 			log.Debug().
@@ -445,7 +457,11 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert message: %w", err)
 			}
-			email.TotalCount = uint32(totalFound)
+			totalCount32, err := checkedUint32FromInt(totalFound, "total_found")
+			if err != nil {
+				return nil, err
+			}
+			email.TotalCount = totalCount32
 			result = append(result, email)
 			continue
 		}
@@ -465,11 +481,16 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 				continue
 			}
 
+			size, err := checkedUint32FromInt(len(content), "mime_part_size")
+			if err != nil {
+				return nil, err
+			}
+
 			mimePart := MimePart{
 				Type:     metadata.Type,
 				Subtype:  metadata.Subtype,
 				Content:  string(content),
-				Size:     uint32(len(content)),
+				Size:     size,
 				Charset:  metadata.Params["charset"],
 				Filename: metadata.Filename,
 			}
@@ -483,7 +504,11 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 		}
 
 		// Set the total count field
-		email.TotalCount = uint32(totalFound)
+		totalCount32, err := checkedUint32FromInt(totalFound, "total_found")
+		if err != nil {
+			return nil, err
+		}
+		email.TotalCount = totalCount32
 
 		result = append(result, email)
 

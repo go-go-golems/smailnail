@@ -10,6 +10,7 @@ import (
 // ParseRuleFile parses a YAML rule file into a Rule struct
 func ParseRuleFile(filename string) (*Rule, error) {
 	// Read file
+	// #nosec G304 -- the CLI intentionally accepts a user-specified rule file path.
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read rule file: %w", err)

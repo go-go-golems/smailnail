@@ -69,6 +69,7 @@ func (s *IMAPSettings) ConnectToIMAPServer() (*imapclient.Client, error) {
 
 	options := &imapclient.Options{
 		TLSConfig: &tls.Config{
+			// #nosec G402 -- this is an explicit user-controlled dev/test escape hatch exposed as --insecure.
 			InsecureSkipVerify: s.Insecure,
 		},
 	}
