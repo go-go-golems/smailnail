@@ -12,13 +12,15 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/mail"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
 	smailnail_imap "github.com/go-go-golems/smailnail/pkg/imap"
 	"github.com/go-go-golems/smailnail/pkg/mailgen"
+	"github.com/go-go-golems/smailnail/pkg/mailutil"
 	mailgenTypes "github.com/go-go-golems/smailnail/pkg/types"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -32,14 +34,14 @@ type GenerateCommand struct {
 
 // NewGenerateCommand creates a new generate command
 func NewGenerateCommand() (*GenerateCommand, error) {
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedSection, err := settings.NewGlazedSection()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create glazed parameter layers")
+		return nil, errors.Wrap(err, "failed to create glazed section")
 	}
 
-	imapLayer, err := smailnail_imap.NewIMAPParameterLayer()
+	imapSection, err := smailnail_imap.NewIMAPSection()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create IMAP parameter layer")
+		return nil, errors.Wrap(err, "failed to create IMAP section")
 	}
 
 	return &GenerateCommand{
@@ -47,31 +49,31 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 			"generate",
 			cmds.WithShort("Generate emails from template"),
 			cmds.WithLong("Generate emails from template using YAML configuration"),
-			cmds.WithLayersList(glazedLayer, imapLayer),
+			cmds.WithSections(glazedSection, imapSection),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"configs",
-					parameters.ParameterTypeStringList,
-					parameters.WithHelp("Path to YAML config files"),
-					parameters.WithRequired(true),
+					fields.TypeStringList,
+					fields.WithHelp("Path to YAML config files"),
+					fields.WithRequired(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"output-dir",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Directory to output generated emails"),
-					parameters.WithDefault("./output"),
+					fields.TypeString,
+					fields.WithHelp("Directory to output generated emails"),
+					fields.WithDefault("./output"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"write-files",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Write emails to files"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Write emails to files"),
+					fields.WithDefault(false),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"store-imap",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Store generated emails in IMAP server"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Store generated emails in IMAP server"),
+					fields.WithDefault(false),
 				),
 			),
 		),
@@ -79,25 +81,25 @@ func NewGenerateCommand() (*GenerateCommand, error) {
 }
 
 type GenerateSettings struct {
-	ConfigFile []string `glazed.parameter:"configs"`
-	OutputDir  string   `glazed.parameter:"output-dir"`
-	WriteFiles bool     `glazed.parameter:"write-files"`
-	StoreIMAP  bool     `glazed.parameter:"store-imap"`
+	ConfigFile []string `glazed:"configs"`
+	OutputDir  string   `glazed:"output-dir"`
+	WriteFiles bool     `glazed:"write-files"`
+	StoreIMAP  bool     `glazed:"store-imap"`
 	smailnail_imap.IMAPSettings
 }
 
 // RunIntoGlazeProcessor generates emails and outputs them as structured data
 func (c *GenerateCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse command settings
 	settings := &GenerateSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, settings); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, settings); err != nil {
 		return err
 	}
-	if err := parsedLayers.InitializeStruct(smailnail_imap.IMAPParameterLayerSlug, &settings.IMAPSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(smailnail_imap.IMAPSectionSlug, &settings.IMAPSettings); err != nil {
 		return err
 	}
 
@@ -110,6 +112,7 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 	// Process each config file independently
 	for _, configFile := range settings.ConfigFile {
 		// Read and parse config file
+		// #nosec G304 -- the CLI intentionally accepts user-specified config file paths.
 		configData, err := os.ReadFile(configFile)
 		if err != nil {
 			return errors.Wrapf(err, "failed to read config file '%s'", configFile)
@@ -134,7 +137,7 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 
 	// Create output directory if needed
 	if settings.WriteFiles {
-		if err := os.MkdirAll(settings.OutputDir, 0755); err != nil {
+		if err := os.MkdirAll(settings.OutputDir, 0700); err != nil {
 			return errors.Wrapf(err, "failed to create output directory '%s'", settings.OutputDir)
 		}
 	}
@@ -143,11 +146,13 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 	var imapClient *imapclient.Client
 	if settings.StoreIMAP {
 		var err error
-		imapClient, err = settings.IMAPSettings.ConnectToIMAPServer()
+		imapClient, err = settings.ConnectToIMAPServer()
 		if err != nil {
 			return errors.Wrap(err, "failed to connect to IMAP server")
 		}
-		defer imapClient.Close()
+		defer func() {
+			_ = imapClient.Close()
+		}()
 
 		// Select the target mailbox
 		if _, err := imapClient.Select(settings.Mailbox, nil).Wait(); err != nil {
@@ -196,7 +201,7 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 			emailText += fmt.Sprintf("\n%s", email.Body)
 
 			// Write to file
-			if err := os.WriteFile(filePath, []byte(emailText), 0644); err != nil {
+			if err := os.WriteFile(filePath, []byte(emailText), 0600); err != nil {
 				return errors.Wrapf(err, "failed to write email %d to file '%s'", i, filePath)
 			}
 		}
@@ -209,18 +214,28 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 			// Create mail header
 			h := mail.Header{}
 			h.SetDate(time.Now())
-			h.SetAddressList("From", []*mail.Address{{Address: email.From}})
+			if err := mailutil.SetSingleAddress(&h, "From", email.From); err != nil {
+				return errors.Wrapf(err, "failed to parse From address for email %d", i)
+			}
 			if email.To != "" {
-				h.SetAddressList("To", []*mail.Address{{Address: email.To}})
+				if err := mailutil.SetSingleAddress(&h, "To", email.To); err != nil {
+					return errors.Wrapf(err, "failed to parse To address for email %d", i)
+				}
 			}
 			if email.Cc != "" {
-				h.SetAddressList("Cc", []*mail.Address{{Address: email.Cc}})
+				if err := mailutil.SetSingleAddress(&h, "Cc", email.Cc); err != nil {
+					return errors.Wrapf(err, "failed to parse Cc address for email %d", i)
+				}
 			}
 			if email.Bcc != "" {
-				h.SetAddressList("Bcc", []*mail.Address{{Address: email.Bcc}})
+				if err := mailutil.SetSingleAddress(&h, "Bcc", email.Bcc); err != nil {
+					return errors.Wrapf(err, "failed to parse Bcc address for email %d", i)
+				}
 			}
 			if email.ReplyTo != "" {
-				h.SetAddressList("Reply-To", []*mail.Address{{Address: email.ReplyTo}})
+				if err := mailutil.SetSingleAddress(&h, "Reply-To", email.ReplyTo); err != nil {
+					return errors.Wrapf(err, "failed to parse Reply-To address for email %d", i)
+				}
 			}
 			h.SetSubject(email.Subject)
 

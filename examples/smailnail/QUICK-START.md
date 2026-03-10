@@ -1,81 +1,71 @@
-# Quick Start Guide
+# Quick Start
 
-This guide will help you get started with the IMAP DSL processor quickly.
+This quick start uses the local Dovecot test fixture and the current `smailnail` CLI layout.
 
 ## Prerequisites
 
-- Go 1.18 or later
-- Access to an IMAP email server
-- Your IMAP server credentials
+- Go installed locally
+- Docker available
+- The Dovecot fixture repo at `/home/manuel/code/others/docker-test-dovecot`
 
-## Step 1: Build the Tool
-
-```bash
-# Clone the repository (if you haven't already)
-git clone https://github.com/yourusername/go-go-labs.git
-cd go-go-labs
-
-# Build the application
-go build -o imap-dsl ./cmd/apps/mail-app-rules
-```
-
-## Step 2: Create a Simple Rule File
-
-Create a file named `my-rule.yaml` with the following content:
-
-```yaml
-name: "My First Rule"
-description: "Find recent emails"
-search:
-  within_days: 7
-output:
-  format: text
-  fields:
-    - subject
-    - from
-    - date
-```
-
-## Step 3: Run the Tool
+## Step 1: Start the IMAP fixture
 
 ```bash
-# Set your IMAP password as an environment variable (optional)
-export IMAP_PASSWORD=yourpassword
-
-# Run the tool
-./imap-dsl \
-  -rule my-rule.yaml \
-  -server imap.example.com \
-  -username your.email@example.com \
-  -mailbox INBOX
+cd /home/manuel/code/others/docker-test-dovecot
+docker compose up -d --build
 ```
 
-If you don't set the IMAP_PASSWORD environment variable, you'll be prompted to enter your password.
+Fixture credentials:
 
-## Step 4: Explore More Examples
+- username: `a`
+- password: `pass`
+- IMAPS server: `localhost:993`
 
-Check out the example YAML files in the `examples/` directory:
+## Step 2: Build or run the CLI
 
-- `recent-emails.yaml`: Find emails from the last 7 days
-- `from-specific-sender.yaml`: Find emails from a specific sender
-- `important-emails.yaml`: Find important emails from the last month
-- `date-range-search.yaml`: Find emails within a specific date range
-- `full-message-content.yaml`: Retrieve complete message content
-- `detailed-example.yaml`: A comprehensive example with comments
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go build ./cmd/smailnail
+```
 
-## Step 5: Create Your Own Rules
+You can also use `go run ./cmd/smailnail ...` directly in the examples below.
 
-Use the examples as templates to create your own custom rules. The YAML format is flexible and allows you to combine different search criteria and output formats.
+## Step 3: Fetch recent mail
 
-## Troubleshooting
+```bash
+go run ./cmd/smailnail fetch-mail \
+  --server localhost \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --insecure \
+  --output json
+```
 
-- **Connection issues**: Make sure your IMAP server address is correct and that your server allows IMAP access.
-- **Authentication failures**: Double-check your username and password.
-- **No results**: Verify that your search criteria match emails in your mailbox.
-- **TLS errors**: If you're having TLS certificate issues, you can use the `-insecure` flag (not recommended for production use).
+## Step 4: Run a YAML rule
 
-## Next Steps
+```bash
+go run ./cmd/smailnail mail-rules \
+  --rule examples/smailnail/recent-emails.yaml \
+  --server localhost \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --insecure \
+  --output json
+```
 
-- Read the full documentation in the `README.md` file
-- Explore the `imap-dsl.md` specification for more details on the DSL syntax
-- Contribute to the project by adding new features or fixing bugs 
+## Step 5: Inspect other examples
+
+Useful rule files:
+
+- `examples/smailnail/recent-emails.yaml`
+- `examples/smailnail/important-emails.yaml`
+- `examples/smailnail/date-range-search.yaml`
+- `examples/smailnail/full-message-content.yaml`
+- `examples/smailnail/mime-parts-with-content.yaml`
+
+## Notes
+
+- The fixture uses a self-signed certificate, so `--insecure` is expected in local testing.
+- Shared IMAP settings can also be provided via environment variables such as `SMAILNAIL_SERVER`, `SMAILNAIL_USERNAME`, and `SMAILNAIL_PASSWORD`.

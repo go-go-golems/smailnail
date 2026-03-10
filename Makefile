@@ -1,11 +1,15 @@
-.PHONY: gifs
+.PHONY: gifs smoke-docker-imap smoke-imap-js-mcp smoke-js-module
 
 all: gifs
 
 VERSION=v0.1.14
 
-TAPES=$(shell ls doc/vhs/*tape)
+TAPES=$(wildcard doc/vhs/*tape)
 gifs: $(TAPES)
+	@if [ -z "$(TAPES)" ]; then \
+		echo "No VHS tapes found under doc/vhs"; \
+		exit 0; \
+	fi
 	for i in $(TAPES); do vhs < $$i; done
 
 docker-lint:
@@ -46,3 +50,12 @@ smailnail_BINARY=$(shell which smailnail)
 install:
 	go build -o ./dist/smailnail ./cmd/smailnail && \
 		cp ./dist/smailnail $(smailnail_BINARY)
+
+smoke-docker-imap:
+	./scripts/docker-imap-smoke.sh
+
+smoke-imap-js-mcp:
+	./scripts/imap-js-mcp-smoke.sh
+
+smoke-js-module:
+	./scripts/js-module-smoke.sh

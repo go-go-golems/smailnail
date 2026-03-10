@@ -5,60 +5,60 @@ import (
 	"fmt"
 
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
 )
 
 // IMAPSettings represents the settings for connecting to an IMAP server
 type IMAPSettings struct {
-	Server   string `glazed.parameter:"server"`
-	Port     int    `glazed.parameter:"port"`
-	Username string `glazed.parameter:"username"`
-	Password string `glazed.parameter:"password"`
-	Mailbox  string `glazed.parameter:"mailbox"`
-	Insecure bool   `glazed.parameter:"insecure"`
+	Server   string `glazed:"server"`
+	Port     int    `glazed:"port"`
+	Username string `glazed:"username"`
+	Password string `glazed:"password"`
+	Mailbox  string `glazed:"mailbox"`
+	Insecure bool   `glazed:"insecure"`
 }
 
-const IMAPParameterLayerSlug = "imap"
+const IMAPSectionSlug = "imap"
 
-// NewIMAPParameterLayer creates a new parameter layer for IMAP server settings
-func NewIMAPParameterLayer() (layers.ParameterLayer, error) {
-	return layers.NewParameterLayer(
-		IMAPParameterLayerSlug,
+// NewIMAPSection creates a new section for IMAP server settings.
+func NewIMAPSection() (schema.Section, error) {
+	return schema.NewSection(
+		IMAPSectionSlug,
 		"IMAP Server Connection Settings",
-		layers.WithParameterDefinitions(
-			parameters.NewParameterDefinition(
+		schema.WithFields(
+			fields.New(
 				"server",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("IMAP server address"),
+				fields.TypeString,
+				fields.WithHelp("IMAP server address"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"port",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("IMAP server port"),
-				parameters.WithDefault(993),
+				fields.TypeInteger,
+				fields.WithHelp("IMAP server port"),
+				fields.WithDefault(993),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"username",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("IMAP username"),
+				fields.TypeString,
+				fields.WithHelp("IMAP username"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"password",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("IMAP password"),
+				fields.TypeString,
+				fields.WithHelp("IMAP password"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"mailbox",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Mailbox to search in"),
-				parameters.WithDefault("INBOX"),
+				fields.TypeString,
+				fields.WithHelp("Mailbox to search in"),
+				fields.WithDefault("INBOX"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"insecure",
-				parameters.ParameterTypeBool,
-				parameters.WithHelp("Skip TLS verification"),
-				parameters.WithDefault(false),
+				fields.TypeBool,
+				fields.WithHelp("Skip TLS verification"),
+				fields.WithDefault(false),
 			),
 		),
 	)
@@ -69,6 +69,7 @@ func (s *IMAPSettings) ConnectToIMAPServer() (*imapclient.Client, error) {
 
 	options := &imapclient.Options{
 		TLSConfig: &tls.Config{
+			// #nosec G402 -- this is an explicit user-controlled dev/test escape hatch exposed as --insecure.
 			InsecureSkipVerify: s.Insecure,
 		},
 	}
@@ -79,7 +80,7 @@ func (s *IMAPSettings) ConnectToIMAPServer() (*imapclient.Client, error) {
 	}
 
 	if err := client.Login(s.Username, s.Password).Wait(); err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 

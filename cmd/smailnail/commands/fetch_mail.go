@@ -8,13 +8,15 @@ import (
 
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/smailnail/pkg/dsl"
 	"github.com/go-go-golems/smailnail/pkg/imap"
+	"github.com/go-go-golems/smailnail/pkg/services/smailnailjs"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
@@ -25,44 +27,44 @@ type FetchMailCommand struct {
 
 type FetchMailSettings struct {
 	// Search criteria settings
-	Since            string   `glazed.parameter:"since"`
-	Before           string   `glazed.parameter:"before"`
-	WithinDays       int      `glazed.parameter:"within-days"`
-	From             string   `glazed.parameter:"from"`
-	To               string   `glazed.parameter:"to"`
-	Subject          string   `glazed.parameter:"subject"`
-	SubjectContains  string   `glazed.parameter:"subject-contains"`
-	BodyContains     string   `glazed.parameter:"body-contains"`
-	HasFlags         []string `glazed.parameter:"has-flags"`
-	DoesNotHaveFlags []string `glazed.parameter:"not-has-flags"`
-	LargerThan       string   `glazed.parameter:"larger-than"`
-	SmallerThan      string   `glazed.parameter:"smaller-than"`
+	Since            string   `glazed:"since"`
+	Before           string   `glazed:"before"`
+	WithinDays       int      `glazed:"within-days"`
+	From             string   `glazed:"from"`
+	To               string   `glazed:"to"`
+	Subject          string   `glazed:"subject"`
+	SubjectContains  string   `glazed:"subject-contains"`
+	BodyContains     string   `glazed:"body-contains"`
+	HasFlags         []string `glazed:"has-flags"`
+	DoesNotHaveFlags []string `glazed:"not-has-flags"`
+	LargerThan       string   `glazed:"larger-than"`
+	SmallerThan      string   `glazed:"smaller-than"`
 
 	// Output settings
-	Limit                int    `glazed.parameter:"limit"`
-	Offset               int    `glazed.parameter:"offset"`
-	AfterUID             uint32 `glazed.parameter:"after-uid"`
-	BeforeUID            uint32 `glazed.parameter:"before-uid"`
-	Format               string `glazed.parameter:"format"`
-	IncludeContent       bool   `glazed.parameter:"include-content"`
-	ConcatenateMimeParts bool   `glazed.parameter:"concatenate-mime-parts"`
-	ContentMaxLength     int    `glazed.parameter:"content-max-length"`
-	ContentType          string `glazed.parameter:"content-type"`
-	PrintRule            bool   `glazed.parameter:"print-rule"`
+	Limit                int    `glazed:"limit"`
+	Offset               int    `glazed:"offset"`
+	AfterUID             uint32 `glazed:"after-uid"`
+	BeforeUID            uint32 `glazed:"before-uid"`
+	Format               string `glazed:"format"`
+	IncludeContent       bool   `glazed:"include-content"`
+	ConcatenateMimeParts bool   `glazed:"concatenate-mime-parts"`
+	ContentMaxLength     int    `glazed:"content-max-length"`
+	ContentType          string `glazed:"content-type"`
+	PrintRule            bool   `glazed:"print-rule"`
 
 	// IMAP settings
 	imap.IMAPSettings
 }
 
 func NewFetchMailCommand() (*FetchMailCommand, error) {
-	layer, err := settings.NewGlazedParameterLayers()
+	glazedSection, err := settings.NewGlazedSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
+		return nil, fmt.Errorf("failed to create glazed section: %w", err)
 	}
 
-	imapLayer, err := imap.NewIMAPParameterLayer()
+	imapSection, err := imap.NewIMAPSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
+		return nil, fmt.Errorf("failed to create IMAP section: %w", err)
 	}
 
 	return &FetchMailCommand{
@@ -72,145 +74,145 @@ func NewFetchMailCommand() (*FetchMailCommand, error) {
 			cmds.WithLong("This command connects to an IMAP server and fetches emails based on search criteria provided as command line arguments"),
 			cmds.WithFlags(
 				// Search criteria flags
-				parameters.NewParameterDefinition(
+				fields.New(
 					"since",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails since date (YYYY-MM-DD)"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails since date (YYYY-MM-DD)"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"before",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails before date (YYYY-MM-DD)"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails before date (YYYY-MM-DD)"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"within-days",
-					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Fetch emails within the last N days"),
-					parameters.WithDefault(0),
+					fields.TypeInteger,
+					fields.WithHelp("Fetch emails within the last N days"),
+					fields.WithDefault(0),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"from",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails from a specific sender"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails from a specific sender"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"to",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails sent to a specific recipient"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails sent to a specific recipient"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"subject",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails with an exact subject match"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails with an exact subject match"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"subject-contains",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails with subject containing a string"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails with subject containing a string"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"body-contains",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails with body containing a string"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails with body containing a string"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"has-flags",
-					parameters.ParameterTypeStringList,
-					parameters.WithHelp("Fetch emails with specific flags (comma-separated)"),
+					fields.TypeStringList,
+					fields.WithHelp("Fetch emails with specific flags (comma-separated)"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"not-has-flags",
-					parameters.ParameterTypeStringList,
-					parameters.WithHelp("Fetch emails without specific flags (comma-separated)"),
+					fields.TypeStringList,
+					fields.WithHelp("Fetch emails without specific flags (comma-separated)"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"larger-than",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails larger than size (e.g., '1M', '500K')"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails larger than size (e.g., '1M', '500K')"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"smaller-than",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Fetch emails smaller than size (e.g., '1M', '500K')"),
+					fields.TypeString,
+					fields.WithHelp("Fetch emails smaller than size (e.g., '1M', '500K')"),
 				),
 
 				// Output flags
-				parameters.NewParameterDefinition(
+				fields.New(
 					"limit",
-					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Maximum number of emails to fetch"),
-					parameters.WithDefault(10),
+					fields.TypeInteger,
+					fields.WithHelp("Maximum number of emails to fetch"),
+					fields.WithDefault(10),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"offset",
-					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Number of messages to skip (for pagination)"),
-					parameters.WithDefault(0),
+					fields.TypeInteger,
+					fields.WithHelp("Number of messages to skip (for pagination)"),
+					fields.WithDefault(0),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"format",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Output format (json, text, table)"),
-					parameters.WithDefault("text"),
+					fields.TypeString,
+					fields.WithHelp("Output format (json, text, table)"),
+					fields.WithDefault("text"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"include-content",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Include email content in output"),
-					parameters.WithDefault(true),
+					fields.TypeBool,
+					fields.WithHelp("Include email content in output"),
+					fields.WithDefault(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"concatenate-mime-parts",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Concatenate all MIME parts into a single content string instead of showing structured output"),
-					parameters.WithDefault(true),
+					fields.TypeBool,
+					fields.WithHelp("Concatenate all MIME parts into a single content string instead of showing structured output"),
+					fields.WithDefault(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"content-max-length",
-					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Maximum length of content to display"),
-					parameters.WithDefault(1000),
+					fields.TypeInteger,
+					fields.WithHelp("Maximum length of content to display"),
+					fields.WithDefault(1000),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"content-type",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("MIME type to filter content (e.g., 'text/plain', 'text/*')"),
-					parameters.WithDefault("text/plain"),
+					fields.TypeString,
+					fields.WithHelp("MIME type to filter content (e.g., 'text/plain', 'text/*')"),
+					fields.WithDefault("text/plain"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"print-rule",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Print the equivalent YAML rule instead of executing it"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Print the equivalent YAML rule instead of executing it"),
+					fields.WithDefault(false),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"after-uid",
-					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Fetch messages with UIDs greater than this value"),
-					parameters.WithDefault(0),
+					fields.TypeInteger,
+					fields.WithHelp("Fetch messages with UIDs greater than this value"),
+					fields.WithDefault(0),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"before-uid",
-					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Fetch messages with UIDs less than this value"),
-					parameters.WithDefault(0),
+					fields.TypeInteger,
+					fields.WithHelp("Fetch messages with UIDs less than this value"),
+					fields.WithDefault(0),
 				),
 			),
-			cmds.WithLayersList(imapLayer, layer),
+			cmds.WithSections(glazedSection, imapSection),
 		),
 	}, nil
 }
 
 func (c *FetchMailCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	settings := &FetchMailSettings{}
-	if err := parsedLayers.InitializeStruct("default", settings); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, settings); err != nil {
 		return err
 	}
-	if err := parsedLayers.InitializeStruct("imap", &settings.IMAPSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(imap.IMAPSectionSlug, &settings.IMAPSettings); err != nil {
 		return err
 	}
 
@@ -246,11 +248,13 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 
 	// Connect to IMAP server
 	log.Debug().Msg("Connecting to IMAP server")
-	client, err := settings.IMAPSettings.ConnectToIMAPServer()
+	client, err := settings.ConnectToIMAPServer()
 	if err != nil {
 		return fmt.Errorf("error connecting to IMAP server: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 
 	// Select mailbox
 	log.Debug().Msg("Selecting mailbox")
@@ -440,91 +444,30 @@ func (c *FetchMailCommand) RunIntoGlazeProcessor(
 
 // Build a Rule struct from command line settings
 func (c *FetchMailCommand) buildRuleFromSettings(settings *FetchMailSettings) (*dsl.Rule, error) {
-	// Start building the search config
-	searchConfig := dsl.SearchConfig{
-		Since:           settings.Since,
-		Before:          settings.Before,
-		WithinDays:      settings.WithinDays,
-		From:            settings.From,
-		To:              settings.To,
-		Subject:         settings.Subject,
-		SubjectContains: settings.SubjectContains,
-		BodyContains:    settings.BodyContains,
-	}
-
-	// Add flag criteria if specified
-	if len(settings.HasFlags) > 0 || len(settings.DoesNotHaveFlags) > 0 {
-		searchConfig.Flags = &dsl.FlagCriteria{
-			Has:    settings.HasFlags,
-			NotHas: settings.DoesNotHaveFlags,
-		}
-	}
-
-	// Add size criteria if specified
-	if settings.LargerThan != "" || settings.SmallerThan != "" {
-		searchConfig.Size = &dsl.SizeCriteria{
-			LargerThan:  settings.LargerThan,
-			SmallerThan: settings.SmallerThan,
-		}
-	}
-
-	// Build fields for output config
-	var fields []interface{}
-
-	// Always include basic email fields
-	fields = append(fields,
-		dsl.Field{Name: "uid"},
-		dsl.Field{Name: "subject"},
-		dsl.Field{Name: "from"},
-		dsl.Field{Name: "to"},
-		dsl.Field{Name: "date"},
-		dsl.Field{Name: "flags"},
-		dsl.Field{Name: "size"},
-	)
-
-	// Add content field if needed
-	if settings.IncludeContent {
-		contentField := &dsl.ContentField{
-			ShowContent: true,
-			MaxLength:   settings.ContentMaxLength,
-		}
-
-		// Set types for filtering
-		if settings.ContentType != "" {
-			contentField.Mode = "filter"
-			contentField.Types = []string{settings.ContentType}
-		}
-
-		fields = append(fields, dsl.Field{
-			Name:    "mime_parts",
-			Content: contentField,
-		})
-	}
-
-	// Create output config
-	outputConfig := dsl.OutputConfig{
-		Format:    settings.Format,
-		Limit:     settings.Limit,
-		Offset:    settings.Offset,
-		AfterUID:  settings.AfterUID,
-		BeforeUID: settings.BeforeUID,
-		Fields:    fields,
-	}
-
-	// Create the rule
-	rule := &dsl.Rule{
-		Name:        "cli-rule",
-		Description: "Rule generated from command line arguments",
-		Search:      searchConfig,
-		Output:      outputConfig,
-	}
-
-	// Validate the rule
-	if err := rule.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid rule: %w", err)
-	}
-
-	return rule, nil
+	return smailnailjs.BuildDSLRule(smailnailjs.BuildRuleOptions{
+		Name:             "cli-rule",
+		Description:      "Rule generated from command line arguments",
+		Since:            settings.Since,
+		Before:           settings.Before,
+		WithinDays:       settings.WithinDays,
+		From:             settings.From,
+		To:               settings.To,
+		Subject:          settings.Subject,
+		SubjectContains:  settings.SubjectContains,
+		BodyContains:     settings.BodyContains,
+		HasFlags:         settings.HasFlags,
+		NotHasFlags:      settings.DoesNotHaveFlags,
+		LargerThan:       settings.LargerThan,
+		SmallerThan:      settings.SmallerThan,
+		Limit:            settings.Limit,
+		Offset:           settings.Offset,
+		AfterUID:         settings.AfterUID,
+		BeforeUID:        settings.BeforeUID,
+		Format:           settings.Format,
+		IncludeContent:   settings.IncludeContent,
+		ContentType:      settings.ContentType,
+		ContentMaxLength: settings.ContentMaxLength,
+	})
 }
 
 func (c *FetchMailCommand) selectMailbox(client *imapclient.Client, mailbox string) error {

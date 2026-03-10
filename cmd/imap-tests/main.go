@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/help"
+	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/go-go-golems/smailnail/cmd/imap-tests/commands"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -33,7 +34,7 @@ func main() {
 
 	// Initialize help system
 	helpSystem := help.NewHelpSystem()
-	helpSystem.SetupCobraRootCommand(rootCmd)
+	help_cmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
 	// Initialize commands
 	createMailboxCmd, err := commands.NewCreateMailboxCommand()
@@ -57,22 +58,38 @@ func main() {
 	}
 
 	// Convert glazed commands to cobra commands
-	createMailboxCobraCmd, err := cli.BuildCobraCommandFromGlazeCommand(createMailboxCmd)
+	createMailboxCobraCmd, err := cli.BuildCobraCommandFromCommand(createMailboxCmd,
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build createMailbox cobra command")
 	}
 
-	storeTextMessageCobraCmd, err := cli.BuildCobraCommandFromGlazeCommand(storeTextMessageCmd)
+	storeTextMessageCobraCmd, err := cli.BuildCobraCommandFromCommand(storeTextMessageCmd,
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build storeTextMessage cobra command")
 	}
 
-	storeHTMLMessageCobraCmd, err := cli.BuildCobraCommandFromGlazeCommand(storeHTMLMessageCmd)
+	storeHTMLMessageCobraCmd, err := cli.BuildCobraCommandFromCommand(storeHTMLMessageCmd,
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build storeHTMLMessage cobra command")
 	}
 
-	storeAttachmentCobraCmd, err := cli.BuildCobraCommandFromGlazeCommand(storeAttachmentCmd)
+	storeAttachmentCobraCmd, err := cli.BuildCobraCommandFromCommand(storeAttachmentCmd,
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build storeAttachment cobra command")
 	}

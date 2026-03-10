@@ -11,12 +11,14 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-message/mail"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
 	smailnail_imap "github.com/go-go-golems/smailnail/pkg/imap"
+	"github.com/go-go-golems/smailnail/pkg/mailutil"
 	"github.com/rs/zerolog/log"
 )
 
@@ -25,32 +27,32 @@ type StoreAttachmentCommand struct {
 }
 
 type StoreAttachmentSettings struct {
-	From           string `glazed.parameter:"from"`
-	To             string `glazed.parameter:"to"`
-	Subject        string `glazed.parameter:"subject"`
-	Body           string `glazed.parameter:"body"`
-	AttachmentPath string `glazed.parameter:"attachment-path"`
+	From           string `glazed:"from"`
+	To             string `glazed:"to"`
+	Subject        string `glazed:"subject"`
+	Body           string `glazed:"body"`
+	AttachmentPath string `glazed:"attachment-path"`
 
 	// IMAP flags
-	Seen     bool `glazed.parameter:"seen"`
-	Flagged  bool `glazed.parameter:"flagged"`
-	Answered bool `glazed.parameter:"answered"`
-	Draft    bool `glazed.parameter:"draft"`
-	Deleted  bool `glazed.parameter:"deleted"`
+	Seen     bool `glazed:"seen"`
+	Flagged  bool `glazed:"flagged"`
+	Answered bool `glazed:"answered"`
+	Draft    bool `glazed:"draft"`
+	Deleted  bool `glazed:"deleted"`
 
 	// IMAP settings
 	smailnail_imap.IMAPSettings
 }
 
 func NewStoreAttachmentCommand() (*StoreAttachmentCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
+	glazedSection, err := settings.NewGlazedSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create glazed parameter layer: %w", err)
+		return nil, fmt.Errorf("failed to create glazed section: %w", err)
 	}
 
-	imapLayer, err := smailnail_imap.NewIMAPParameterLayer()
+	imapSection, err := smailnail_imap.NewIMAPSection()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IMAP layer: %w", err)
+		return nil, fmt.Errorf("failed to create IMAP section: %w", err)
 	}
 
 	return &StoreAttachmentCommand{
@@ -59,71 +61,71 @@ func NewStoreAttachmentCommand() (*StoreAttachmentCommand, error) {
 			cmds.WithShort("Store an email message with attachment in an IMAP mailbox"),
 			cmds.WithLong("This command creates an email message with an attachment and stores it in an IMAP mailbox"),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"from",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Sender email address"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Sender email address"),
+					fields.WithRequired(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"to",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Recipient email address"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Recipient email address"),
+					fields.WithRequired(true),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"subject",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Email subject"),
-					parameters.WithDefault("Test email with attachment"),
+					fields.TypeString,
+					fields.WithHelp("Email subject"),
+					fields.WithDefault("Test email with attachment"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"body",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Email body content"),
-					parameters.WithDefault("This is a test email with an attachment sent using smailnail."),
+					fields.TypeString,
+					fields.WithHelp("Email body content"),
+					fields.WithDefault("This is a test email with an attachment sent using smailnail."),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"attachment-path",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Path to the file to attach"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Path to the file to attach"),
+					fields.WithRequired(true),
 				),
 				// IMAP flags
-				parameters.NewParameterDefinition(
+				fields.New(
 					"seen",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Mark message as seen"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Mark message as seen"),
+					fields.WithDefault(false),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"flagged",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Mark message as flagged"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Mark message as flagged"),
+					fields.WithDefault(false),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"answered",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Mark message as answered"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Mark message as answered"),
+					fields.WithDefault(false),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"draft",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Mark message as draft"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Mark message as draft"),
+					fields.WithDefault(false),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"deleted",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Mark message as deleted"),
-					parameters.WithDefault(false),
+					fields.TypeBool,
+					fields.WithHelp("Mark message as deleted"),
+					fields.WithDefault(false),
 				),
 			),
-			cmds.WithLayersList(
-				glazedParameterLayer,
-				imapLayer,
+			cmds.WithSections(
+				glazedSection,
+				imapSection,
 			),
 		),
 	}, nil
@@ -131,14 +133,14 @@ func NewStoreAttachmentCommand() (*StoreAttachmentCommand, error) {
 
 func (c *StoreAttachmentCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	settings := &StoreAttachmentSettings{}
-	if err := parsedLayers.InitializeStruct("default", settings); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, settings); err != nil {
 		return err
 	}
-	if err := parsedLayers.InitializeStruct("imap", &settings.IMAPSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(smailnail_imap.IMAPSectionSlug, &settings.IMAPSettings); err != nil {
 		return err
 	}
 
@@ -182,11 +184,13 @@ func (c *StoreAttachmentCommand) RunIntoGlazeProcessor(
 
 	// Connect to IMAP server
 	log.Debug().Msg("Connecting to IMAP server")
-	client, err := settings.IMAPSettings.ConnectToIMAPServer()
+	client, err := settings.ConnectToIMAPServer()
 	if err != nil {
 		return fmt.Errorf("error connecting to IMAP server: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 
 	// Create the message
 	messageData, err := createMessageWithAttachment(
@@ -259,8 +263,12 @@ func createMessageWithAttachment(from, to, subject, body string,
 	// Create the mail header
 	h := mail.Header{}
 	h.SetDate(time.Now())
-	h.SetAddressList("From", []*mail.Address{{Address: from}})
-	h.SetAddressList("To", []*mail.Address{{Address: to}})
+	if err := mailutil.SetSingleAddress(&h, "From", from); err != nil {
+		return nil, err
+	}
+	if err := mailutil.SetSingleAddress(&h, "To", to); err != nil {
+		return nil, err
+	}
 	h.SetSubject(subject)
 
 	// Create the multipart message

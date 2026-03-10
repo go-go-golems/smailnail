@@ -71,17 +71,21 @@ func ExecuteActions(client *imapclient.Client, messages []*EmailMessage, actions
 	return nil
 }
 
+func buildUIDSet(messages []*EmailMessage) imap.UIDSet {
+	var uidSet imap.UIDSet
+	for _, msg := range messages {
+		uidSet.AddNum(imap.UID(msg.UID))
+	}
+	return uidSet
+}
+
 // executeFlags adds or removes flags from messages
 func executeFlags(client *imapclient.Client, messages []*EmailMessage, flagActions *FlagActions) error {
 	if flagActions == nil || (len(flagActions.Add) == 0 && len(flagActions.Remove) == 0) {
 		return nil
 	}
 
-	// Create sequence set from message UIDs
-	var uidSet imap.SeqSet
-	for _, msg := range messages {
-		uidSet.AddNum(uint32(msg.UID))
-	}
+	uidSet := buildUIDSet(messages)
 
 	// Add flags if specified
 	if len(flagActions.Add) > 0 {
@@ -139,10 +143,7 @@ func executeCopy(client *imapclient.Client, messages []*EmailMessage, targetMail
 		Int("message_count", len(messages)).
 		Msg("Copying messages to target mailbox")
 
-	var uidSet imap.SeqSet
-	for _, msg := range messages {
-		uidSet.AddNum(uint32(msg.UID))
-	}
+	uidSet := buildUIDSet(messages)
 
 	_, err := client.Copy(uidSet, targetMailbox).Wait()
 	if err != nil {
@@ -163,10 +164,7 @@ func executeMove(client *imapclient.Client, messages []*EmailMessage, targetMail
 		Int("message_count", len(messages)).
 		Msg("Moving messages to target mailbox")
 
-	var uidSet imap.SeqSet
-	for _, msg := range messages {
-		uidSet.AddNum(uint32(msg.UID))
-	}
+	uidSet := buildUIDSet(messages)
 
 	// The Move method automatically handles the fallback if server
 	// doesn't support MOVE capability
@@ -208,10 +206,7 @@ func executeDelete(client *imapclient.Client, messages []*EmailMessage, deleteCo
 		Int("message_count", len(messages)).
 		Msg("Deleting messages")
 
-	var uidSet imap.SeqSet
-	for _, msg := range messages {
-		uidSet.AddNum(uint32(msg.UID))
-	}
+	uidSet := buildUIDSet(messages)
 
 	if moveToTrash {
 		// Move to trash folder using the MOVE command
@@ -266,7 +261,7 @@ func executeExport(client *imapclient.Client, messages []*EmailMessage, exportCo
 		Msg("Exporting messages")
 
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(exportConfig.Directory, 0755); err != nil {
+	if err := os.MkdirAll(exportConfig.Directory, 0700); err != nil {
 		return fmt.Errorf("failed to create export directory: %w", err)
 	}
 
@@ -328,7 +323,7 @@ func executeExport(client *imapclient.Client, messages []*EmailMessage, exportCo
 
 		// Create the output file
 		filePath := filepath.Join(exportConfig.Directory, filename)
-		if err := os.WriteFile(filePath, messageContent, 0644); err != nil {
+		if err := os.WriteFile(filePath, messageContent, 0600); err != nil {
 			return fmt.Errorf("failed to write message to file %s: %w", filePath, err)
 		}
 
