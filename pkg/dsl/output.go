@@ -153,7 +153,7 @@ func formatOutputText(msg *EmailMessage, config OutputConfig) (string, error) {
 						if len(content) > field.Content.MaxLength && field.Content.MaxLength > 0 {
 							content = content[:field.Content.MaxLength] + "..."
 						}
-						sb.WriteString(fmt.Sprintf("Content: %s\n", content))
+						_, _ = fmt.Fprintf(&sb, "Content: %s\n", content)
 					}
 				}
 			}
