@@ -52,11 +52,9 @@ type Email struct {
 // validateVariables ensures all values in the variables map are either strings or []string
 func validateVariables(vars map[string]interface{}, path string) error {
 	for key, value := range vars {
-		currentPath := path
+		currentPath := key
 		if path != "" {
 			currentPath = path + "." + key
-		} else {
-			currentPath = key
 		}
 
 		switch v := value.(type) {

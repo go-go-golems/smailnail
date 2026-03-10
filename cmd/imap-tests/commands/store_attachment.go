@@ -184,11 +184,13 @@ func (c *StoreAttachmentCommand) RunIntoGlazeProcessor(
 
 	// Connect to IMAP server
 	log.Debug().Msg("Connecting to IMAP server")
-	client, err := settings.IMAPSettings.ConnectToIMAPServer()
+	client, err := settings.ConnectToIMAPServer()
 	if err != nil {
 		return fmt.Errorf("error connecting to IMAP server: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 
 	// Create the message
 	messageData, err := createMessageWithAttachment(

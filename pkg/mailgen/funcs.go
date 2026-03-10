@@ -40,25 +40,23 @@ func pickRandom(items interface{}) (interface{}, error) {
 		v = reflect.ValueOf(v.Interface())
 	}
 
-	switch v.Kind() {
-	case reflect.Slice, reflect.Array:
-		length := v.Len()
-		if length == 0 {
-			return nil, fmt.Errorf("cannot pick from empty slice")
-		}
-
-		// Pick a random index
-		idx := rnd.Intn(length)
-		item := v.Index(idx)
-
-		// Handle interface{} elements
-		if item.Kind() == reflect.Interface {
-			return item.Interface(), nil
-		}
-
-		// Convert to interface{} for return
-		return item.Interface(), nil
-	default:
+	if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
 		return nil, fmt.Errorf("cannot pick random item from type %T, expected slice or array", items)
 	}
+
+	length := v.Len()
+	if length == 0 {
+		return nil, fmt.Errorf("cannot pick from empty slice")
+	}
+
+	// Pick a random index
+	idx := rnd.Intn(length)
+	item := v.Index(idx)
+
+	// Handle interface{} elements
+	if item.Kind() == reflect.Interface {
+		return item.Interface(), nil
+	}
+
+	return item.Interface(), nil
 }

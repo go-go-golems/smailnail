@@ -116,11 +116,13 @@ func (c *MailRulesCommand) RunIntoGlazeProcessor(
 	}
 
 	// Connect to IMAP server
-	client, err := settings.IMAPSettings.ConnectToIMAPServer()
+	client, err := settings.ConnectToIMAPServer()
 	if err != nil {
 		return fmt.Errorf("error connecting to IMAP server: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 
 	// Select mailbox
 	if err := c.selectMailbox(client, settings.Mailbox); err != nil {

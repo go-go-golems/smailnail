@@ -114,11 +114,11 @@ func extractNextFunction(source []byte) ([]byte, bool) {
 		return nil, false
 	}
 	open += idx
-	close, ok := findMatchingBrace(text, open)
+	closeIdx, ok := findMatchingBrace(text, open)
 	if !ok {
 		return nil, false
 	}
-	return source[idx : close+1], true
+	return source[idx : closeIdx+1], true
 }
 
 func findMatchingBrace(text string, open int) (int, bool) {

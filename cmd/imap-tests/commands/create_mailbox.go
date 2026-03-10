@@ -87,11 +87,13 @@ func (c *CreateMailboxCommand) RunIntoGlazeProcessor(
 
 	// Connect to IMAP server
 	log.Debug().Msg("Connecting to IMAP server")
-	client, err := settings.IMAPSettings.ConnectToIMAPServer()
+	client, err := settings.ConnectToIMAPServer()
 	if err != nil {
 		return fmt.Errorf("error connecting to IMAP server: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 
 	// First try to list mailboxes to see if it already exists
 	log.Debug().Msg("Listing existing mailboxes")

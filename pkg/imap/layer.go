@@ -79,7 +79,7 @@ func (s *IMAPSettings) ConnectToIMAPServer() (*imapclient.Client, error) {
 	}
 
 	if err := client.Login(s.Username, s.Password).Wait(); err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 

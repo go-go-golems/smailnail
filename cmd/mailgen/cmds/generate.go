@@ -145,11 +145,13 @@ func (c *GenerateCommand) RunIntoGlazeProcessor(
 	var imapClient *imapclient.Client
 	if settings.StoreIMAP {
 		var err error
-		imapClient, err = settings.IMAPSettings.ConnectToIMAPServer()
+		imapClient, err = settings.ConnectToIMAPServer()
 		if err != nil {
 			return errors.Wrap(err, "failed to connect to IMAP server")
 		}
-		defer imapClient.Close()
+		defer func() {
+			_ = imapClient.Close()
+		}()
 
 		// Select the target mailbox
 		if _, err := imapClient.Select(settings.Mailbox, nil).Wait(); err != nil {

@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // OutputMessages formats and prints a list of email messages
@@ -52,15 +49,6 @@ type MimePart struct {
 	Content     string
 	Filename    string
 	Charset     string
-}
-
-func findBodySection(bodySections []imapclient.FetchBodySectionBuffer, specifier imap.PartSpecifier) []byte {
-	for _, section := range bodySections {
-		if section.Section.Specifier == specifier {
-			return section.Bytes
-		}
-	}
-	return nil
 }
 
 // formatOutputJSON formats message data as JSON

@@ -238,7 +238,7 @@ func (d RealDialer) Dial(_ context.Context, opts ConnectOptions) (Session, error
 		return nil, err
 	}
 	if _, err := client.Select(settings.Mailbox, nil).Wait(); err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("failed to select mailbox %q: %w", settings.Mailbox, err)
 	}
 	return &realSession{
@@ -253,7 +253,7 @@ func (s *realSession) Mailbox() string {
 
 func (s *realSession) Close() {
 	if s != nil && s.client != nil {
-		s.client.Close()
+		_ = s.client.Close()
 	}
 }
 

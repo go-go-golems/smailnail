@@ -116,8 +116,6 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 
 		// Create a sequence set for the most recent messages
 		var manualSeqSet imap.SeqSet
-		startSeq := totalFound // Most recent message
-		endSeq := 1            // First message
 
 		// Apply limit if set
 		limit := totalFound
@@ -137,8 +135,8 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 		}
 
 		// Calculate range based on offset and limit
-		startSeq = totalFound - offset
-		endSeq = startSeq - limit + 1
+		startSeq := totalFound - offset
+		endSeq := startSeq - limit + 1
 		if endSeq < 1 {
 			endSeq = 1
 		}
@@ -352,7 +350,9 @@ func (rule *Rule) FetchMessages(client *imapclient.Client) ([]*EmailMessage, err
 
 	// Execute the batch fetch
 	batchFetchCmd := client.Fetch(batchSeqSet, batchFetchOptions)
-	defer batchFetchCmd.Close()
+	defer func() {
+		_ = batchFetchCmd.Close()
+	}()
 
 	// Process the batch fetch results
 	contentMap := make(map[string][]byte)
