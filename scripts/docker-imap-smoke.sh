@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORKSPACE_ROOT="/home/manuel/workspaces/2026-03-08/update-imap-mcp"
-SMAILNAIL_ROOT="$WORKSPACE_ROOT/smailnail"
-DOCKER_ROOT="${DOCKER_IMAP_FIXTURE_ROOT:-/home/manuel/code/others/docker-test-dovecot}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SMAILNAIL_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+DOCKER_ROOT="${DOCKER_IMAP_FIXTURE_ROOT:-$SMAILNAIL_ROOT/../docker-test-dovecot}"
+
+if [[ ! -d "$DOCKER_ROOT" ]]; then
+	echo "Docker IMAP fixture not found at '$DOCKER_ROOT'." >&2
+	echo "Set DOCKER_IMAP_FIXTURE_ROOT to the docker-test-dovecot checkout." >&2
+	exit 1
+fi
 
 STAMP="$(date +%s)"
 ARCHIVE_MAILBOX="FacadeArchive${STAMP}"

@@ -142,14 +142,15 @@ The Cobra parser is configured with app name `smailnail`, so shared IMAP setting
 
 ## Docker IMAP fixture
 
-The repository is validated against the local Dovecot fixture at:
+The maintained smoke script looks for the Dovecot fixture in this order:
 
-`/home/manuel/code/others/docker-test-dovecot`
+- `DOCKER_IMAP_FIXTURE_ROOT`
+- `../docker-test-dovecot` relative to the `smailnail` repo root
 
 Start it with:
 
 ```bash
-cd /home/manuel/code/others/docker-test-dovecot
+cd /path/to/docker-test-dovecot
 docker compose up -d --build
 ```
 
@@ -158,7 +159,7 @@ The default test users are `a`, `b`, `c`, and `d`, each with password `pass`.
 To run the maintained end-to-end smoke test:
 
 ```bash
-cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+cd /path/to/smailnail
 make smoke-docker-imap
 ```
 
@@ -169,7 +170,7 @@ If the fixture lives somewhere else locally, override it with `DOCKER_IMAP_FIXTU
 To validate the initial JavaScript service/module slice:
 
 ```bash
-cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+cd /path/to/smailnail
 make smoke-js-module
 ```
 
@@ -178,6 +179,6 @@ That smoke path runs the service-layer tests and the goja runtime integration te
 To validate the dedicated MCP binary and docs registry:
 
 ```bash
-cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+cd /path/to/smailnail
 make smoke-imap-js-mcp
 ```
