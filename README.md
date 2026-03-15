@@ -8,6 +8,10 @@ It currently contains three CLIs:
 - `mailgen`: generate synthetic email from YAML templates and optionally append it to IMAP
 - `imap-tests`: helper commands for creating mailboxes and storing fixture messages
 
+There is now also an initial hosted application binary:
+
+- `smailnaild`: hosted app skeleton with a `serve` command, Clay SQL-backed app DB bootstrap, and health/readiness endpoints
+
 There is also a dedicated MCP binary for the JavaScript runtime:
 
 - `smailnail-imap-mcp`: exposes `executeIMAPJS` and `getIMAPJSDocumentation`
@@ -21,7 +25,7 @@ The repository now also contains an initial reusable JavaScript surface:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp
+go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp ./cmd/smailnaild
 ```
 
 ## Commands
@@ -123,6 +127,42 @@ The server intentionally exposes only two tools:
 - `executeIMAPJS`: run JavaScript against `require("smailnail")`
 - `getIMAPJSDocumentation`: query embedded package/symbol/example/concept docs or render markdown
 
+### `smailnaild`
+
+Start the hosted skeleton with the default SQLite app database:
+
+```bash
+go run ./cmd/smailnaild serve
+```
+
+That defaults to:
+
+- bind address `0.0.0.0:8080`
+- application DB `smailnaild.sqlite`
+
+Useful endpoints:
+
+- `GET /healthz`
+- `GET /readyz`
+- `GET /api/info`
+
+Use Clay SQL flags to point it at another database. For example, Postgres via DSN:
+
+```bash
+go run ./cmd/smailnaild serve \
+  --listen-host 0.0.0.0 \
+  --listen-port 8080 \
+  --dsn 'postgres://user:pass@localhost:5432/smailnail?sslmode=disable'
+```
+
+Or SQLite with an explicit file path:
+
+```bash
+go run ./cmd/smailnaild serve \
+  --db-type sqlite \
+  --database ./data/smailnaild.sqlite
+```
+
 ## Environment variables
 
 The Cobra parser is configured with app name `smailnail`, so shared IMAP settings can be supplied with `SMAILNAIL_*` variables such as:
@@ -133,6 +173,8 @@ The Cobra parser is configured with app name `smailnail`, so shared IMAP setting
 - `SMAILNAIL_PASSWORD`
 - `SMAILNAIL_MAILBOX`
 - `SMAILNAIL_INSECURE`
+
+The hosted binary uses app name `smailnaild`, so its flags can also be supplied through `SMAILNAILD_*` environment variables.
 
 ## Examples
 
