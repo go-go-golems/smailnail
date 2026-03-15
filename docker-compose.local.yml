@@ -1,0 +1,66 @@
+services:
+  dovecot:
+    image: ghcr.io/spezifisch/docker-test-dovecot:latest
+    container_name: smailnail-dovecot
+    ports:
+      - "127.0.0.1:24:24"
+      - "127.0.0.1:110:110"
+      - "127.0.0.1:143:143"
+      - "127.0.0.1:993:993"
+      - "127.0.0.1:995:995"
+      - "127.0.0.1:4190:4190"
+    volumes:
+      - dovecot-home:/home
+      - dovecot-ssl:/etc/dovecot/ssl
+    restart: unless-stopped
+
+  keycloak-postgres:
+    image: postgres:16
+    container_name: smailnail-keycloak-postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.5
+    container_name: smailnail-keycloak
+    command:
+      - start-dev
+      - --import-realm
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak-postgres
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HTTP_PORT: 8080
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - ./dev/keycloak/realm-import:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/master HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  dovecot-home:
+  dovecot-ssl:
+  keycloak-postgres-data:

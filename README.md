@@ -207,6 +207,43 @@ make smoke-docker-imap
 
 If the fixture lives somewhere else locally, override it with `DOCKER_IMAP_FIXTURE_ROOT=/path/to/docker-test-dovecot`.
 
+## Local Dovecot + Keycloak Stack
+
+For hosted-app and OIDC work, the repo now includes a local Docker Compose stack with:
+
+- Dovecot test fixture on the usual local IMAP ports
+- Keycloak on `http://127.0.0.1:18080`
+- PostgreSQL backing Keycloak persistence
+
+Start it with:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+docker compose -f docker-compose.local.yml up -d
+```
+
+Useful endpoints and defaults:
+
+- Dovecot IMAPS: `127.0.0.1:993`
+- Dovecot test users: `a`, `b`, `c`, `d`
+- Dovecot password: `pass`
+- Keycloak admin: `http://127.0.0.1:18080/admin`
+- Keycloak bootstrap admin username: `admin`
+- Keycloak bootstrap admin password: `admin`
+- Imported realm: `smailnail-dev`
+- Realm issuer: `http://127.0.0.1:18080/realms/smailnail-dev`
+
+The stack also imports two initial OIDC clients in the `smailnail-dev` realm:
+
+- `smailnail-web`
+- `smailnail-mcp`
+
+Stop it with:
+
+```bash
+docker compose -f docker-compose.local.yml down
+```
+
 ## JavaScript module smoke
 
 To validate the initial JavaScript service/module slice:
