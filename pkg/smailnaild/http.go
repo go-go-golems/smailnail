@@ -11,8 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"io/fs"
+
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/web"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -45,6 +48,7 @@ type ServerOptions struct {
 	UserResolver UserResolver
 	AccountAPI   AccountAPI
 	RuleAPI      RuleAPI
+	PublicFS     fs.FS
 }
 
 type HandlerOptions struct {
@@ -54,6 +58,7 @@ type HandlerOptions struct {
 	UserResolver UserResolver
 	AccountAPI   AccountAPI
 	RuleAPI      RuleAPI
+	PublicFS     fs.FS
 }
 
 type infoResponse struct {
@@ -92,6 +97,7 @@ func NewHTTPServer(options ServerOptions) *http.Server {
 			UserResolver: options.UserResolver,
 			AccountAPI:   options.AccountAPI,
 			RuleAPI:      options.RuleAPI,
+			PublicFS:     options.PublicFS,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -113,6 +119,10 @@ func NewHandler(options HandlerOptions) http.Handler {
 	mux := http.NewServeMux()
 	h.registerHealthRoutes(mux)
 	h.registerAPIRoutes(mux)
+
+	// SPA handler must be registered last so API routes take precedence
+	web.RegisterSPA(mux, options.PublicFS, web.SPAOptions{APIPrefix: "/api"})
+
 	return mux
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/secrets"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/web"
 	"github.com/rs/zerolog/log"
 )
 
@@ -112,6 +113,7 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		UserResolver: hostedapp.HeaderUserResolver{},
 		AccountAPI:   accountService,
 		RuleAPI:      ruleService,
+		PublicFS:     web.PublicFS,
 	})
 
 	go func() {

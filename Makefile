@@ -1,4 +1,5 @@
-.PHONY: gifs smoke-docker-imap smoke-imap-js-mcp smoke-js-module docker-build-imap-js-mcp
+.PHONY: gifs smoke-docker-imap smoke-imap-js-mcp smoke-js-module docker-build-imap-js-mcp \
+	dev-backend dev-frontend frontend-build frontend-check build-embed
 
 all: gifs
 
@@ -62,3 +63,24 @@ smoke-js-module:
 
 docker-build-imap-js-mcp:
 	docker build -t smailnail-imap-mcp:dev .
+
+# --- Frontend dev loop ---
+
+UI_DIR ?= ui
+DEV_API_PORT ?= 3001
+DEV_UI_PORT ?= 3000
+
+dev-backend:
+	go run ./cmd/smailnaild serve --listen-port $(DEV_API_PORT)
+
+dev-frontend:
+	pnpm -C $(UI_DIR) dev --host --port $(DEV_UI_PORT)
+
+frontend-build:
+	go generate ./pkg/smailnaild/web/
+
+frontend-check:
+	pnpm -C $(UI_DIR) run check
+
+build-embed: frontend-build
+	go build -tags embed ./...

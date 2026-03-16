@@ -1,0 +1,26 @@
+/* smailnail default theme tokens — override via CSS custom properties */
+:root {
+  --sn-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --sn-body-bg: var(--bs-body-bg);
+  --sn-shell-max-width: 720px;
+  --sn-shell-padding-x: 1.5rem;
+  --sn-shell-padding-y: 2rem;
+}
+
+/* Shell layout */
+[data-widget="app-shell"] {
+  font-family: var(--sn-font-family);
+  max-width: var(--sn-shell-max-width);
+  margin: 0 auto;
+  padding: var(--sn-shell-padding-y) var(--sn-shell-padding-x);
+}
+
+/* Account setup widget overrides */
+[data-widget="account-setup"][data-part="empty-state"] {
+  padding-top: 4rem;
+  padding-bottom: 4rem;
+}
+
+[data-widget="account-setup"][data-part="test-progress"] [data-part="test-stage"][data-state="running"] {
+  font-weight: 500;
+}
