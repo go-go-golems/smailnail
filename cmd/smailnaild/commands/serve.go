@@ -11,6 +11,8 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/fields"
 	"github.com/go-go-golems/glazed/pkg/cmds/schema"
 	"github.com/go-go-golems/glazed/pkg/cmds/values"
+	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
+	"github.com/go-go-golems/smailnail/pkg/mcp/imapjs"
 	hostedapp "github.com/go-go-golems/smailnail/pkg/smailnaild"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
 	hostedauth "github.com/go-go-golems/smailnail/pkg/smailnaild/auth"
@@ -75,6 +77,11 @@ func NewServeCommand() (*ServeCommand, error) {
 		return nil, err
 	}
 
+	mcpSection, err := imapjs.NewHostedSection()
+	if err != nil {
+		return nil, err
+	}
+
 	return &ServeCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"serve",
@@ -84,10 +91,11 @@ func NewServeCommand() (*ServeCommand, error) {
 This slice provides:
 - Clay SQL-backed application database bootstrapping
 - hosted auth mode configuration for dev, session, and future OIDC login
+- mounted MCP transport and bearer-token auth on the same HTTP server
 - encrypted IMAP credential storage using the encryption section
 - hosted account CRUD, account test, mailbox preview, and rule dry-run APIs
 - health, readiness, and service metadata endpoints`),
-			cmds.WithSections(defaultSection, sqlSection, dbtSection, encryptionSection, authSection),
+			cmds.WithSections(defaultSection, sqlSection, dbtSection, encryptionSection, authSection, mcpSection),
 		),
 	}, nil
 }
@@ -111,6 +119,10 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 	}
 
 	authSettings, err := hostedauth.LoadSettingsFromParsedValues(parsedValues)
+	if err != nil {
+		return err
+	}
+	mcpSettings, err := imapjs.LoadHostedSettingsFromParsedValues(parsedValues)
 	if err != nil {
 		return err
 	}
@@ -142,6 +154,25 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		}
 	}
 
+	var mcpHandler http.Handler
+	if mcpSettings.Enabled {
+		mcpMux := http.NewServeMux()
+		mcpAuthOptions := mcpSettings.AuthOptions(authSettings.OIDCIssuerURL)
+		if mcpAuthOptions.Mode == embeddable.AuthModeExternalOIDC && mcpAuthOptions.ResourceURL == "" {
+			return errors.New("mcp-auth-resource-url is required when mcp-auth-mode=external_oidc")
+		}
+		if err := imapjs.MountHTTPHandlers(mcpMux, imapjs.MountedOptions{
+			Transport:       mcpSettings.Transport,
+			Auth:            mcpAuthOptions,
+			DB:              db,
+			IdentityService: identityService,
+			AccountService:  accountService,
+		}); err != nil {
+			return err
+		}
+		mcpHandler = mcpMux
+	}
+
 	server := hostedapp.NewHTTPServer(hostedapp.ServerOptions{
 		Host:         settings.ListenHost,
 		Port:         settings.ListenPort,
@@ -151,6 +182,7 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		AccountAPI:   accountService,
 		RuleAPI:      ruleService,
 		WebAuth:      webAuth,
+		MCPHandler:   mcpHandler,
 		PublicFS:     web.PublicFS,
 	})
 

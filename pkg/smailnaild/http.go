@@ -52,6 +52,7 @@ type ServerOptions struct {
 	AccountAPI   AccountAPI
 	RuleAPI      RuleAPI
 	WebAuth      hostedauth.WebHandler
+	MCPHandler   http.Handler
 	PublicFS     fs.FS
 }
 
@@ -63,6 +64,7 @@ type HandlerOptions struct {
 	AccountAPI   AccountAPI
 	RuleAPI      RuleAPI
 	WebAuth      hostedauth.WebHandler
+	MCPHandler   http.Handler
 	PublicFS     fs.FS
 }
 
@@ -105,6 +107,7 @@ func NewHTTPServer(options ServerOptions) *http.Server {
 			AccountAPI:   options.AccountAPI,
 			RuleAPI:      options.RuleAPI,
 			WebAuth:      options.WebAuth,
+			MCPHandler:   options.MCPHandler,
 			PublicFS:     options.PublicFS,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -129,6 +132,11 @@ func NewHandler(options HandlerOptions) http.Handler {
 	mux := http.NewServeMux()
 	h.registerHealthRoutes(mux)
 	h.registerAPIRoutes(mux)
+	if options.MCPHandler != nil {
+		mux.Handle("/.well-known/oauth-protected-resource", options.MCPHandler)
+		mux.Handle("/mcp", options.MCPHandler)
+		mux.Handle("/mcp/", options.MCPHandler)
+	}
 
 	// SPA handler must be registered last so API routes take precedence
 	web.RegisterSPA(mux, options.PublicFS, web.SPAOptions{APIPrefix: "/api"})
