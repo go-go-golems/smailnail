@@ -315,6 +315,39 @@ func (o *OutputConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 					}
 				}
 				o.Fields[i] = Field{Name: "mime_parts", Content: contentField}
+			} else if name, ok := f["name"].(string); ok {
+				field := Field{Name: name}
+				if rawContent, ok := f["content"].(map[string]interface{}); ok {
+					contentField := &ContentField{}
+					if t, ok := rawContent["type"].(string); ok {
+						contentField.Type = t
+					}
+					if ml, ok := rawContent["max_length"].(int); ok {
+						contentField.MaxLength = ml
+					}
+					if ml, ok := rawContent["min_length"].(int); ok {
+						contentField.MinLength = ml
+					}
+					if mode, ok := rawContent["mode"].(string); ok {
+						contentField.Mode = mode
+					}
+					if st, ok := rawContent["show_types"].(bool); ok {
+						contentField.ShowTypes = st
+					}
+					if sc, ok := rawContent["show_content"].(bool); ok {
+						contentField.ShowContent = sc
+					}
+					if types, ok := rawContent["types"].([]interface{}); ok {
+						contentField.Types = make([]string, 0, len(types))
+						for _, t := range types {
+							if typeString, ok := t.(string); ok {
+								contentField.Types = append(contentField.Types, typeString)
+							}
+						}
+					}
+					field.Content = contentField
+				}
+				o.Fields[i] = field
 			} else {
 				// Just store as is for now
 				o.Fields[i] = field

@@ -10,7 +10,7 @@ It currently contains three CLIs:
 
 There is now also an initial hosted application binary:
 
-- `smailnaild`: hosted app skeleton with a `serve` command, Clay SQL-backed app DB bootstrap, and health/readiness endpoints
+- `smailnaild`: hosted app backend with account CRUD, account tests, mailbox previews, rule CRUD, and rule dry-runs
 
 There is also a dedicated MCP binary for the JavaScript runtime:
 
@@ -136,7 +136,13 @@ Production packaging and Coolify deployment notes are in `docs/deployments/smail
 
 ### `smailnaild`
 
-Start the hosted skeleton with the default SQLite app database:
+The hosted backend now requires an encryption key for stored IMAP credentials:
+
+```bash
+export SMAILNAILD_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+```
+
+Start the hosted backend with the default SQLite app database:
 
 ```bash
 go run ./cmd/smailnaild serve
@@ -152,6 +158,15 @@ Useful endpoints:
 - `GET /healthz`
 - `GET /readyz`
 - `GET /api/info`
+- `GET /api/accounts`
+- `POST /api/accounts`
+- `POST /api/accounts/:id/test`
+- `GET /api/accounts/:id/mailboxes`
+- `GET /api/accounts/:id/messages`
+- `GET /api/accounts/:id/messages/:uid`
+- `GET /api/rules`
+- `POST /api/rules`
+- `POST /api/rules/:id/dry-run`
 
 Use Clay SQL flags to point it at another database. For example, Postgres via DSN:
 
@@ -170,6 +185,8 @@ go run ./cmd/smailnaild serve \
   --database ./data/smailnaild.sqlite
 ```
 
+Local hosted-account testing notes and curl examples are in `docs/smailnaild-local-account-flow.md`.
+
 ## Environment variables
 
 The Cobra parser is configured with app name `smailnail`, so shared IMAP settings can be supplied with `SMAILNAIL_*` variables such as:
@@ -182,6 +199,10 @@ The Cobra parser is configured with app name `smailnail`, so shared IMAP setting
 - `SMAILNAIL_INSECURE`
 
 The hosted binary uses app name `smailnaild`, so its flags can also be supplied through `SMAILNAILD_*` environment variables.
+
+Important hosted-backend variable:
+
+- `SMAILNAILD_ENCRYPTION_KEY`: base64-encoded 32-byte AES-GCM key for encrypting stored IMAP passwords
 
 ## Examples
 
@@ -249,6 +270,15 @@ Stop it with:
 
 ```bash
 docker compose -f docker-compose.local.yml down
+```
+
+To run the hosted-backend integration suite against the local Dovecot fixture:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+export SMAILNAILD_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/...
+SMAILNAILD_DOVECOT_TEST=1 go test ./...
 ```
 
 ## JavaScript module smoke

@@ -12,6 +12,9 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/schema"
 	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	hostedapp "github.com/go-go-golems/smailnail/pkg/smailnaild"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/secrets"
 	"github.com/rs/zerolog/log"
 )
 
@@ -62,14 +65,14 @@ func NewServeCommand() (*ServeCommand, error) {
 	return &ServeCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"serve",
-			cmds.WithShort("Start the hosted smailnail application skeleton"),
-			cmds.WithLong(`Start the hosted smailnail application skeleton.
+			cmds.WithShort("Start the hosted smailnail application backend"),
+			cmds.WithLong(`Start the hosted smailnail application backend.
 
-This initial slice proves the hosted process boundary by:
-- parsing SQL settings via Clay sections
-- opening an application database
-- bootstrapping a minimal metadata schema
-- exposing health and readiness endpoints`),
+This slice provides:
+- Clay SQL-backed application database bootstrapping
+- encrypted IMAP credential storage using SMAILNAILD_ENCRYPTION_KEY
+- hosted account CRUD, account test, mailbox preview, and rule dry-run APIs
+- health, readiness, and service metadata endpoints`),
 			cmds.WithSections(defaultSection, sqlSection, dbtSection),
 		),
 	}, nil
@@ -93,11 +96,22 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		return err
 	}
 
+	secretConfig, err := secrets.LoadConfigFromEnv()
+	if err != nil {
+		return err
+	}
+
+	accountService := accounts.NewService(accounts.NewRepository(db), secretConfig)
+	ruleService := rules.NewService(rules.NewRepository(db), accountService)
+
 	server := hostedapp.NewHTTPServer(hostedapp.ServerOptions{
-		Host:   settings.ListenHost,
-		Port:   settings.ListenPort,
-		DB:     db,
-		DBInfo: dbInfo,
+		Host:         settings.ListenHost,
+		Port:         settings.ListenPort,
+		DB:           db,
+		DBInfo:       dbInfo,
+		UserResolver: hostedapp.HeaderUserResolver{},
+		AccountAPI:   accountService,
+		RuleAPI:      ruleService,
 	})
 
 	go func() {
