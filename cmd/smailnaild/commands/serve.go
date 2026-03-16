@@ -63,6 +63,11 @@ func NewServeCommand() (*ServeCommand, error) {
 		return nil, err
 	}
 
+	encryptionSection, err := secrets.NewSection()
+	if err != nil {
+		return nil, err
+	}
+
 	return &ServeCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"serve",
@@ -71,10 +76,10 @@ func NewServeCommand() (*ServeCommand, error) {
 
 This slice provides:
 - Clay SQL-backed application database bootstrapping
-- encrypted IMAP credential storage using SMAILNAILD_ENCRYPTION_KEY
+- encrypted IMAP credential storage using the encryption section
 - hosted account CRUD, account test, mailbox preview, and rule dry-run APIs
 - health, readiness, and service metadata endpoints`),
-			cmds.WithSections(defaultSection, sqlSection, dbtSection),
+			cmds.WithSections(defaultSection, sqlSection, dbtSection, encryptionSection),
 		),
 	}, nil
 }
@@ -97,7 +102,7 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		return err
 	}
 
-	secretConfig, err := secrets.LoadConfigFromEnv()
+	secretConfig, err := secrets.LoadConfigFromParsedValues(parsedValues)
 	if err != nil {
 		return err
 	}

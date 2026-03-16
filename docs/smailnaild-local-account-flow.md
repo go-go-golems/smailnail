@@ -14,16 +14,19 @@ docker compose -f docker-compose.local.yml up -d dovecot
 Set an application encryption key before starting `smailnaild`:
 
 ```bash
-export SMAILNAILD_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+export SMAILNAILD_ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)"
 ```
 
-This key encrypts stored IMAP passwords inside the application database. If the key changes, previously stored account secrets can no longer be decrypted.
+This is the Glazed-backed environment form of `--encryption-key-base64`.
+
+The key encrypts stored IMAP passwords inside the application database. If the key changes, previously stored account secrets can no longer be decrypted.
 
 ## Start the hosted backend
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go run ./cmd/smailnaild serve
+go run ./cmd/smailnaild serve \
+  --encryption-key-base64 "$SMAILNAILD_ENCRYPTION_KEY_BASE64"
 ```
 
 Default behavior:

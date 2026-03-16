@@ -136,16 +136,20 @@ Production packaging and Coolify deployment notes are in `docs/deployments/smail
 
 ### `smailnaild`
 
-The hosted backend now requires an encryption key for stored IMAP credentials:
+The hosted backend now requires an encryption key for stored IMAP credentials.
+Pass it through the Glazed encryption section:
 
 ```bash
-export SMAILNAILD_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+ENCRYPTION_KEY="$(openssl rand -base64 32)"
+go run ./cmd/smailnaild serve \
+  --encryption-key-base64 "$ENCRYPTION_KEY"
 ```
 
 Start the hosted backend with the default SQLite app database:
 
 ```bash
-go run ./cmd/smailnaild serve
+go run ./cmd/smailnaild serve \
+  --encryption-key-base64 "$ENCRYPTION_KEY"
 ```
 
 That defaults to:
@@ -200,9 +204,15 @@ The Cobra parser is configured with app name `smailnail`, so shared IMAP setting
 
 The hosted binary uses app name `smailnaild`, so its flags can also be supplied through `SMAILNAILD_*` environment variables.
 
-Important hosted-backend variable:
+Important hosted-backend encryption fields:
 
-- `SMAILNAILD_ENCRYPTION_KEY`: base64-encoded 32-byte AES-GCM key for encrypting stored IMAP passwords
+- `--encryption-key-base64`: base64-encoded 32-byte AES-GCM key for encrypting stored IMAP passwords
+- `--encryption-key-id`: logical key identifier stored with encrypted secrets
+
+Because these are normal Glazed fields, they can also be supplied through the command environment layer, for example:
+
+- `SMAILNAILD_ENCRYPTION_KEY_BASE64`
+- `SMAILNAILD_ENCRYPTION_KEY_ID`
 
 ## Examples
 
@@ -276,7 +286,7 @@ To run the hosted-backend integration suite against the local Dovecot fixture:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-export SMAILNAILD_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+export SMAILNAILD_ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)"
 SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/...
 SMAILNAILD_DOVECOT_TEST=1 go test ./...
 ```

@@ -2,22 +2,21 @@ package secrets
 
 import (
 	"encoding/base64"
-	"os"
 	"testing"
 )
 
-func TestLoadConfigFromEnv(t *testing.T) {
+func TestLoadConfigFromSettings(t *testing.T) {
 	key := make([]byte, requiredEncryptionBytes)
 	for i := range key {
 		key[i] = byte(i + 1)
 	}
 	value := base64.StdEncoding.EncodeToString(key)
 
-	t.Setenv(EncryptionKeyEnv, value)
-
-	config, err := LoadConfigFromEnv()
+	config, err := LoadConfigFromSettings(&Settings{
+		KeyBase64: value,
+	})
 	if err != nil {
-		t.Fatalf("LoadConfigFromEnv() error = %v", err)
+		t.Fatalf("LoadConfigFromSettings() error = %v", err)
 	}
 	if config.KeyID != DefaultEncryptionKeyID {
 		t.Fatalf("unexpected key id %q", config.KeyID)
@@ -27,19 +26,17 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	}
 }
 
-func TestLoadConfigFromEnvRejectsMissingValue(t *testing.T) {
-	t.Setenv(EncryptionKeyEnv, "")
-
-	_, err := LoadConfigFromEnv()
+func TestLoadConfigFromSettingsRejectsMissingValue(t *testing.T) {
+	_, err := LoadConfigFromSettings(&Settings{})
 	if err == nil {
-		t.Fatal("expected missing env var to fail")
+		t.Fatal("expected missing encryption key to fail")
 	}
 }
 
-func TestLoadConfigFromEnvRejectsShortKey(t *testing.T) {
-	t.Setenv(EncryptionKeyEnv, base64.StdEncoding.EncodeToString([]byte("short")))
-
-	_, err := LoadConfigFromEnv()
+func TestLoadConfigFromSettingsRejectsShortKey(t *testing.T) {
+	_, err := LoadConfigFromSettings(&Settings{
+		KeyBase64: base64.StdEncoding.EncodeToString([]byte("short")),
+	})
 	if err == nil {
 		t.Fatal("expected short key to fail")
 	}
@@ -93,31 +90,24 @@ func TestEncryptRejectsNilConfig(t *testing.T) {
 	}
 }
 
-func TestLoadConfigFromEnvUsesCurrentProcessEnv(t *testing.T) {
+func TestLoadConfigFromSettingsUsesExplicitKeyID(t *testing.T) {
 	key := make([]byte, requiredEncryptionBytes)
 	for i := range key {
 		key[i] = 0x42
 	}
 	value := base64.StdEncoding.EncodeToString(key)
 
-	original, ok := os.LookupEnv(EncryptionKeyEnv)
-	defer func() {
-		if ok {
-			_ = os.Setenv(EncryptionKeyEnv, original)
-		} else {
-			_ = os.Unsetenv(EncryptionKeyEnv)
-		}
-	}()
-
-	if err := os.Setenv(EncryptionKeyEnv, value); err != nil {
-		t.Fatalf("Setenv() error = %v", err)
-	}
-
-	config, err := LoadConfigFromEnv()
+	config, err := LoadConfigFromSettings(&Settings{
+		KeyBase64: value,
+		KeyID:     "test-key",
+	})
 	if err != nil {
-		t.Fatalf("LoadConfigFromEnv() error = %v", err)
+		t.Fatalf("LoadConfigFromSettings() error = %v", err)
 	}
 	if got := base64.StdEncoding.EncodeToString(config.Key); got != value {
 		t.Fatalf("expected key %q, got %q", value, got)
+	}
+	if config.KeyID != "test-key" {
+		t.Fatalf("expected key id %q, got %q", "test-key", config.KeyID)
 	}
 }
