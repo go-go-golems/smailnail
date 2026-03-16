@@ -230,7 +230,9 @@ const accountsSlice = createSlice({
         state.viewMode = "testing";
       })
       .addCase(createAccountAndTest.fulfilled, (state, action) => {
-        const { testResult } = action.payload;
+        const { account, testResult } = action.payload;
+        state.latestAccount = account;
+        state.editingAccountId = account.id;
         state.latestTestResult = testResult;
         state.viewMode = "result";
         if (testResult.success && testResult.warningCode) {
