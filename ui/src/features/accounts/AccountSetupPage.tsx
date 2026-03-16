@@ -1,9 +1,11 @@
 import { useEffect } from "react";
+import type { AccountListItem } from "../../api/types";
 import { useAppDispatch, useAppSelector } from "../../store";
 import { AccountForm } from "./AccountForm";
 import { AccountList } from "./AccountList";
 import {
   createAccountAndTest,
+  deleteAccount,
   fetchAccounts,
   retestAccount,
   setFormDraft,
@@ -16,7 +18,11 @@ import { EmptyState } from "./EmptyState";
 import { TestProgress } from "./TestProgress";
 import { TestResultView } from "./TestResultView";
 
-export function AccountSetupPage() {
+interface AccountSetupPageProps {
+  onExploreAccount?: (account: AccountListItem) => void;
+}
+
+export function AccountSetupPage({ onExploreAccount }: AccountSetupPageProps) {
   const dispatch = useAppDispatch();
   const {
     accounts,
@@ -59,6 +65,8 @@ export function AccountSetupPage() {
         accounts={accounts}
         onAdd={() => dispatch(startAddAccount())}
         onEdit={(a) => dispatch(startEditAccount(a))}
+        onExplore={(a) => onExploreAccount?.(a)}
+        onDelete={(a) => dispatch(deleteAccount(a.id))}
       />
     );
   }

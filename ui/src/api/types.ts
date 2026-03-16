@@ -91,3 +91,47 @@ export interface TestResult {
 export interface TestInput {
   mode?: string;
 }
+
+// Mailbox types
+export interface MailboxInfo {
+  name: string;
+  path: string;
+}
+
+// Message types
+export interface AddressView {
+  name?: string;
+  address: string;
+}
+
+export interface MimePartView {
+  type?: string;
+  subtype?: string;
+  size?: number;
+  content?: string;
+  filename?: string;
+  charset?: string;
+}
+
+export interface MessageView {
+  uid: number;
+  seqNum: number;
+  subject?: string;
+  from?: AddressView[];
+  to?: AddressView[];
+  date?: string;
+  flags?: string[];
+  size: number;
+  mimeParts?: MimePartView[];
+  totalCount?: number;
+}
+
+export interface ListMessagesParams {
+  mailbox: string;
+  limit?: number;
+  offset?: number;
+  query?: string;
+  unreadOnly?: boolean;
+  includeContent?: boolean;
+  contentType?: string;
+}

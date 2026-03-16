@@ -3,6 +3,9 @@ import type {
   AccountListItem,
   ApiResponse,
   CreateAccountInput,
+  ListMessagesParams,
+  MailboxInfo,
+  MessageView,
   TestInput,
   TestResult,
   UpdateAccountInput,
@@ -78,6 +81,42 @@ class ApiClient {
         method: "POST",
         body: input ? JSON.stringify(input) : undefined,
       },
+    );
+  }
+
+  async listMailboxes(
+    accountId: string,
+  ): Promise<ApiResponse<MailboxInfo[]>> {
+    return this.request<MailboxInfo[]>(
+      `/accounts/${encodeURIComponent(accountId)}/mailboxes`,
+    );
+  }
+
+  async listMessages(
+    accountId: string,
+    params: ListMessagesParams,
+  ): Promise<ApiResponse<MessageView[]>> {
+    const qs = new URLSearchParams();
+    qs.set("mailbox", params.mailbox);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    if (params.query) qs.set("query", params.query);
+    if (params.unreadOnly) qs.set("unread_only", "true");
+    if (params.includeContent) qs.set("include_content", "true");
+    if (params.contentType) qs.set("content_type", params.contentType);
+    return this.request<MessageView[]>(
+      `/accounts/${encodeURIComponent(accountId)}/messages?${qs.toString()}`,
+    );
+  }
+
+  async getMessage(
+    accountId: string,
+    mailbox: string,
+    uid: number,
+  ): Promise<ApiResponse<MessageView>> {
+    const qs = new URLSearchParams({ mailbox });
+    return this.request<MessageView>(
+      `/accounts/${encodeURIComponent(accountId)}/messages/${uid}?${qs.toString()}`,
     );
   }
 }
