@@ -76,7 +76,7 @@ coolify app create public \
   --git-branch task/update-imap-mcp \
   --build-pack dockerfile \
   --ports-exposes 3201 \
-  --domains smailnail.mcp.scapegoat.dev \
+  --domains https://smailnail.mcp.scapegoat.dev \
   --health-check-enabled \
   --health-check-path /.well-known/oauth-protected-resource
 ```
