@@ -70,7 +70,7 @@ export const fetchAccounts = createAsyncThunk(
   "accounts/fetchAccounts",
   async () => {
     const res = await api.listAccounts();
-    return res.data;
+    return res.data ?? [];
   },
 );
 

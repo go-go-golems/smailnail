@@ -53,7 +53,7 @@ const initialState: RulesState = {
 
 export const fetchRules = createAsyncThunk("rules/fetchRules", async () => {
   const res = await api.listRules();
-  return res.data;
+  return res.data ?? [];
 });
 
 export const createRule = createAsyncThunk(

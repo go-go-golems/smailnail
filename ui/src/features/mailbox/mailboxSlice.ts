@@ -36,7 +36,7 @@ export const fetchMailboxes = createAsyncThunk(
   "mailbox/fetchMailboxes",
   async (accountId: string) => {
     const res = await api.listMailboxes(accountId);
-    return { accountId, mailboxes: res.data };
+    return { accountId, mailboxes: res.data ?? [] };
   },
 );
 
@@ -62,7 +62,7 @@ export const fetchMessages = createAsyncThunk(
     });
     const totalCount =
       (res.meta?.["totalCount"] as number | undefined) ?? 0;
-    return { messages: res.data, totalCount, mailbox };
+    return { messages: res.data ?? [], totalCount, mailbox };
   },
 );
 
