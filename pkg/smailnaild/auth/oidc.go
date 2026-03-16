@@ -14,6 +14,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 )
 
@@ -141,11 +142,13 @@ func newOIDCAuthenticatorWithClient(
 func (a *OIDCAuthenticator) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	state, err := a.newRandom()
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to create OIDC auth state")
 		http.Error(w, "failed to create auth state", http.StatusInternalServerError)
 		return
 	}
 	nonce, err := a.newRandom()
 	if err != nil {
+		log.Error().Err(err).Msg("Failed to create OIDC auth nonce")
 		http.Error(w, "failed to create auth nonce", http.StatusInternalServerError)
 		return
 	}
@@ -154,6 +157,15 @@ func (a *OIDCAuthenticator) HandleLogin(w http.ResponseWriter, r *http.Request) 
 	setShortLivedCookie(w, authNonceCookieName, nonce)
 
 	url := a.oauthConfig.AuthCodeURL(state, oauth2.SetAuthURLParam("nonce", nonce))
+	log.Debug().
+		Str("path", r.URL.Path).
+		Str("issuer", a.discovery.Issuer).
+		Str("client_id", a.settings.OIDCClientID).
+		Str("redirect_url", a.oauthConfig.RedirectURL).
+		Str("state", state).
+		Str("nonce", nonce).
+		Str("auth_url", url).
+		Msg("Starting hosted OIDC login flow")
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
@@ -161,41 +173,89 @@ func (a *OIDCAuthenticator) HandleCallback(w http.ResponseWriter, r *http.Reques
 	queryState := strings.TrimSpace(r.URL.Query().Get("state"))
 	code := strings.TrimSpace(r.URL.Query().Get("code"))
 	if queryState == "" || code == "" {
+		log.Debug().
+			Str("path", r.URL.Path).
+			Str("query_state", queryState).
+			Bool("has_code", code != "").
+			Msg("OIDC callback is missing required parameters")
 		http.Error(w, "missing oauth callback parameters", http.StatusBadRequest)
 		return
 	}
 
 	stateCookie, err := r.Cookie(authStateCookieName)
 	if err != nil || strings.TrimSpace(stateCookie.Value) == "" || stateCookie.Value != queryState {
+		cookieValue := ""
+		if err == nil && stateCookie != nil {
+			cookieValue = stateCookie.Value
+		}
+		log.Debug().
+			Err(err).
+			Str("path", r.URL.Path).
+			Str("query_state", queryState).
+			Str("cookie_state", cookieValue).
+			Str("cookie_name", authStateCookieName).
+			Msg("OIDC callback state validation failed")
 		http.Error(w, "invalid oauth state", http.StatusBadRequest)
 		return
 	}
 	nonceCookie, err := r.Cookie(authNonceCookieName)
 	if err != nil || strings.TrimSpace(nonceCookie.Value) == "" {
+		log.Debug().
+			Err(err).
+			Str("path", r.URL.Path).
+			Str("cookie_name", authNonceCookieName).
+			Msg("OIDC callback nonce cookie is missing")
 		http.Error(w, "missing oauth nonce", http.StatusBadRequest)
 		return
 	}
+	log.Debug().
+		Str("path", r.URL.Path).
+		Str("query_state", queryState).
+		Str("nonce", nonceCookie.Value).
+		Msg("OIDC callback passed state and nonce cookie checks")
 	clearCookie(w, authStateCookieName)
 	clearCookie(w, authNonceCookieName)
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, a.httpClient)
 	token, err := a.oauthConfig.Exchange(ctx, code)
 	if err != nil {
+		log.Error().
+			Err(err).
+			Str("issuer", a.discovery.Issuer).
+			Str("client_id", a.settings.OIDCClientID).
+			Str("redirect_url", a.oauthConfig.RedirectURL).
+			Msg("OIDC token exchange failed")
 		http.Error(w, fmt.Sprintf("token exchange failed: %v", err), http.StatusBadGateway)
 		return
 	}
+	log.Debug().
+		Str("client_id", a.settings.OIDCClientID).
+		Time("token_expiry", token.Expiry).
+		Msg("OIDC token exchange succeeded")
 
 	rawIDToken, _ := token.Extra("id_token").(string)
 	if strings.TrimSpace(rawIDToken) == "" {
+		log.Debug().Msg("OIDC token response is missing id_token")
 		http.Error(w, "missing id_token in token response", http.StatusBadGateway)
 		return
 	}
 
 	claims, err := a.verifyIDToken(ctx, rawIDToken, nonceCookie.Value)
 	if err != nil {
+		log.Error().
+			Err(err).
+			Str("issuer", a.discovery.Issuer).
+			Str("client_id", a.settings.OIDCClientID).
+			Msg("OIDC id_token verification failed")
 		http.Error(w, fmt.Sprintf("id_token verification failed: %v", err), http.StatusBadGateway)
 		return
 	}
+	log.Debug().
+		Str("issuer", claims.Issuer).
+		Str("subject", claims.Subject).
+		Str("email", claims.Email).
+		Str("preferred_username", claims.PreferredUsername).
+		Msg("OIDC id_token verified")
 
 	resolved, err := a.identitySvc.ResolveOrProvisionUser(ctx, identity.ExternalPrincipal{
 		Issuer:            claims.Issuer,
@@ -217,9 +277,19 @@ func (a *OIDCAuthenticator) HandleCallback(w http.ResponseWriter, r *http.Reques
 		},
 	})
 	if err != nil {
+		log.Error().
+			Err(err).
+			Str("issuer", claims.Issuer).
+			Str("subject", claims.Subject).
+			Msg("OIDC user resolution failed")
 		http.Error(w, fmt.Sprintf("user resolution failed: %v", err), http.StatusInternalServerError)
 		return
 	}
+	log.Debug().
+		Str("user_id", resolved.User.ID).
+		Str("issuer", claims.Issuer).
+		Str("subject", claims.Subject).
+		Msg("OIDC callback resolved local user")
 
 	expiry := token.Expiry
 	if expiry.IsZero() {
@@ -235,11 +305,22 @@ func (a *OIDCAuthenticator) HandleCallback(w http.ResponseWriter, r *http.Reques
 		CreatedAt:  a.now(),
 		LastSeenAt: a.now(),
 	}); err != nil {
+		log.Error().
+			Err(err).
+			Str("user_id", resolved.User.ID).
+			Str("session_id", sessionID).
+			Msg("OIDC session creation failed")
 		http.Error(w, fmt.Sprintf("session creation failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	setSessionCookie(w, a.settings.SessionCookieName, sessionID, expiry)
+	log.Debug().
+		Str("user_id", resolved.User.ID).
+		Str("session_id", sessionID).
+		Time("expires_at", expiry).
+		Str("redirect_to", a.postLoginPath).
+		Msg("OIDC callback created hosted session")
 	http.Redirect(w, r, a.postLoginPath, http.StatusSeeOther)
 }
 
@@ -249,9 +330,16 @@ func (a *OIDCAuthenticator) HandleLogout(w http.ResponseWriter, r *http.Request)
 		cookieName = DefaultSessionCookieName
 	}
 	if cookie, err := r.Cookie(cookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
+		log.Debug().
+			Str("session_id", cookie.Value).
+			Str("cookie_name", cookieName).
+			Msg("Deleting hosted session during logout")
 		_ = a.identityRepo.DeleteSession(r.Context(), cookie.Value)
 	}
 	clearCookie(w, cookieName)
+	log.Debug().
+		Str("cookie_name", cookieName).
+		Msg("Completed hosted logout")
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -265,6 +353,10 @@ func (a *OIDCAuthenticator) verifyIDToken(ctx context.Context, rawIDToken, expec
 	if len(parsed.Headers) > 0 {
 		kid = parsed.Headers[0].KeyID
 	}
+	log.Debug().
+		Str("kid", kid).
+		Str("issuer", a.discovery.Issuer).
+		Msg("Verifying OIDC id_token against JWKS")
 
 	keys, err := a.jwks.Keys(ctx, kid, false)
 	if err != nil {
@@ -351,6 +443,9 @@ func (c *jwksCache) refresh(ctx context.Context) error {
 }
 
 func fetchOIDCDiscovery(ctx context.Context, client *http.Client, discoveryURL string) (oidcDiscoveryDocument, error) {
+	log.Debug().
+		Str("discovery_url", discoveryURL).
+		Msg("Fetching OIDC discovery document")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, discoveryURL, nil)
 	if err != nil {
 		return oidcDiscoveryDocument{}, err
@@ -368,6 +463,12 @@ func fetchOIDCDiscovery(ctx context.Context, client *http.Client, discoveryURL s
 	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
 		return oidcDiscoveryDocument{}, err
 	}
+	log.Debug().
+		Str("issuer", doc.Issuer).
+		Str("authorization_endpoint", doc.AuthorizationEndpoint).
+		Str("token_endpoint", doc.TokenEndpoint).
+		Str("jwks_uri", doc.JWKSURI).
+		Msg("Loaded OIDC discovery document")
 	return doc, nil
 }
 

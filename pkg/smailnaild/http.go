@@ -19,6 +19,7 @@ import (
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/web"
 	"github.com/jmoiron/sqlx"
+	"github.com/rs/zerolog/log"
 )
 
 type AccountAPI interface {
@@ -132,7 +133,7 @@ func NewHandler(options HandlerOptions) http.Handler {
 	// SPA handler must be registered last so API routes take precedence
 	web.RegisterSPA(mux, options.PublicFS, web.SPAOptions{APIPrefix: "/api"})
 
-	return mux
+	return withRequestDebugLogging(mux)
 }
 
 func (h *appHandler) registerHealthRoutes(mux *http.ServeMux) {
@@ -509,10 +510,67 @@ func (h *appHandler) userID(r *http.Request) (string, error) {
 func (h *appHandler) requireUserID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	userID, err := h.userID(r)
 	if err != nil || strings.TrimSpace(userID) == "" {
+		log.Debug().
+			Err(err).
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Msg("Hosted request is unauthenticated")
 		writeAPIError(w, http.StatusUnauthorized, "unauthenticated", "Authentication is required.", nil)
 		return "", false
 	}
+	log.Debug().
+		Str("method", r.Method).
+		Str("path", r.URL.Path).
+		Str("user_id", userID).
+		Msg("Hosted request resolved authenticated user")
 	return userID, true
+}
+
+type debugResponseWriter struct {
+	http.ResponseWriter
+	status int
+	bytes  int
+}
+
+func (w *debugResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *debugResponseWriter) Write(p []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	n, err := w.ResponseWriter.Write(p)
+	w.bytes += n
+	return n, err
+}
+
+func withRequestDebugLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		wrapped := &debugResponseWriter{ResponseWriter: w}
+		log.Debug().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("query", r.URL.RawQuery).
+			Str("remote_addr", r.RemoteAddr).
+			Str("user_agent", r.UserAgent()).
+			Bool("has_cookie", len(r.Cookies()) > 0).
+			Msg("Hosted request started")
+		next.ServeHTTP(wrapped, r)
+		status := wrapped.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		log.Debug().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Int("status", status).
+			Int("bytes", wrapped.bytes).
+			Dur("duration", time.Since(start)).
+			Msg("Hosted request completed")
+	})
 }
 
 func parseListMessagesInput(r *http.Request) (accounts.ListMessagesInput, error) {
