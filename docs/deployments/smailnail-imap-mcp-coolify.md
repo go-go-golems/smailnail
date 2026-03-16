@@ -62,6 +62,18 @@ SMAILNAIL_MCP_OIDC_REQUIRED_SCOPES=mcp:invoke
 The health check path is intentionally public when auth is enabled, unlike `/mcp`.
 The runtime image must include `curl` or `wget`, because Coolify runs the health check from inside the container.
 
+## How `/mcp` is routed
+
+Coolify routes the full host `https://smailnail.mcp.scapegoat.dev` to container port `3201`.
+There is no Coolify-side path rewrite for the MCP endpoint.
+
+That means:
+
+- `https://smailnail.mcp.scapegoat.dev/.well-known/oauth-protected-resource` goes directly to the binary's public metadata handler
+- `https://smailnail.mcp.scapegoat.dev/mcp` goes directly to the binary's MCP HTTP handler
+
+The `/mcp` path comes from `smailnail-imap-mcp` itself, not from Traefik or a reverse-proxy rewrite rule that we wrote by hand.
+
 ## Public repo deployment
 
 This repository is public, which makes the deployment path simpler than a private registry or private repo flow. The intended Coolify create command shape is:
