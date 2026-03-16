@@ -15,6 +15,16 @@
   padding: var(--sn-shell-padding-y) var(--sn-shell-padding-x);
 }
 
+[data-widget="auth-shell"][data-part="logged-out"] {
+  background:
+    radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(13, 110, 253, 0.03), rgba(13, 110, 253, 0));
+}
+
+[data-widget="auth-shell"][data-part="user-badge"] {
+  min-width: 0;
+}
+
 /* Account setup widget overrides */
 [data-widget="account-setup"][data-part="empty-state"] {
   padding-top: 4rem;

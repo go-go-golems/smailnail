@@ -12,6 +12,15 @@ export interface ApiError {
   };
 }
 
+export interface CurrentUser {
+  id: string;
+  primaryEmail?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Account types matching backend JSON shapes
 export interface Account {
   id: string;

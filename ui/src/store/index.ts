@@ -1,11 +1,13 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { useDispatch, useSelector } from "react-redux";
 import { accountsReducer } from "../features/accounts/accountsSlice";
+import { authReducer } from "../features/auth";
 import { mailboxReducer } from "../features/mailbox/mailboxSlice";
 import { rulesReducer } from "../features/rules/rulesSlice";
 
 export const store = configureStore({
   reducer: {
+    auth: authReducer,
     accounts: accountsReducer,
     mailbox: mailboxReducer,
     rules: rulesReducer,

@@ -2,6 +2,7 @@ import type {
   Account,
   AccountListItem,
   ApiResponse,
+  CurrentUser,
   CreateAccountInput,
   CreateRuleInput,
   DryRunInput,
@@ -25,6 +26,7 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       ...options,
     });
 
@@ -45,6 +47,10 @@ class ApiClient {
 
   async listAccounts(): Promise<ApiResponse<AccountListItem[]>> {
     return this.request<AccountListItem[]>("/accounts");
+  }
+
+  async getCurrentUser(): Promise<ApiResponse<CurrentUser>> {
+    return this.request<CurrentUser>("/me");
   }
 
   async createAccount(
