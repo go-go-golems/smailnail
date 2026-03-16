@@ -55,6 +55,22 @@ if [ -n "${SMAILNAIL_MCP_OIDC_REQUIRED_SCOPES:-}" ]; then
   IFS="$OLD_IFS"
 fi
 
+if [ -n "${SMAILNAIL_MCP_APP_DB_DRIVER:-}" ]; then
+  set -- "$@" --app-db-driver "$SMAILNAIL_MCP_APP_DB_DRIVER"
+fi
+
+if [ -n "${SMAILNAIL_MCP_APP_DB_DSN:-}" ]; then
+  set -- "$@" --app-db-dsn "$SMAILNAIL_MCP_APP_DB_DSN"
+fi
+
+if [ -n "${SMAILNAIL_MCP_APP_ENCRYPTION_KEY_ID:-}" ]; then
+  set -- "$@" --app-encryption-key-id "$SMAILNAIL_MCP_APP_ENCRYPTION_KEY_ID"
+fi
+
+if [ -n "${SMAILNAIL_MCP_APP_ENCRYPTION_KEY_BASE64:-}" ]; then
+  set -- "$@" --app-encryption-key-base64 "$SMAILNAIL_MCP_APP_ENCRYPTION_KEY_BASE64"
+fi
+
 if [ -n "${SMAILNAIL_MCP_EXTRA_ARGS:-}" ]; then
   # shellcheck disable=SC2086
   set -- "$@" $SMAILNAIL_MCP_EXTRA_ARGS

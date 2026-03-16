@@ -294,6 +294,12 @@ The stack also imports two initial OIDC clients in the `smailnail-dev` realm:
 - `smailnail-web`
 - `smailnail-mcp`
 
+Key references for the shared-identity slice:
+
+- [docs/deployments/smailnaild-oidc-keycloak.md](docs/deployments/smailnaild-oidc-keycloak.md)
+- [docs/shared-oidc-playbook.md](docs/shared-oidc-playbook.md)
+- [docs/deployments/smailnail-imap-mcp-coolify.md](docs/deployments/smailnail-imap-mcp-coolify.md)
+
 Stop it with:
 
 ```bash
@@ -307,6 +313,13 @@ cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
 export SMAILNAILD_ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)"
 SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/...
 SMAILNAILD_DOVECOT_TEST=1 go test ./...
+```
+
+To run the full shared OIDC + stored-account + local Dovecot smoke:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+SMAILNAIL_LOCAL_STACK_TEST=1 go test ./pkg/mcp/imapjs -run TestExecuteIMAPJSAgainstLocalKeycloakAndDovecot -v
 ```
 
 ## JavaScript module smoke

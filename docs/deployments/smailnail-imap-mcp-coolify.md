@@ -32,6 +32,10 @@ The entrypoint can be configured entirely through environment variables:
 - `SMAILNAIL_MCP_OIDC_DISCOVERY_URL`
 - `SMAILNAIL_MCP_OIDC_AUDIENCE`
 - `SMAILNAIL_MCP_OIDC_REQUIRED_SCOPES`
+- `SMAILNAIL_MCP_APP_DB_DRIVER`
+- `SMAILNAIL_MCP_APP_DB_DSN`
+- `SMAILNAIL_MCP_APP_ENCRYPTION_KEY_ID`
+- `SMAILNAIL_MCP_APP_ENCRYPTION_KEY_BASE64`
 - `SMAILNAIL_MCP_EXTRA_ARGS`
 
 ## Recommended Coolify environment
@@ -42,6 +46,10 @@ SMAILNAIL_MCP_PORT=3201
 SMAILNAIL_MCP_AUTH_MODE=external_oidc
 SMAILNAIL_MCP_AUTH_RESOURCE_URL=https://smailnail.mcp.scapegoat.dev/mcp
 SMAILNAIL_MCP_OIDC_ISSUER_URL=https://auth.scapegoat.dev/realms/smailnail
+SMAILNAIL_MCP_APP_DB_DRIVER=pgx
+SMAILNAIL_MCP_APP_DB_DSN=postgres://smailnail:...@postgres:5432/smailnail?sslmode=disable
+SMAILNAIL_MCP_APP_ENCRYPTION_KEY_ID=prod-smailnail
+SMAILNAIL_MCP_APP_ENCRYPTION_KEY_BASE64=...
 ```
 
 Only set the following once the Keycloak client/realm side is ready:
@@ -50,6 +58,12 @@ Only set the following once the Keycloak client/realm side is ready:
 SMAILNAIL_MCP_OIDC_AUDIENCE=smailnail-mcp
 SMAILNAIL_MCP_OIDC_REQUIRED_SCOPES=mcp:invoke
 ```
+
+The shared app DB and encryption settings are required for the new identity-to-account path. Without them:
+
+- bearer auth can still validate successfully
+- the MCP can still identify the user
+- but stored IMAP accounts created by `smailnaild` cannot be resolved or decrypted
 
 ## Coolify application shape
 
@@ -103,6 +117,8 @@ The production deployment expects a non-`master` realm:
 - issuer: `https://auth.scapegoat.dev/realms/smailnail`
 
 The MCP client entry in Keycloak must match the actual OAuth consumer. For Claude-based remote MCP, configure the client with the relevant Claude callback URIs and whatever audience/scope mapping you decide to enforce.
+
+This deployment also assumes `smailnaild` and `smailnail-imap-mcp` share the same application database so both the web app and the MCP resolve the same local `users.id` and the same `imap_accounts` rows.
 
 ## Verification
 
