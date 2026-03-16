@@ -68,6 +68,7 @@ func newFakeOIDCProvider(t *testing.T, clientID string) *fakeOIDCProvider {
 			"authorization_endpoint": provider.server.URL + "/authorize",
 			"token_endpoint":         provider.server.URL + "/token",
 			"jwks_uri":               provider.server.URL + "/jwks",
+			"end_session_endpoint":   provider.server.URL + "/logout",
 		})
 	})
 	mux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +90,9 @@ func newFakeOIDCProvider(t *testing.T, clientID string) *fakeOIDCProvider {
 			"expires_in":   3600,
 			"id_token":     idToken,
 		})
+	})
+	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
 
 	provider.server = httptest.NewServer(mux)
@@ -235,6 +239,19 @@ func TestOIDCLoginCallbackAndSessionMe(t *testing.T) {
 
 	if logoutRec.Code != http.StatusSeeOther {
 		t.Fatalf("logout status = %d body=%s", logoutRec.Code, logoutRec.Body.String())
+	}
+	logoutLocation, err := url.Parse(logoutRec.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("failed to parse logout redirect: %v", err)
+	}
+	if logoutLocation.Scheme != "http" || logoutLocation.Host != strings.TrimPrefix(provider.server.URL, "http://") || logoutLocation.Path != "/logout" {
+		t.Fatalf("unexpected logout redirect location: %s", logoutLocation.String())
+	}
+	if got := logoutLocation.Query().Get("client_id"); got != "smailnail-web" {
+		t.Fatalf("logout client_id = %q", got)
+	}
+	if got := logoutLocation.Query().Get("post_logout_redirect_uri"); got != "http://smailnail.test/" {
+		t.Fatalf("logout post_logout_redirect_uri = %q", got)
 	}
 
 	postLogoutReq := httptest.NewRequest(http.MethodGet, "/api/me", nil)

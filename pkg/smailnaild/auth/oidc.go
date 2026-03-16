@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ type oidcDiscoveryDocument struct {
 	JWKSURI               string `json:"jwks_uri"`
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
+	EndSessionEndpoint    string `json:"end_session_endpoint"`
 }
 
 type idTokenClaims struct {
@@ -337,10 +339,59 @@ func (a *OIDCAuthenticator) HandleLogout(w http.ResponseWriter, r *http.Request)
 		_ = a.identityRepo.DeleteSession(r.Context(), cookie.Value)
 	}
 	clearCookie(w, cookieName)
+	redirectURL := a.buildLogoutRedirectURL()
 	log.Debug().
 		Str("cookie_name", cookieName).
+		Str("redirect_to", redirectURL).
 		Msg("Completed hosted logout")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+func (a *OIDCAuthenticator) buildLogoutRedirectURL() string {
+	if strings.TrimSpace(a.discovery.EndSessionEndpoint) == "" {
+		return a.postLoginPath
+	}
+
+	endSessionURL, err := url.Parse(a.discovery.EndSessionEndpoint)
+	if err != nil {
+		log.Debug().
+			Err(err).
+			Str("end_session_endpoint", a.discovery.EndSessionEndpoint).
+			Msg("Failed to parse OIDC end-session endpoint, falling back to post-login path")
+		return a.postLoginPath
+	}
+
+	postLogoutURL, err := derivePostLogoutRedirectURL(a.oauthConfig.RedirectURL)
+	if err != nil {
+		log.Debug().
+			Err(err).
+			Str("redirect_url", a.oauthConfig.RedirectURL).
+			Msg("Failed to derive post-logout redirect URL, falling back to post-login path")
+		return a.postLoginPath
+	}
+
+	query := endSessionURL.Query()
+	query.Set("post_logout_redirect_uri", postLogoutURL)
+	if strings.TrimSpace(a.settings.OIDCClientID) != "" {
+		query.Set("client_id", a.settings.OIDCClientID)
+	}
+	endSessionURL.RawQuery = query.Encode()
+	return endSessionURL.String()
+}
+
+func derivePostLogoutRedirectURL(redirectURL string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(redirectURL))
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("redirect url must include scheme and host")
+	}
+	parsed.Path = "/"
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String(), nil
 }
 
 func (a *OIDCAuthenticator) verifyIDToken(ctx context.Context, rawIDToken, expectedNonce string) (*idTokenClaims, error) {
