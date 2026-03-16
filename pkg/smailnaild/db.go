@@ -17,7 +17,7 @@ const DefaultSQLiteDBPath = "smailnaild.sqlite"
 
 const (
 	bootstrapBaselineVersion = 1
-	currentSchemaVersion     = 5
+	currentSchemaVersion     = 6
 )
 
 type DatabaseInfo struct {
@@ -271,6 +271,42 @@ func schemaMigrations() []schemaMigration {
 				)`,
 			},
 		},
+		{
+			version: 6,
+			statements: []string{
+				`CREATE TABLE IF NOT EXISTS users (
+					id TEXT PRIMARY KEY,
+					primary_email TEXT NOT NULL DEFAULT '',
+					display_name TEXT NOT NULL DEFAULT '',
+					avatar_url TEXT NOT NULL DEFAULT '',
+					created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+				)`,
+				`CREATE TABLE IF NOT EXISTS user_external_identities (
+					id TEXT PRIMARY KEY,
+					user_id TEXT NOT NULL,
+					issuer TEXT NOT NULL,
+					subject TEXT NOT NULL,
+					provider_kind TEXT NOT NULL,
+					email TEXT NOT NULL DEFAULT '',
+					email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+					preferred_username TEXT NOT NULL DEFAULT '',
+					raw_claims_json TEXT NOT NULL DEFAULT '{}',
+					created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					UNIQUE (issuer, subject)
+				)`,
+				`CREATE TABLE IF NOT EXISTS web_sessions (
+					id TEXT PRIMARY KEY,
+					user_id TEXT NOT NULL,
+					issuer TEXT NOT NULL,
+					subject TEXT NOT NULL,
+					expires_at TIMESTAMP NOT NULL,
+					created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+				)`,
+			},
+		},
 	}
 }
 
@@ -297,6 +333,8 @@ func schemaVersion(ctx context.Context, db *sqlx.DB) (int, error) {
 		return 4, nil
 	case "5":
 		return 5, nil
+	case "6":
+		return 6, nil
 	default:
 		return 0, fmt.Errorf("unsupported schema version %q", raw)
 	}

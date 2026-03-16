@@ -55,8 +55,8 @@ func TestBootstrapApplicationDBCreatesMetadata(t *testing.T) {
 	if err := db.Get(&value, `SELECT value FROM app_metadata WHERE key = 'schema_version'`); err != nil {
 		t.Fatalf("failed to read schema_version: %v", err)
 	}
-	if value != "5" {
-		t.Fatalf("expected schema version 5, got %q", value)
+	if value != "6" {
+		t.Fatalf("expected schema version 6, got %q", value)
 	}
 }
 
@@ -74,6 +74,9 @@ func TestBootstrapApplicationDBCreatesPhaseOneAndTwoTables(t *testing.T) {
 		"imap_account_tests",
 		"rules",
 		"rule_runs",
+		"users",
+		"user_external_identities",
+		"web_sessions",
 	}
 	for _, table := range expected {
 		var name string
@@ -110,8 +113,8 @@ func TestBootstrapApplicationDBMigratesLegacyVersionOneDatabase(t *testing.T) {
 	if err := db.Get(&value, `SELECT value FROM app_metadata WHERE key = 'schema_version'`); err != nil {
 		t.Fatalf("failed to read upgraded schema_version: %v", err)
 	}
-	if value != "5" {
-		t.Fatalf("expected upgraded schema version 5, got %q", value)
+	if value != "6" {
+		t.Fatalf("expected upgraded schema version 6, got %q", value)
 	}
 }
 
