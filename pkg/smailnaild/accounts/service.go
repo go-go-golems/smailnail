@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -28,10 +29,11 @@ const (
 )
 
 type Service struct {
-	repo    *Repository
-	secrets *secrets.Config
-	now     func() time.Time
-	newID   func() string
+	repo             *Repository
+	secrets          *secrets.Config
+	now              func() time.Time
+	newID            func() string
+	runReadOnlyProbe func(connection *ConnectionDetails) (*readOnlyProbeResult, string, error)
 }
 
 type CreateInput struct {
@@ -145,12 +147,22 @@ type ConnectionDetails struct {
 	Mailbox  string
 }
 
+type readOnlyProbeResult struct {
+	TCPOK           bool
+	LoginOK         bool
+	MailboxSelectOK bool
+	ListOK          bool
+	SampleFetchOK   bool
+	Details         map[string]any
+}
+
 func NewService(repo *Repository, secretConfig *secrets.Config) *Service {
 	return &Service{
-		repo:    repo,
-		secrets: secretConfig,
-		now:     func() time.Time { return time.Now().UTC() },
-		newID:   uuid.NewString,
+		repo:             repo,
+		secrets:          secretConfig,
+		now:              func() time.Time { return time.Now().UTC() },
+		newID:            uuid.NewString,
+		runReadOnlyProbe: runReadOnlyProbe,
 	}
 }
 
@@ -355,7 +367,13 @@ func (s *Service) RunTest(ctx context.Context, userID, accountID string, input T
 		CreatedAt: s.now(),
 	}
 
-	client, stage, stageErr := dialAndLogin(connection)
+	probe, stage, stageErr := s.runReadOnlyProbe(connection)
+	if shouldRetryReadOnlyProbe(stageErr) {
+		probe, stage, stageErr = s.runReadOnlyProbe(connection)
+	}
+	if probe != nil {
+		applyReadOnlyProbeResult(result, probe)
+	}
 	if stageErr != nil {
 		result.ErrorCode, result.WarningCode, result.ErrorMessage = classifyFailure(connection.Account, stage, stageErr)
 		if result.WarningCode == "" && connection.Account.Insecure {
@@ -365,61 +383,6 @@ func (s *Service) RunTest(ctx context.Context, userID, accountID string, input T
 			return nil, err
 		}
 		return result, nil
-	}
-	defer func() { _ = client.Close() }()
-
-	result.TCPOK = true
-	result.LoginOK = true
-
-	selected, err := client.Select(connection.Mailbox, nil).Wait()
-	if err != nil {
-		result.ErrorCode, result.WarningCode, result.ErrorMessage = classifyFailure(connection.Account, "select", err)
-		if err := s.persistTestResult(ctx, result); err != nil {
-			return nil, err
-		}
-		return result, nil
-	}
-	result.MailboxSelectOK = true
-	result.Details["selectedMailbox"] = connection.Mailbox
-	result.Details["numMessages"] = selected.NumMessages
-
-	mailboxes, err := client.List("", "*", nil).Collect()
-	if err != nil {
-		result.ErrorCode, result.WarningCode, result.ErrorMessage = classifyFailure(connection.Account, "list", err)
-		if err := s.persistTestResult(ctx, result); err != nil {
-			return nil, err
-		}
-		return result, nil
-	}
-	result.ListOK = true
-
-	sampleMailboxes := make([]string, 0, len(mailboxes))
-	for _, mailbox := range mailboxes {
-		sampleMailboxes = append(sampleMailboxes, mailbox.Mailbox)
-	}
-	sort.Strings(sampleMailboxes)
-	result.Details["sampleMailboxes"] = sampleMailboxes
-
-	result.SampleFetchOK = true
-	if selected.NumMessages > 0 {
-		seqSet := imap.SeqSetNum(selected.NumMessages)
-		messages, err := client.Fetch(seqSet, &imap.FetchOptions{
-			UID:        true,
-			Envelope:   true,
-			Flags:      true,
-			RFC822Size: true,
-		}).Collect()
-		if err != nil {
-			result.SampleFetchOK = false
-			result.ErrorCode, result.WarningCode, result.ErrorMessage = classifyFailure(connection.Account, "fetch", err)
-			if err := s.persistTestResult(ctx, result); err != nil {
-				return nil, err
-			}
-			return result, nil
-		}
-		if len(messages) > 0 && messages[0].Envelope != nil {
-			result.Details["sampleSubject"] = messages[0].Envelope.Subject
-		}
 	}
 
 	result.Success = result.TCPOK && result.LoginOK && result.MailboxSelectOK && result.ListOK && result.SampleFetchOK
@@ -615,6 +578,107 @@ func dialAndLogin(connection *ConnectionDetails) (*imapclient.Client, string, er
 		return nil, "login", err
 	}
 	return client, "", nil
+}
+
+func runReadOnlyProbe(connection *ConnectionDetails) (*readOnlyProbeResult, string, error) {
+	result := &readOnlyProbeResult{
+		Details: map[string]any{
+			"mailbox": connection.Mailbox,
+			"server":  connection.Account.Server,
+			"port":    connection.Account.Port,
+		},
+	}
+
+	client, stage, stageErr := dialAndLogin(connection)
+	if stageErr != nil {
+		return result, stage, stageErr
+	}
+	defer func() { _ = client.Close() }()
+
+	result.TCPOK = true
+	result.LoginOK = true
+
+	selected, err := client.Select(connection.Mailbox, nil).Wait()
+	if err != nil {
+		return result, "select", err
+	}
+	result.MailboxSelectOK = true
+	result.Details["selectedMailbox"] = connection.Mailbox
+	result.Details["numMessages"] = selected.NumMessages
+
+	mailboxes, err := client.List("", "*", nil).Collect()
+	if err != nil {
+		return result, "list", err
+	}
+	result.ListOK = true
+
+	sampleMailboxes := make([]string, 0, len(mailboxes))
+	for _, mailbox := range mailboxes {
+		sampleMailboxes = append(sampleMailboxes, mailbox.Mailbox)
+	}
+	sort.Strings(sampleMailboxes)
+	result.Details["sampleMailboxes"] = sampleMailboxes
+
+	result.SampleFetchOK = true
+	if selected.NumMessages > 0 {
+		seqSet := imap.SeqSetNum(selected.NumMessages)
+		messages, err := client.Fetch(seqSet, &imap.FetchOptions{
+			UID:        true,
+			Envelope:   true,
+			Flags:      true,
+			RFC822Size: true,
+		}).Collect()
+		if err != nil {
+			result.SampleFetchOK = false
+			return result, "fetch", err
+		}
+		if len(messages) > 0 && messages[0].Envelope != nil {
+			result.Details["sampleSubject"] = messages[0].Envelope.Subject
+		}
+	}
+
+	return result, "", nil
+}
+
+func shouldRetryReadOnlyProbe(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	for _, fragment := range []string{
+		"use of closed network connection",
+		"broken pipe",
+		"connection reset by peer",
+		"unexpected eof",
+	} {
+		if strings.Contains(message, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func applyReadOnlyProbeResult(target *TestResult, probe *readOnlyProbeResult) {
+	if target == nil || probe == nil {
+		return
+	}
+	target.TCPOK = probe.TCPOK
+	target.LoginOK = probe.LoginOK
+	target.MailboxSelectOK = probe.MailboxSelectOK
+	target.ListOK = probe.ListOK
+	target.SampleFetchOK = probe.SampleFetchOK
+	if len(probe.Details) == 0 {
+		return
+	}
+	if target.Details == nil {
+		target.Details = map[string]any{}
+	}
+	for key, value := range probe.Details {
+		target.Details[key] = value
+	}
 }
 
 func classifyFailure(account *Account, stage string, err error) (string, string, string) {
