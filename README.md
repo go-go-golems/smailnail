@@ -191,6 +191,24 @@ go run ./cmd/smailnaild serve \
 
 Local hosted-account testing notes and curl examples are in `docs/smailnaild-local-account-flow.md`.
 
+For the React/Vite UI in `ui/`, start the backend and dev server separately:
+
+```bash
+go run ./cmd/smailnaild serve \
+  --encryption-key-base64 "$ENCRYPTION_KEY"
+```
+
+```bash
+cd ui
+pnpm run dev
+```
+
+The UI now defaults to `http://localhost:5050` and proxies `/api` to `http://localhost:8080`.
+To point the UI at another backend, copy `ui/.env.example` to `ui/.env.local` and set either:
+
+- `SMAILNAIL_UI_BACKEND_URL=http://localhost:3001`
+- or `SMAILNAIL_UI_BACKEND_PORT=3001`
+
 ## Environment variables
 
 The Cobra parser is configured with app name `smailnail`, so shared IMAP settings can be supplied with `SMAILNAIL_*` variables such as:
