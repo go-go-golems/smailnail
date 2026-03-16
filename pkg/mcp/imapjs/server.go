@@ -6,12 +6,19 @@ import (
 )
 
 func AddMCPCommand(rootCmd *cobra.Command) error {
+	identityRuntime := newSharedIdentityRuntime()
+
 	return embeddable.AddMCPCommand(rootCmd,
 		embeddable.WithName("smailnail IMAP JS MCP"),
 		embeddable.WithVersion("0.1.0"),
 		embeddable.WithServerDescription("Execute smailnail JavaScript snippets and query their API documentation"),
 		embeddable.WithDefaultTransport("streamable_http"),
 		embeddable.WithDefaultPort(3201),
+		embeddable.WithMiddleware(identityRuntime.middleware()),
+		embeddable.WithCommandCustomizer(identityRuntime.commandCustomizer),
+		embeddable.WithHooks(&embeddable.Hooks{
+			OnServerStart: identityRuntime.startupHook,
+		}),
 		embeddable.WithTool("executeIMAPJS", executeIMAPJSHandler,
 			embeddable.WithDescription("Execute JavaScript against the smailnail go-go-goja module and return a JSON result"),
 			embeddable.WithStringArg("code", "JavaScript source to execute", true),
