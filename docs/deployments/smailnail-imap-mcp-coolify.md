@@ -60,6 +60,7 @@ SMAILNAIL_MCP_OIDC_REQUIRED_SCOPES=mcp:invoke
 - Health check path: `/.well-known/oauth-protected-resource`
 
 The health check path is intentionally public when auth is enabled, unlike `/mcp`.
+The runtime image must include `curl` or `wget`, because Coolify runs the health check from inside the container.
 
 ## Public repo deployment
 
