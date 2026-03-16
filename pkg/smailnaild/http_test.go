@@ -338,6 +338,51 @@ func TestNewHandlerMeRouteWithSessionCookie(t *testing.T) {
 	}
 }
 
+func TestNewHandlerMeRouteRejectsExpiredSession(t *testing.T) {
+	db := sqlx.MustOpen("sqlite3", ":memory:")
+	defer func() { _ = db.Close() }()
+
+	if err := BootstrapApplicationDB(t.Context(), db); err != nil {
+		t.Fatalf("BootstrapApplicationDB() error = %v", err)
+	}
+
+	repo := identity.NewRepository(db)
+	if err := repo.CreateUser(t.Context(), &identity.User{
+		ID:           "user-1",
+		PrimaryEmail: "intern@example.com",
+		DisplayName:  "Intern",
+	}); err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	if err := repo.CreateSession(t.Context(), &identity.WebSession{
+		ID:         "expired-session",
+		UserID:     "user-1",
+		Issuer:     "https://auth.example.com/realms/smailnail",
+		Subject:    "abc123",
+		ExpiresAt:  time.Now().UTC().Add(-1 * time.Minute),
+		CreatedAt:  time.Now().UTC().Add(-2 * time.Hour),
+		LastSeenAt: time.Now().UTC().Add(-10 * time.Minute),
+	}); err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	handler := NewHandler(HandlerOptions{
+		DB:           db,
+		DBInfo:       DatabaseInfo{Driver: "sqlite3", Target: ":memory:", Mode: "structured"},
+		StartedAt:    time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+		UserResolver: SessionUserResolver{Repo: repo, CookieName: "smailnail_session"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: "smailnail_session", Value: "expired-session"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func derefString(value *string, fallback string) string {
 	if value == nil {
 		return fallback

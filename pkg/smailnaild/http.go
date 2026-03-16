@@ -14,6 +14,7 @@ import (
 	"io/fs"
 
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
+	hostedauth "github.com/go-go-golems/smailnail/pkg/smailnaild/auth"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/identity"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/web"
@@ -49,6 +50,7 @@ type ServerOptions struct {
 	UserResolver UserResolver
 	AccountAPI   AccountAPI
 	RuleAPI      RuleAPI
+	WebAuth      hostedauth.WebHandler
 	PublicFS     fs.FS
 }
 
@@ -59,6 +61,7 @@ type HandlerOptions struct {
 	UserResolver UserResolver
 	AccountAPI   AccountAPI
 	RuleAPI      RuleAPI
+	WebAuth      hostedauth.WebHandler
 	PublicFS     fs.FS
 }
 
@@ -77,6 +80,7 @@ type appHandler struct {
 	identityRepo *identity.Repository
 	accounts     AccountAPI
 	rules        RuleAPI
+	webAuth      hostedauth.WebHandler
 }
 
 type errorEnvelope struct {
@@ -99,6 +103,7 @@ func NewHTTPServer(options ServerOptions) *http.Server {
 			UserResolver: options.UserResolver,
 			AccountAPI:   options.AccountAPI,
 			RuleAPI:      options.RuleAPI,
+			WebAuth:      options.WebAuth,
 			PublicFS:     options.PublicFS,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -114,6 +119,7 @@ func NewHandler(options HandlerOptions) http.Handler {
 		identityRepo: identity.NewRepository(options.DB),
 		accounts:     options.AccountAPI,
 		rules:        options.RuleAPI,
+		webAuth:      options.WebAuth,
 	}
 	if h.userResolver == nil {
 		h.userResolver = HeaderUserResolver{DefaultUserID: DefaultDevUserID}
@@ -155,6 +161,11 @@ func (h *appHandler) registerHealthRoutes(mux *http.ServeMux) {
 		})
 	})
 	mux.HandleFunc("GET /api/me", h.handleGetMe)
+	if h.webAuth != nil {
+		mux.HandleFunc("GET /auth/login", h.webAuth.HandleLogin)
+		mux.HandleFunc("GET /auth/callback", h.webAuth.HandleCallback)
+		mux.HandleFunc("GET /auth/logout", h.webAuth.HandleLogout)
+	}
 }
 
 func (h *appHandler) registerAPIRoutes(mux *http.ServeMux) {

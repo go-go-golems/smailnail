@@ -123,6 +123,7 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 	accountService := accounts.NewService(accounts.NewRepository(db), secretConfig)
 	ruleService := rules.NewService(rules.NewRepository(db), accountService)
 	identityRepo := identity.NewRepository(db)
+	identityService := identity.NewService(identityRepo)
 
 	userResolver := hostedapp.UserResolver(hostedapp.HeaderUserResolver{
 		DefaultUserID: authSettings.DevUserID,
@@ -131,6 +132,13 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		userResolver = hostedapp.SessionUserResolver{
 			Repo:       identityRepo,
 			CookieName: authSettings.SessionCookieName,
+		}
+	}
+	var webAuth hostedauth.WebHandler
+	if authSettings.Mode == hostedauth.AuthModeOIDC {
+		webAuth, err = hostedauth.NewOIDCAuthenticator(ctx, authSettings, identityRepo, identityService)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -142,6 +150,7 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		UserResolver: userResolver,
 		AccountAPI:   accountService,
 		RuleAPI:      ruleService,
+		WebAuth:      webAuth,
 		PublicFS:     web.PublicFS,
 	})
 
