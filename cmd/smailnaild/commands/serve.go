@@ -13,6 +13,8 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	hostedapp "github.com/go-go-golems/smailnail/pkg/smailnaild"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
+	hostedauth "github.com/go-go-golems/smailnail/pkg/smailnaild/auth"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/identity"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/secrets"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/web"
@@ -68,6 +70,11 @@ func NewServeCommand() (*ServeCommand, error) {
 		return nil, err
 	}
 
+	authSection, err := hostedauth.NewSection()
+	if err != nil {
+		return nil, err
+	}
+
 	return &ServeCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"serve",
@@ -76,10 +83,11 @@ func NewServeCommand() (*ServeCommand, error) {
 
 This slice provides:
 - Clay SQL-backed application database bootstrapping
+- hosted auth mode configuration for dev, session, and future OIDC login
 - encrypted IMAP credential storage using the encryption section
 - hosted account CRUD, account test, mailbox preview, and rule dry-run APIs
 - health, readiness, and service metadata endpoints`),
-			cmds.WithSections(defaultSection, sqlSection, dbtSection, encryptionSection),
+			cmds.WithSections(defaultSection, sqlSection, dbtSection, encryptionSection, authSection),
 		),
 	}, nil
 }
@@ -102,6 +110,11 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 		return err
 	}
 
+	authSettings, err := hostedauth.LoadSettingsFromParsedValues(parsedValues)
+	if err != nil {
+		return err
+	}
+
 	secretConfig, err := secrets.LoadConfigFromParsedValues(parsedValues)
 	if err != nil {
 		return err
@@ -109,13 +122,24 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 
 	accountService := accounts.NewService(accounts.NewRepository(db), secretConfig)
 	ruleService := rules.NewService(rules.NewRepository(db), accountService)
+	identityRepo := identity.NewRepository(db)
+
+	userResolver := hostedapp.UserResolver(hostedapp.HeaderUserResolver{
+		DefaultUserID: authSettings.DevUserID,
+	})
+	if authSettings.Mode == hostedauth.AuthModeSession || authSettings.Mode == hostedauth.AuthModeOIDC {
+		userResolver = hostedapp.SessionUserResolver{
+			Repo:       identityRepo,
+			CookieName: authSettings.SessionCookieName,
+		}
+	}
 
 	server := hostedapp.NewHTTPServer(hostedapp.ServerOptions{
 		Host:         settings.ListenHost,
 		Port:         settings.ListenPort,
 		DB:           db,
 		DBInfo:       dbInfo,
-		UserResolver: hostedapp.HeaderUserResolver{},
+		UserResolver: userResolver,
 		AccountAPI:   accountService,
 		RuleAPI:      ruleService,
 		PublicFS:     web.PublicFS,

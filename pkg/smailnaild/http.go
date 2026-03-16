@@ -14,6 +14,7 @@ import (
 	"io/fs"
 
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/identity"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/web"
 	"github.com/jmoiron/sqlx"
@@ -73,6 +74,7 @@ type appHandler struct {
 	dbInfo       DatabaseInfo
 	startedAt    time.Time
 	userResolver UserResolver
+	identityRepo *identity.Repository
 	accounts     AccountAPI
 	rules        RuleAPI
 }
@@ -109,11 +111,12 @@ func NewHandler(options HandlerOptions) http.Handler {
 		dbInfo:       options.DBInfo,
 		startedAt:    options.StartedAt,
 		userResolver: options.UserResolver,
+		identityRepo: identity.NewRepository(options.DB),
 		accounts:     options.AccountAPI,
 		rules:        options.RuleAPI,
 	}
 	if h.userResolver == nil {
-		h.userResolver = HeaderUserResolver{}
+		h.userResolver = HeaderUserResolver{DefaultUserID: DefaultDevUserID}
 	}
 
 	mux := http.NewServeMux()
@@ -151,6 +154,7 @@ func (h *appHandler) registerHealthRoutes(mux *http.ServeMux) {
 			Database:  h.dbInfo,
 		})
 	})
+	mux.HandleFunc("GET /api/me", h.handleGetMe)
 }
 
 func (h *appHandler) registerAPIRoutes(mux *http.ServeMux) {
@@ -178,7 +182,12 @@ func (h *appHandler) handleListAccounts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	items, err := h.accounts.List(r.Context(), h.userID(r))
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	items, err := h.accounts.List(r.Context(), userID)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -197,7 +206,12 @@ func (h *appHandler) handleCreateAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	account, err := h.accounts.Create(r.Context(), h.userID(r), input)
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	account, err := h.accounts.Create(r.Context(), userID, input)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -206,7 +220,12 @@ func (h *appHandler) handleCreateAccount(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *appHandler) handleGetAccount(w http.ResponseWriter, r *http.Request) {
-	account, err := h.accounts.Get(r.Context(), h.userID(r), r.PathValue("id"))
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	account, err := h.accounts.Get(r.Context(), userID, r.PathValue("id"))
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -220,7 +239,12 @@ func (h *appHandler) handleUpdateAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	account, err := h.accounts.Update(r.Context(), h.userID(r), r.PathValue("id"), input)
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	account, err := h.accounts.Update(r.Context(), userID, r.PathValue("id"), input)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -229,7 +253,12 @@ func (h *appHandler) handleUpdateAccount(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *appHandler) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
-	if err := h.accounts.Delete(r.Context(), h.userID(r), r.PathValue("id")); err != nil {
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := h.accounts.Delete(r.Context(), userID, r.PathValue("id")); err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
@@ -242,7 +271,12 @@ func (h *appHandler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.accounts.RunTest(r.Context(), h.userID(r), r.PathValue("id"), input)
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := h.accounts.RunTest(r.Context(), userID, r.PathValue("id"), input)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -251,7 +285,12 @@ func (h *appHandler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *appHandler) handleListMailboxes(w http.ResponseWriter, r *http.Request) {
-	mailboxes, err := h.accounts.ListMailboxes(r.Context(), h.userID(r), r.PathValue("id"))
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	mailboxes, err := h.accounts.ListMailboxes(r.Context(), userID, r.PathValue("id"))
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -266,7 +305,12 @@ func (h *appHandler) handleListMessages(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	messages, mailbox, err := h.accounts.ListMessages(r.Context(), h.userID(r), r.PathValue("id"), input)
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	messages, mailbox, err := h.accounts.ListMessages(r.Context(), userID, r.PathValue("id"), input)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -293,9 +337,14 @@ func (h *appHandler) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
 	message, mailbox, err := h.accounts.GetMessage(
 		r.Context(),
-		h.userID(r),
+		userID,
 		r.PathValue("id"),
 		r.URL.Query().Get("mailbox"),
 		uint32(uid64),
@@ -308,7 +357,12 @@ func (h *appHandler) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *appHandler) handleListRules(w http.ResponseWriter, r *http.Request) {
-	items, err := h.rules.List(r.Context(), h.userID(r))
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	items, err := h.rules.List(r.Context(), userID)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -322,7 +376,12 @@ func (h *appHandler) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := h.rules.Create(r.Context(), h.userID(r), input)
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	record, err := h.rules.Create(r.Context(), userID, input)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -331,7 +390,12 @@ func (h *appHandler) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *appHandler) handleGetRule(w http.ResponseWriter, r *http.Request) {
-	record, err := h.rules.Get(r.Context(), h.userID(r), r.PathValue("id"))
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	record, err := h.rules.Get(r.Context(), userID, r.PathValue("id"))
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -345,7 +409,12 @@ func (h *appHandler) handleUpdateRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	record, err := h.rules.Update(r.Context(), h.userID(r), r.PathValue("id"), input)
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	record, err := h.rules.Update(r.Context(), userID, r.PathValue("id"), input)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -354,7 +423,12 @@ func (h *appHandler) handleUpdateRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *appHandler) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
-	if err := h.rules.Delete(r.Context(), h.userID(r), r.PathValue("id")); err != nil {
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	if err := h.rules.Delete(r.Context(), userID, r.PathValue("id")); err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
@@ -367,7 +441,12 @@ func (h *appHandler) handleDryRunRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.rules.DryRun(r.Context(), h.userID(r), r.PathValue("id"), input)
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := h.rules.DryRun(r.Context(), userID, r.PathValue("id"), input)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return
@@ -388,8 +467,41 @@ func (h *appHandler) writeServiceError(w http.ResponseWriter, err error) {
 	}
 }
 
-func (h *appHandler) userID(r *http.Request) string {
+func (h *appHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	if h.identityRepo == nil {
+		writeDataJSON(w, http.StatusOK, map[string]any{"id": userID}, nil)
+		return
+	}
+
+	user, err := h.identityRepo.GetUserByID(r.Context(), userID)
+	if errors.Is(err, identity.ErrNotFound) {
+		writeDataJSON(w, http.StatusOK, map[string]any{"id": userID}, nil)
+		return
+	}
+	if err != nil {
+		h.writeServiceError(w, err)
+		return
+	}
+
+	writeDataJSON(w, http.StatusOK, user, nil)
+}
+
+func (h *appHandler) userID(r *http.Request) (string, error) {
 	return h.userResolver.ResolveUserID(r)
+}
+
+func (h *appHandler) requireUserID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID, err := h.userID(r)
+	if err != nil || strings.TrimSpace(userID) == "" {
+		writeAPIError(w, http.StatusUnauthorized, "unauthenticated", "Authentication is required.", nil)
+		return "", false
+	}
+	return userID, true
 }
 
 func parseListMessagesInput(r *http.Request) (accounts.ListMessagesInput, error) {

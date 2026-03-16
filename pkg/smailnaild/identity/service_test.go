@@ -6,17 +6,14 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-
-	hostedapp "github.com/go-go-golems/smailnail/pkg/smailnaild"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestResolveOrProvisionUserCreatesUserAndIdentity(t *testing.T) {
 	db := sqlx.MustOpen("sqlite3", ":memory:")
 	defer func() { _ = db.Close() }()
 
-	if err := hostedapp.BootstrapApplicationDB(context.Background(), db); err != nil {
-		t.Fatalf("BootstrapApplicationDB() error = %v", err)
-	}
+	bootstrapIdentityTestDB(t, db)
 
 	repo := NewRepository(db)
 	service := NewService(repo)
@@ -52,9 +49,7 @@ func TestResolveOrProvisionUserIsIdempotentAndRefreshesProfile(t *testing.T) {
 	db := sqlx.MustOpen("sqlite3", ":memory:")
 	defer func() { _ = db.Close() }()
 
-	if err := hostedapp.BootstrapApplicationDB(context.Background(), db); err != nil {
-		t.Fatalf("BootstrapApplicationDB() error = %v", err)
-	}
+	bootstrapIdentityTestDB(t, db)
 
 	repo := NewRepository(db)
 	service := NewService(repo)
@@ -106,9 +101,7 @@ func TestRepositorySessionRoundTrip(t *testing.T) {
 	db := sqlx.MustOpen("sqlite3", ":memory:")
 	defer func() { _ = db.Close() }()
 
-	if err := hostedapp.BootstrapApplicationDB(context.Background(), db); err != nil {
-		t.Fatalf("BootstrapApplicationDB() error = %v", err)
-	}
+	bootstrapIdentityTestDB(t, db)
 
 	repo := NewRepository(db)
 	session := &WebSession{
@@ -150,5 +143,49 @@ func sequenceIDs(values ...string) func() string {
 		value := values[index]
 		index++
 		return value
+	}
+}
+
+func bootstrapIdentityTestDB(t *testing.T, db *sqlx.DB) {
+	t.Helper()
+
+	statements := []string{
+		`CREATE TABLE users (
+			id TEXT PRIMARY KEY,
+			primary_email TEXT NOT NULL DEFAULT '',
+			display_name TEXT NOT NULL DEFAULT '',
+			avatar_url TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE user_external_identities (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			issuer TEXT NOT NULL,
+			subject TEXT NOT NULL,
+			provider_kind TEXT NOT NULL,
+			email TEXT NOT NULL DEFAULT '',
+			email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+			preferred_username TEXT NOT NULL DEFAULT '',
+			raw_claims_json TEXT NOT NULL DEFAULT '{}',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (issuer, subject)
+		)`,
+		`CREATE TABLE web_sessions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			issuer TEXT NOT NULL,
+			subject TEXT NOT NULL,
+			expires_at TIMESTAMP NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+	}
+
+	for _, statement := range statements {
+		if _, err := db.Exec(statement); err != nil {
+			t.Fatalf("bootstrap identity schema: %v", err)
+		}
 	}
 }

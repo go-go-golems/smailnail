@@ -39,6 +39,26 @@ func (r *Repository) CreateUser(ctx context.Context, user *User) error {
 	return err
 }
 
+func (r *Repository) GetUserByID(ctx context.Context, userID string) (*User, error) {
+	var user User
+	err := r.db.GetContext(ctx, &user, r.db.Rebind(`SELECT
+		id,
+		primary_email,
+		display_name,
+		avatar_url,
+		created_at,
+		updated_at
+	FROM users
+	WHERE id = ?`), userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *Repository) UpdateUserProfile(ctx context.Context, user *User) error {
 	if user == nil {
 		return fmt.Errorf("user is nil")

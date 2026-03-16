@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/identity"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
@@ -258,6 +259,83 @@ func TestNewHandlerAccountAndRuleRoutes(t *testing.T) {
 			t.Fatalf("unexpected dry-run input: %+v", ruleAPI.lastDryRunInput)
 		}
 	})
+
+	t.Run("missing auth returns unauthorized", func(t *testing.T) {
+		protected := NewHandler(HandlerOptions{
+			DB:           db,
+			DBInfo:       DatabaseInfo{Driver: "sqlite3", Target: ":memory:", Mode: "structured"},
+			StartedAt:    time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+			UserResolver: HeaderUserResolver{},
+			AccountAPI:   accountAPI,
+			RuleAPI:      ruleAPI,
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/accounts", nil)
+		rec := httptest.NewRecorder()
+		protected.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
+func TestNewHandlerMeRouteWithSessionCookie(t *testing.T) {
+	db := sqlx.MustOpen("sqlite3", ":memory:")
+	defer func() { _ = db.Close() }()
+
+	if err := BootstrapApplicationDB(t.Context(), db); err != nil {
+		t.Fatalf("BootstrapApplicationDB() error = %v", err)
+	}
+
+	repo := identity.NewRepository(db)
+	if err := repo.CreateUser(t.Context(), &identity.User{
+		ID:           "user-1",
+		PrimaryEmail: "intern@example.com",
+		DisplayName:  "Intern",
+		AvatarURL:    "https://example.com/avatar.png",
+	}); err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	if err := repo.CreateSession(t.Context(), &identity.WebSession{
+		ID:         "session-1",
+		UserID:     "user-1",
+		Issuer:     "https://auth.example.com/realms/smailnail",
+		Subject:    "abc123",
+		ExpiresAt:  time.Now().UTC().Add(1 * time.Hour),
+		CreatedAt:  time.Now().UTC(),
+		LastSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	handler := NewHandler(HandlerOptions{
+		DB:           db,
+		DBInfo:       DatabaseInfo{Driver: "sqlite3", Target: ":memory:", Mode: "structured"},
+		StartedAt:    time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+		UserResolver: SessionUserResolver{Repo: repo, CookieName: "smailnail_session"},
+		AccountAPI:   &fakeAccountAPI{},
+		RuleAPI:      &fakeRuleAPI{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: "smailnail_session", Value: "session-1"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Data identity.User `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode me response: %v", err)
+	}
+	if payload.Data.ID != "user-1" {
+		t.Fatalf("user id = %q", payload.Data.ID)
+	}
 }
 
 func derefString(value *string, fallback string) string {
