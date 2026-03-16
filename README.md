@@ -119,13 +119,20 @@ Start the server over stdio, SSE, or streamable HTTP:
 ```bash
 go run ./cmd/smailnail-imap-mcp mcp start --transport stdio
 go run ./cmd/smailnail-imap-mcp mcp start --transport sse --port 3201
-go run ./cmd/smailnail-imap-mcp mcp start --transport streamable_http --port 3201
+go run ./cmd/smailnail-imap-mcp mcp start
 ```
+
+The default HTTP deployment shape now is:
+
+- transport: `streamable_http`
+- port: `3201`
 
 The server intentionally exposes only two tools:
 
 - `executeIMAPJS`: run JavaScript against `require("smailnail")`
 - `getIMAPJSDocumentation`: query embedded package/symbol/example/concept docs or render markdown
+
+Production packaging and Coolify deployment notes are in `docs/deployments/smailnail-imap-mcp-coolify.md`.
 
 ### `smailnaild`
 

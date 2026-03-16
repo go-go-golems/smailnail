@@ -10,6 +10,8 @@ func AddMCPCommand(rootCmd *cobra.Command) error {
 		embeddable.WithName("smailnail IMAP JS MCP"),
 		embeddable.WithVersion("0.1.0"),
 		embeddable.WithServerDescription("Execute smailnail JavaScript snippets and query their API documentation"),
+		embeddable.WithDefaultTransport("streamable_http"),
+		embeddable.WithDefaultPort(3201),
 		embeddable.WithTool("executeIMAPJS", executeIMAPJSHandler,
 			embeddable.WithDescription("Execute JavaScript against the smailnail go-go-goja module and return a JSON result"),
 			embeddable.WithStringArg("code", "JavaScript source to execute", true),

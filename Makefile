@@ -1,4 +1,4 @@
-.PHONY: gifs smoke-docker-imap smoke-imap-js-mcp smoke-js-module
+.PHONY: gifs smoke-docker-imap smoke-imap-js-mcp smoke-js-module docker-build-imap-js-mcp
 
 all: gifs
 
@@ -59,3 +59,6 @@ smoke-imap-js-mcp:
 
 smoke-js-module:
 	./scripts/js-module-smoke.sh
+
+docker-build-imap-js-mcp:
+	docker build -f Dockerfile.smailnail-imap-mcp -t smailnail-imap-mcp:dev .
