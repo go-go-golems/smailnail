@@ -6,6 +6,12 @@ This document describes the hosted IMAP fixture used to test `smailnail` and `sm
 
 Mirror the local `docker-test-dovecot` setup on the Hetzner/Coolify host so remote tests can use the same predictable test users and self-signed TLS behavior.
 
+Current hosted service:
+
+- Coolify service UUID: `gh32795yh1av2dpi2j6lhn6h`
+- Coolify service name: `smailnail-dovecot-fixture`
+- Current test host: `89.167.52.236`
+
 ## Compose source
 
 - Compose file: `deployments/coolify/smailnail-dovecot.compose.yaml`
@@ -23,6 +29,7 @@ The hosted fixture exposes the same raw mail ports as the local setup:
 - `4190` ManageSieve
 
 There is no HTTP routing layer for this service. These are direct host port bindings on the Coolify machine.
+Because this is a raw-port service, Coolify currently reports it as `running:unknown` rather than `running:healthy`; no HTTP-style health check is configured.
 
 ## Persistence
 
@@ -61,3 +68,56 @@ go run ./cmd/smailnail fetch-mail \
 ```
 
 Then mailbox/action validation can use the same `imap-tests` and `smailnail` commands as the local smoke script, just pointed at the hosted IP.
+
+## Deterministic hosted validation
+
+Create a mailbox:
+
+```bash
+go run ./cmd/imap-tests create-mailbox \
+  --server 89.167.52.236 \
+  --port 993 \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --new-mailbox Archive \
+  --insecure \
+  --output json
+```
+
+Store a known message:
+
+```bash
+go run ./cmd/imap-tests store-text-message \
+  --server 89.167.52.236 \
+  --port 993 \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --from 'Remote Seeder <seed@example.com>' \
+  --to 'User A <a@testcot>' \
+  --subject 'Hosted Coolify Dovecot Test' \
+  --body 'Remote hosted IMAP fixture validation.' \
+  --insecure \
+  --output json
+```
+
+Fetch it back:
+
+```bash
+go run ./cmd/smailnail fetch-mail \
+  --server 89.167.52.236 \
+  --port 993 \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --subject-contains 'Hosted Coolify Dovecot Test' \
+  --insecure \
+  --output json
+```
+
+Expected result:
+
+- `messages_fetched=1`
+- a message with subject `Hosted Coolify Dovecot Test`
+- content `Remote hosted IMAP fixture validation.`
