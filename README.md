@@ -294,6 +294,14 @@ The stack also imports two initial OIDC clients in the `smailnail-dev` realm:
 - `smailnail-web`
 - `smailnail-mcp`
 
+Predictable local auth defaults after a fresh Keycloak reset:
+
+- Keycloak admin user: `admin`
+- Keycloak admin password: `admin`
+- `smailnail-web` client secret: `smailnail-web-secret`
+- local test user: `alice`
+- local test user password: `secret`
+
 Key references for the shared-identity slice:
 
 - [docs/deployments/smailnaild-oidc-keycloak.md](docs/deployments/smailnaild-oidc-keycloak.md)
