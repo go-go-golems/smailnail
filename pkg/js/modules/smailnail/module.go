@@ -10,20 +10,28 @@ import (
 )
 
 type Module struct {
+	ctx     context.Context
 	service *smailnailjs.Service
 }
 
 var _ ggjmodules.NativeModule = (*Module)(nil)
 
 func NewModule() *Module {
-	return NewModuleWithService(smailnailjs.New())
+	return NewModuleWithServiceAndContext(context.Background(), smailnailjs.New())
 }
 
 func NewModuleWithService(service *smailnailjs.Service) *Module {
+	return NewModuleWithServiceAndContext(context.Background(), service)
+}
+
+func NewModuleWithServiceAndContext(ctx context.Context, service *smailnailjs.Service) *Module {
 	if service == nil {
 		service = smailnailjs.New()
 	}
-	return &Module{service: service}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return &Module{ctx: ctx, service: service}
 }
 
 func init() {
@@ -74,7 +82,7 @@ func (m *Module) newServiceObject(rt *goja.Runtime) *goja.Object {
 		if err != nil {
 			return nil, err
 		}
-		session, err := m.service.Connect(context.Background(), opts)
+		session, err := m.service.Connect(m.ctx, opts)
 		if err != nil {
 			return nil, err
 		}

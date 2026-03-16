@@ -10,6 +10,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	smailnailmodule "github.com/go-go-golems/smailnail/pkg/js/modules/smailnail"
+	"github.com/go-go-golems/smailnail/pkg/services/smailnailjs"
 )
 
 func executeIMAPJSHandler(ctx context.Context, raw map[string]interface{}) (*protocol.ToolResult, error) {
@@ -23,7 +24,8 @@ func executeIMAPJSHandler(ctx context.Context, raw map[string]interface{}) (*pro
 		return newErrorToolResult("code is required", nil), nil
 	}
 
-	module := smailnailmodule.NewModule()
+	service := buildExecutionService(ctx)
+	module := smailnailmodule.NewModuleWithServiceAndContext(ctx, service)
 	factory, err := ggjengine.NewBuilder().
 		WithModules(ggjengine.NativeModuleSpec{
 			ModuleName: module.Name(),
@@ -86,4 +88,15 @@ func newErrorToolResult(message string, err error) *protocol.ToolResult {
 	}
 	res.IsError = true
 	return res
+}
+
+func buildExecutionService(ctx context.Context) *smailnailjs.Service {
+	options := make([]smailnailjs.Option, 0, 2)
+	if resolver, ok := storedAccountResolverFromContext(ctx); ok {
+		options = append(options, smailnailjs.WithStoredAccountResolver(resolver))
+	}
+	if dialer, ok := dialerFromContext(ctx); ok {
+		options = append(options, smailnailjs.WithDialer(dialer))
+	}
+	return smailnailjs.New(options...)
 }

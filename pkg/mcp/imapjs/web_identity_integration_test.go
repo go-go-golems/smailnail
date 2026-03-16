@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,8 +16,10 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	hostedapp "github.com/go-go-golems/smailnail/pkg/smailnaild"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
 	hostedauth "github.com/go-go-golems/smailnail/pkg/smailnaild/auth"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/identity"
+	"github.com/go-go-golems/smailnail/pkg/smailnaild/secrets"
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jmoiron/sqlx"
@@ -229,6 +232,120 @@ func TestBrowserOIDCAndMCPIdentityResolveSameLocalUser(t *testing.T) {
 	})(ctx, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("middleware handler error = %v", err)
+	}
+}
+
+func TestBrowserCreatedAccountCanBeUsedThroughMCP(t *testing.T) {
+	db := sqlx.MustOpen("sqlite3", ":memory:")
+	defer func() { _ = db.Close() }()
+
+	if err := hostedapp.BootstrapApplicationDB(context.Background(), db); err != nil {
+		t.Fatalf("BootstrapApplicationDB() error = %v", err)
+	}
+
+	provider := newFakeWebOIDCProvider(t, "smailnail-web")
+	identityRepo := identity.NewRepository(db)
+	identityService := identity.NewService(identityRepo)
+	webAuth, err := hostedauth.NewOIDCAuthenticator(context.Background(), &hostedauth.Settings{
+		Mode:              hostedauth.AuthModeOIDC,
+		SessionCookieName: hostedauth.DefaultSessionCookieName,
+		OIDCIssuerURL:     provider.server.URL,
+		OIDCClientID:      "smailnail-web",
+		OIDCRedirectURL:   "http://smailnail.test/auth/callback",
+		OIDCScopes:        []string{"openid", "profile", "email"},
+	}, identityRepo, identityService)
+	if err != nil {
+		t.Fatalf("NewOIDCAuthenticator() error = %v", err)
+	}
+
+	handler := hostedapp.NewHandler(hostedapp.HandlerOptions{
+		DB:           db,
+		DBInfo:       hostedapp.DatabaseInfo{Driver: "sqlite3", Target: ":memory:", Mode: "structured"},
+		StartedAt:    time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC),
+		UserResolver: hostedapp.SessionUserResolver{Repo: identityRepo, CookieName: hostedauth.DefaultSessionCookieName},
+		WebAuth:      webAuth,
+	})
+
+	loginReq := httptest.NewRequest(http.MethodGet, "/auth/login", nil)
+	loginRec := httptest.NewRecorder()
+	handler.ServeHTTP(loginRec, loginReq)
+
+	stateCookie := testCookieByName(loginRec.Result().Cookies(), "smailnail_auth_state")
+	nonceCookie := testCookieByName(loginRec.Result().Cookies(), "smailnail_auth_nonce")
+	callbackReq := httptest.NewRequest(http.MethodGet, "/auth/callback?state="+url.QueryEscape(stateCookie.Value)+"&code="+url.QueryEscape("code:"+nonceCookie.Value), nil)
+	callbackReq.AddCookie(stateCookie)
+	callbackReq.AddCookie(nonceCookie)
+	callbackRec := httptest.NewRecorder()
+	handler.ServeHTTP(callbackRec, callbackReq)
+
+	sessionCookie := testCookieByName(callbackRec.Result().Cookies(), hostedauth.DefaultSessionCookieName)
+	meReq := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	meReq.AddCookie(sessionCookie)
+	meRec := httptest.NewRecorder()
+	handler.ServeHTTP(meRec, meReq)
+
+	var mePayload struct {
+		Data identity.User `json:"data"`
+	}
+	if err := json.Unmarshal(meRec.Body.Bytes(), &mePayload); err != nil {
+		t.Fatalf("unmarshal me response: %v", err)
+	}
+
+	secretConfig, err := secrets.LoadConfigFromSettings(&secrets.Settings{
+		KeyBase64: base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")),
+		KeyID:     "test-key",
+	})
+	if err != nil {
+		t.Fatalf("LoadConfigFromSettings() error = %v", err)
+	}
+
+	accountService := accounts.NewService(accounts.NewRepository(db), secretConfig)
+	account, err := accountService.Create(context.Background(), mePayload.Data.ID, accounts.CreateInput{
+		Label:          "Work",
+		Server:         "imap.example.com",
+		Port:           993,
+		Username:       "user@example.com",
+		Password:       "secret",
+		MailboxDefault: "Archive",
+		AuthKind:       accounts.AuthKindPassword,
+		MCPEnabled:     true,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	runtime := newSharedIdentityRuntimeWithServices(db, identityService, accountService)
+	dialer := &testDialer{}
+	ctx := withDialer(
+		embeddable.WithAuthPrincipal(context.Background(), embeddable.AuthPrincipal{
+			Issuer:            provider.server.URL,
+			Subject:           "subject-1",
+			ClientID:          "smailnail-mcp",
+			Email:             "intern@example.com",
+			EmailVerified:     true,
+			PreferredUsername: "intern",
+			DisplayName:       "Intern Example",
+			AvatarURL:         "https://example.com/avatar.png",
+		}),
+		dialer,
+	)
+
+	result, err := runtime.middleware()(executeIMAPJSHandler)(ctx, map[string]interface{}{
+		"code": `
+const smailnail = require("smailnail");
+const svc = smailnail.newService();
+const session = svc.connect({ accountId: "` + account.ID + `" });
+session.mailbox;
+`,
+	})
+	if err != nil {
+		t.Fatalf("executeIMAPJSHandler error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success result, got %#v", result)
+	}
+	if dialer.gotOpts.Username != "user@example.com" || dialer.gotOpts.Password != "secret" {
+		t.Fatalf("unexpected dialer opts: %+v", dialer.gotOpts)
 	}
 }
 

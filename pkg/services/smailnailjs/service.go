@@ -37,12 +37,13 @@ type BuildRuleOptions struct {
 }
 
 type ConnectOptions struct {
-	Server   string `json:"server"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Mailbox  string `json:"mailbox"`
-	Insecure bool   `json:"insecure"`
+	AccountID string `json:"accountId"`
+	Server    string `json:"server"`
+	Port      int    `json:"port"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	Mailbox   string `json:"mailbox"`
+	Insecure  bool   `json:"insecure"`
 }
 
 type Session interface {
@@ -54,10 +55,15 @@ type Dialer interface {
 	Dial(ctx context.Context, opts ConnectOptions) (Session, error)
 }
 
+type StoredAccountResolver interface {
+	ResolveConnectOptions(ctx context.Context, accountID string) (ConnectOptions, error)
+}
+
 type Option func(*Service)
 
 type Service struct {
-	dialer Dialer
+	dialer                Dialer
+	storedAccountResolver StoredAccountResolver
 }
 
 func New(opts ...Option) *Service {
@@ -76,6 +82,14 @@ func WithDialer(dialer Dialer) Option {
 	return func(s *Service) {
 		if dialer != nil {
 			s.dialer = dialer
+		}
+	}
+}
+
+func WithStoredAccountResolver(resolver StoredAccountResolver) Option {
+	return func(s *Service) {
+		if resolver != nil {
+			s.storedAccountResolver = resolver
 		}
 	}
 }
@@ -202,6 +216,19 @@ func (s *Service) ShapeMessageMap(msg *dsl.EmailMessage) (map[string]interface{}
 func (s *Service) Connect(ctx context.Context, opts ConnectOptions) (Session, error) {
 	if s == nil || s.dialer == nil {
 		return nil, fmt.Errorf("service dialer is not configured")
+	}
+	if opts.AccountID != "" {
+		if s.storedAccountResolver == nil {
+			return nil, fmt.Errorf("stored account resolution is not configured")
+		}
+		resolved, err := s.storedAccountResolver.ResolveConnectOptions(ctx, opts.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		if opts.Mailbox != "" {
+			resolved.Mailbox = opts.Mailbox
+		}
+		opts = resolved
 	}
 	return s.dialer.Dial(ctx, opts)
 }

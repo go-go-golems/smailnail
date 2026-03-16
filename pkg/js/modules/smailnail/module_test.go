@@ -43,6 +43,16 @@ func (d *fakeDialer) Dial(_ context.Context, opts smailnailjs.ConnectOptions) (s
 	return d.session, nil
 }
 
+type fakeStoredAccountResolver struct {
+	gotAccountID string
+	opts         smailnailjs.ConnectOptions
+}
+
+func (r *fakeStoredAccountResolver) ResolveConnectOptions(_ context.Context, accountID string) (smailnailjs.ConnectOptions, error) {
+	r.gotAccountID = accountID
+	return r.opts, nil
+}
+
 func TestModuleBuildRule(t *testing.T) {
 	module := NewModule()
 	factory, err := ggjengine.NewBuilder().
@@ -123,6 +133,58 @@ func TestModuleNewServiceConnect(t *testing.T) {
 	}
 	if dialer.session == nil || !dialer.session.closed {
 		t.Fatalf("expected fake session to be closed")
+	}
+}
+
+func TestModuleNewServiceConnectWithStoredAccount(t *testing.T) {
+	dialer := &fakeDialer{}
+	resolver := &fakeStoredAccountResolver{
+		opts: smailnailjs.ConnectOptions{
+			Server:   "imap.example.com",
+			Username: "user@example.com",
+			Password: "secret",
+			Mailbox:  "Archive",
+		},
+	}
+	module := NewModuleWithService(smailnailjs.New(
+		smailnailjs.WithDialer(dialer),
+		smailnailjs.WithStoredAccountResolver(resolver),
+	))
+	factory, err := ggjengine.NewBuilder().
+		WithModules(ggjengine.NativeModuleSpec{
+			ModuleName: module.Name(),
+			Loader:     module.Loader,
+		}).
+		Build()
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+
+	rt, err := factory.NewRuntime(context.Background())
+	if err != nil {
+		t.Fatalf("NewRuntime returned error: %v", err)
+	}
+	defer func() {
+		_ = rt.Close(context.Background())
+	}()
+
+	value, err := rt.VM.RunString(`
+		const smailnail = require("smailnail");
+		const svc = smailnail.newService();
+		const session = svc.connect({
+			accountId: "acc-1"
+		});
+		session.mailbox;
+	`)
+	if err != nil {
+		t.Fatalf("RunString returned error: %v", err)
+	}
+
+	if got := value.String(); got != "Archive" {
+		t.Fatalf("result = %q, want %q", got, "Archive")
+	}
+	if resolver.gotAccountID != "acc-1" {
+		t.Fatalf("resolver.gotAccountID = %q, want acc-1", resolver.gotAccountID)
 	}
 }
 

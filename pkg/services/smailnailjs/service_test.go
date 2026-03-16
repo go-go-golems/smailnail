@@ -34,6 +34,16 @@ func (d *fakeDialer) Dial(_ context.Context, opts ConnectOptions) (Session, erro
 	return d.session, nil
 }
 
+type fakeStoredAccountResolver struct {
+	gotAccountID string
+	opts         ConnectOptions
+}
+
+func (r *fakeStoredAccountResolver) ResolveConnectOptions(_ context.Context, accountID string) (ConnectOptions, error) {
+	r.gotAccountID = accountID
+	return r.opts, nil
+}
+
 func TestBuildDSLRule(t *testing.T) {
 	rule, err := BuildDSLRule(BuildRuleOptions{
 		Name:             "invoice-search",
@@ -178,5 +188,36 @@ func TestConnectUsesInjectedDialer(t *testing.T) {
 	session.Close()
 	if !dialer.session.closed {
 		t.Fatalf("session was not closed")
+	}
+}
+
+func TestConnectUsesStoredAccountResolver(t *testing.T) {
+	dialer := &fakeDialer{}
+	resolver := &fakeStoredAccountResolver{
+		opts: ConnectOptions{
+			Server:   "imap.example.com",
+			Port:     993,
+			Username: "user@example.com",
+			Password: "secret",
+			Mailbox:  "Archive",
+		},
+	}
+	service := New(WithDialer(dialer), WithStoredAccountResolver(resolver))
+
+	session, err := service.Connect(context.Background(), ConnectOptions{
+		AccountID: "acc-1",
+	})
+	if err != nil {
+		t.Fatalf("Connect returned error: %v", err)
+	}
+
+	if resolver.gotAccountID != "acc-1" {
+		t.Fatalf("resolver.gotAccountID = %q, want acc-1", resolver.gotAccountID)
+	}
+	if dialer.gotOpts.Username != "user@example.com" || dialer.gotOpts.Password != "secret" {
+		t.Fatalf("unexpected dialer opts: %+v", dialer.gotOpts)
+	}
+	if session.Mailbox() != "Archive" {
+		t.Fatalf("session.Mailbox() = %q, want Archive", session.Mailbox())
 	}
 }
