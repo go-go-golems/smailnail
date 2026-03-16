@@ -132,7 +132,7 @@ The server intentionally exposes only two tools:
 - `executeIMAPJS`: run JavaScript against `require("smailnail")`
 - `getIMAPJSDocumentation`: query embedded package/symbol/example/concept docs or render markdown
 
-Production packaging and Coolify deployment notes are in `docs/deployments/smailnail-imap-mcp-coolify.md`.
+Production packaging and Coolify deployment notes are in `docs/deployments/smailnail-imap-mcp-coolify.md`. The repository root `Dockerfile` is now the Coolify-facing build entrypoint for this MCP service.
 
 ### `smailnaild`
 

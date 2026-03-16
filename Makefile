@@ -61,4 +61,4 @@ smoke-js-module:
 	./scripts/js-module-smoke.sh
 
 docker-build-imap-js-mcp:
-	docker build -f Dockerfile.smailnail-imap-mcp -t smailnail-imap-mcp:dev .
+	docker build -t smailnail-imap-mcp:dev .

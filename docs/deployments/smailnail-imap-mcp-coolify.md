@@ -10,7 +10,8 @@ This document describes the first production deployment slice for `smailnail-ima
 
 ## Files
 
-- Docker image: `Dockerfile.smailnail-imap-mcp`
+- Default Docker image: `Dockerfile`
+- Alternate Docker image: `Dockerfile.smailnail-imap-mcp`
 - Container entrypoint: `scripts/docker-entrypoint.smailnail-imap-mcp.sh`
 
 ## Container defaults
@@ -53,12 +54,33 @@ SMAILNAIL_MCP_OIDC_REQUIRED_SCOPES=mcp:invoke
 ## Coolify application shape
 
 - Build pack: Dockerfile
-- Dockerfile path: `Dockerfile.smailnail-imap-mcp`
+- Dockerfile path: `Dockerfile`
 - Exposed port: `3201`
 - Domain: `smailnail.mcp.scapegoat.dev`
 - Health check path: `/.well-known/oauth-protected-resource`
 
 The health check path is intentionally public when auth is enabled, unlike `/mcp`.
+
+## Public repo deployment
+
+This repository is public, which makes the deployment path simpler than a private registry or private repo flow. The intended Coolify create command shape is:
+
+```bash
+coolify app create public \
+  --server-uuid cgl105090ljoxitdf7gmvbrm \
+  --project-uuid n8xkgqpbjj04m4pishy3su5e \
+  --environment-name production \
+  --name smailnail-imap-mcp \
+  --git-repository https://github.com/wesen/smailnail \
+  --git-branch task/update-imap-mcp \
+  --build-pack dockerfile \
+  --ports-exposes 3201 \
+  --domains smailnail.mcp.scapegoat.dev \
+  --health-check-enabled \
+  --health-check-path /.well-known/oauth-protected-resource
+```
+
+Once the branch is pushed, this avoids any registry credentials entirely.
 
 ## Keycloak expectations
 
@@ -90,7 +112,7 @@ curl -i \
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-docker build -f Dockerfile.smailnail-imap-mcp -t smailnail-imap-mcp:dev .
+docker build -t smailnail-imap-mcp:dev .
 ```
 
 ## Local container smoke
