@@ -135,3 +135,50 @@ export interface ListMessagesParams {
   includeContent?: boolean;
   contentType?: string;
 }
+
+// Rule types
+export interface RuleRecord {
+  id: string;
+  userId: string;
+  imapAccountId: string;
+  name: string;
+  description: string;
+  status: string;
+  sourceKind: string;
+  ruleYaml: string;
+  lastPreviewCount: number;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRuleInput {
+  imapAccountId: string;
+  name: string;
+  description: string;
+  status: string;
+  sourceKind: string;
+  ruleYaml: string;
+}
+
+export interface UpdateRuleInput {
+  imapAccountId?: string;
+  name?: string;
+  description?: string;
+  status?: string;
+  sourceKind?: string;
+  ruleYaml?: string;
+}
+
+export interface DryRunInput {
+  imapAccountId?: string;
+}
+
+export interface DryRunResult {
+  ruleId: string;
+  imapAccountId: string;
+  matchedCount: number;
+  actionPlan: Record<string, unknown>;
+  sampleRows: MessageView[];
+  createdAt: string;
+}

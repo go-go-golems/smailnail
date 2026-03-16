@@ -3,12 +3,17 @@ import type {
   AccountListItem,
   ApiResponse,
   CreateAccountInput,
+  CreateRuleInput,
+  DryRunInput,
+  DryRunResult,
   ListMessagesParams,
   MailboxInfo,
   MessageView,
+  RuleRecord,
   TestInput,
   TestResult,
   UpdateAccountInput,
+  UpdateRuleInput,
 } from "./types";
 
 class ApiClient {
@@ -117,6 +122,51 @@ class ApiClient {
     const qs = new URLSearchParams({ mailbox });
     return this.request<MessageView>(
       `/accounts/${encodeURIComponent(accountId)}/messages/${uid}?${qs.toString()}`,
+    );
+  }
+
+  // Rules
+  async listRules(): Promise<ApiResponse<RuleRecord[]>> {
+    return this.request<RuleRecord[]>("/rules");
+  }
+
+  async createRule(input: CreateRuleInput): Promise<ApiResponse<RuleRecord>> {
+    return this.request<RuleRecord>("/rules", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async getRule(id: string): Promise<ApiResponse<RuleRecord>> {
+    return this.request<RuleRecord>(`/rules/${encodeURIComponent(id)}`);
+  }
+
+  async updateRule(
+    id: string,
+    input: UpdateRuleInput,
+  ): Promise<ApiResponse<RuleRecord>> {
+    return this.request<RuleRecord>(`/rules/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deleteRule(id: string): Promise<void> {
+    await this.request(`/rules/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async dryRunRule(
+    id: string,
+    input?: DryRunInput,
+  ): Promise<ApiResponse<DryRunResult>> {
+    return this.request<DryRunResult>(
+      `/rules/${encodeURIComponent(id)}/dry-run`,
+      {
+        method: "POST",
+        body: input ? JSON.stringify(input) : undefined,
+      },
     );
   }
 }
