@@ -1,8 +1,16 @@
 # smailnail-imap-mcp Coolify Deployment
 
+This document now describes the legacy standalone MCP deployment shape.
+
+The merged hosted deployment is documented in
+[smailnaild-merged-coolify.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnaild-merged-coolify.md)
+and is the preferred production target going forward.
+
 This document describes the first production deployment slice for `smailnail-imap-mcp`.
 
 ## Target
+
+Legacy standalone target:
 
 - Public MCP URL: `https://smailnail.mcp.scapegoat.dev/mcp`
 - Keycloak issuer: `https://auth.scapegoat.dev/realms/smailnail`
@@ -10,9 +18,12 @@ This document describes the first production deployment slice for `smailnail-ima
 
 ## Files
 
-- Default Docker image: `Dockerfile`
+- Default Docker image: `Dockerfile.smailnail-imap-mcp`
 - Alternate Docker image: `Dockerfile.smailnail-imap-mcp`
 - Container entrypoint: `scripts/docker-entrypoint.smailnail-imap-mcp.sh`
+
+The repository root [Dockerfile](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Dockerfile)
+now builds the merged hosted server instead.
 
 ## Container defaults
 

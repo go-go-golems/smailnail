@@ -1,6 +1,10 @@
 # smailnaild OIDC with Keycloak
 
-This document describes the current hosted web-login setup for `smailnaild`.
+This document describes the hosted web-login setup for `smailnaild`.
+
+For the merged production deployment where the same binary also serves `/mcp`,
+see
+[smailnaild-merged-coolify.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnaild-merged-coolify.md).
 
 The implementation is server-side OIDC:
 
@@ -105,7 +109,7 @@ go run ./cmd/smailnaild serve \
   --oidc-issuer-url http://127.0.0.1:18080/realms/smailnail-dev \
   --oidc-client-id smailnail-web \
   --oidc-client-secret smailnail-web-secret \
-  --oidc-redirect-url http://localhost:8080/auth/callback
+  --oidc-redirect-url http://127.0.0.1:8080/auth/callback
 ```
 
 Then open:
@@ -149,6 +153,10 @@ smailnaild serve \
 ```
 
 For production, put `smailnaild` behind HTTPS and set the Keycloak client redirect URIs and web origins to the public hostnames only.
+
+If you are deploying the merged hosted server, add the MCP flags described in
+[smailnaild-merged-coolify.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnaild-merged-coolify.md)
+so the same process also serves `/.well-known/oauth-protected-resource` and `/mcp`.
 
 ## Identity model
 

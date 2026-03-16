@@ -9,7 +9,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/go-go-golems/glazed v1.0.4
 	github.com/go-go-golems/go-go-goja v0.4.2
-	github.com/go-go-golems/go-go-mcp v0.0.17
+	github.com/go-go-golems/go-go-mcp v0.0.18-0.20260316194855-99628ca37572
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.10.1
@@ -82,7 +82,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/pprof v0.0.0-20241029153458-d1b30febd7db // indirect
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect

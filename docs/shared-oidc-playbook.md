@@ -5,7 +5,7 @@ This playbook shows how to exercise the shared identity flow across:
 - `smailnaild` browser login
 - the shared application database
 - stored IMAP account ownership
-- `smailnail-imap-mcp` bearer-authenticated execution
+- merged `/mcp` bearer-authenticated execution
 
 The shared-identity contract is:
 
@@ -29,7 +29,7 @@ Local defaults:
 - Dovecot test user: `a`
 - Dovecot password: `pass`
 
-## 2. Start `smailnaild` with OIDC enabled
+## 2. Start the merged `smailnaild` with OIDC and MCP enabled
 
 This keeps the hosted account database local and reusable by both the browser and MCP.
 
@@ -46,7 +46,11 @@ go run ./cmd/smailnaild serve \
   --oidc-issuer-url http://127.0.0.1:18080/realms/smailnail-dev \
   --oidc-client-id smailnail-web \
   --oidc-client-secret smailnail-web-secret \
-  --oidc-redirect-url http://localhost:8080/auth/callback
+  --oidc-redirect-url http://127.0.0.1:8080/auth/callback \
+  --mcp-enabled \
+  --mcp-auth-mode external_oidc \
+  --mcp-auth-resource-url http://127.0.0.1:8080/mcp \
+  --mcp-oidc-issuer-url http://127.0.0.1:18080/realms/smailnail-dev
 ```
 
 ## 3. Log in through the browser
@@ -108,26 +112,11 @@ curl -s \
 
 Record the returned `id`.
 
-## 5. Start the MCP server against the same application database
+## 5. Use the merged `/mcp` endpoint on the same server
 
-The crucial part is that `smailnail-imap-mcp` points at the same app DB and the same encryption key:
-
-```bash
-cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-
-go run ./cmd/smailnail-imap-mcp mcp start \
-  --transport streamable_http \
-  --port 3201 \
-  --auth-mode external_oidc \
-  --auth-resource-url http://localhost:3201/mcp \
-  --oidc-issuer-url http://127.0.0.1:18080/realms/smailnail-dev \
-  --app-db-driver sqlite3 \
-  --app-db-dsn ./smailnaild.sqlite \
-  --app-encryption-key-id "$SMAILNAILD_ENCRYPTION_KEY_ID" \
-  --app-encryption-key-base64 "$SMAILNAILD_ENCRYPTION_KEY_BASE64"
-```
-
-Without the shared DB and encryption settings, the MCP can validate the user but cannot resolve stored IMAP credentials.
+The crucial part is that the same `smailnaild` process now owns both the browser
+session flow and the MCP bearer-token flow. There is no second server process to
+start for the normal hosted path.
 
 ## 6. Fetch an access token from Keycloak
 
@@ -164,7 +153,7 @@ curl -s \
       }
     }
   }' \
-  http://localhost:3201/mcp | jq
+  http://127.0.0.1:8080/mcp | jq
 ```
 
 Expected outcome:
@@ -204,8 +193,9 @@ For production, keep the same identity model and change only the endpoints:
 - `smailnaild`
   - issuer: `https://auth.scapegoat.dev/realms/smailnail`
   - redirect URL: `https://smailnail.scapegoat.dev/auth/callback`
-- `smailnail-imap-mcp`
-  - resource URL: `https://smailnail.mcp.scapegoat.dev/mcp`
+- merged MCP surface
+  - resource URL: `https://smailnail.scapegoat.dev/mcp`
+  - protected resource metadata: `https://smailnail.scapegoat.dev/.well-known/oauth-protected-resource`
   - issuer: `https://auth.scapegoat.dev/realms/smailnail`
 - shared application DB:
   - production SQLite on one host or PostgreSQL for shared deployment
