@@ -127,6 +127,8 @@ github.com/go-go-golems/go-go-goja v0.4.2 h1:5KX8+Hh2swTq1ToP1ynf8n6TGngfmLaVRVJ
 github.com/go-go-golems/go-go-goja v0.4.2/go.mod h1:0pwRR5dPtibQR81im9ss5vvBaqV4+JQsYYS9TP+Chv8=
 github.com/go-go-golems/go-go-mcp v0.0.18-0.20260316194855-99628ca37572 h1:TsGS1q+RP9tszLIt7ETQw93qlpsXn7TkccaRCrMsrJk=
 github.com/go-go-golems/go-go-mcp v0.0.18-0.20260316194855-99628ca37572/go.mod h1:idgFELmaSJuAcoDIzkrMdO/ceeFxklEX5fkNSwUzPSc=
+github.com/go-go-golems/go-go-mcp v0.0.18-0.20260318203355-419230270810 h1:ds6qOj2+0gyGIx9mYdRmvy/zGY5gcsHZdHfOjSQ+GI8=
+github.com/go-go-golems/go-go-mcp v0.0.18-0.20260318203355-419230270810/go.mod h1:idgFELmaSJuAcoDIzkrMdO/ceeFxklEX5fkNSwUzPSc=
 github.com/go-jose/go-jose/v3 v3.0.4 h1:Wp5HA7bLQcKnf6YYao/4kpRpVMp/yf6+pJKV8WFSaNY=
 github.com/go-jose/go-jose/v3 v3.0.4/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
 github.com/go-kit/log v0.1.0/go.mod h1:zbhenjAZHb184qTLMA9ZjW7ThYL0H2mk7Q6pNt4vbaY=

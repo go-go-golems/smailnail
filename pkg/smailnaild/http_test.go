@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type fakeAccountAPI struct {
@@ -175,6 +178,39 @@ func TestNewHandlerHealthAndInfo(t *testing.T) {
 	}
 	if !payload.StartedAt.Equal(startedAt) {
 		t.Fatalf("unexpected startedAt: %v", payload.StartedAt)
+	}
+}
+
+func TestNewHandlerSkipsReadyzDebugLogs(t *testing.T) {
+	db := sqlx.MustOpen("sqlite3", ":memory:")
+	defer func() { _ = db.Close() }()
+
+	if err := BootstrapApplicationDB(t.Context(), db); err != nil {
+		t.Fatalf("BootstrapApplicationDB() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	previousLogger := log.Logger
+	log.Logger = zerolog.New(&buf).Level(zerolog.DebugLevel)
+	defer func() {
+		log.Logger = previousLogger
+	}()
+
+	handler := NewHandler(HandlerOptions{
+		DB:        db,
+		DBInfo:    DatabaseInfo{Driver: "sqlite3", Target: ":memory:", Mode: "structured"},
+		StartedAt: time.Date(2026, 3, 15, 18, 0, 0, 0, time.UTC),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("readyz status = %d", rec.Code)
+	}
+	if strings.Contains(buf.String(), "/readyz") || strings.Contains(buf.String(), "Hosted request started") || strings.Contains(buf.String(), "Hosted request completed") {
+		t.Fatalf("expected /readyz to be excluded from hosted debug logs, got logs: %s", buf.String())
 	}
 }
 

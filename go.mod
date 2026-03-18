@@ -9,7 +9,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/go-go-golems/glazed v1.0.4
 	github.com/go-go-golems/go-go-goja v0.4.2
-	github.com/go-go-golems/go-go-mcp v0.0.18-0.20260316194855-99628ca37572
+	github.com/go-go-golems/go-go-mcp v0.0.18-0.20260318203355-419230270810
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.10.1

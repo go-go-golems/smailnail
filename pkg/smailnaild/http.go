@@ -556,6 +556,11 @@ func (w *debugResponseWriter) Write(p []byte) (int, error) {
 
 func withRequestDebugLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if shouldSkipHostedRequestDebugLogging(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		start := time.Now()
 		wrapped := &debugResponseWriter{ResponseWriter: w}
 		log.Debug().
@@ -579,6 +584,10 @@ func withRequestDebugLogging(next http.Handler) http.Handler {
 			Dur("duration", time.Since(start)).
 			Msg("Hosted request completed")
 	})
+}
+
+func shouldSkipHostedRequestDebugLogging(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/readyz"
 }
 
 func parseListMessagesInput(r *http.Request) (accounts.ListMessagesInput, error) {
