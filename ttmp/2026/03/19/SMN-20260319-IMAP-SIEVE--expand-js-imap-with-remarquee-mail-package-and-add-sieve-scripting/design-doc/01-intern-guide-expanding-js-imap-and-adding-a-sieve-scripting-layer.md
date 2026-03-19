@@ -999,6 +999,259 @@ Add DB tests covering:
 - default values for new Sieve columns,
 - backward compatibility from schema version `6`.
 
+## Open Item Explained: Hosted-Account Sieve Settings
+
+This is the main intentionally open implementation item after the runtime work. The code that landed already supports `connectSieve(...)`, including a pragmatic `accountId` path. What is still open is the durable hosted-account model for Sieve-specific endpoint settings.
+
+### What works today
+
+- Inline Sieve connections work:
+
+```javascript
+const svc = smailnail.newService()
+const sieve = svc.connectSieve({
+  server: "sieve.example.com",
+  username: "user@example.com",
+  password: "secret"
+})
+```
+
+- Account-backed Sieve connections also work in a limited form:
+
+```javascript
+const svc = smailnail.newService()
+const sieve = svc.connectSieve({ accountId: "acc_123" })
+```
+
+Today that `accountId` path derives:
+
+- `server` from the stored IMAP account's `server`,
+- `username` from the stored IMAP account's `username`,
+- `password` from the stored IMAP account's decrypted password,
+- `port` from the Sieve default `4190` unless the caller overrides it inline.
+
+### Why this is only a partial solution
+
+For many installations, IMAP and ManageSieve are close enough that this is usable immediately. For example:
+
+- same host,
+- same username,
+- same password,
+- standard ManageSieve port.
+
+But it is not enough to promise "hosted Sieve support is fully modeled" because some providers differ on one or more of these:
+
+- IMAP host and Sieve host are different,
+- IMAP port and Sieve port are different from the default,
+- credentials differ,
+- transport policy differs,
+- STARTTLS or other security expectations are different.
+
+### What the missing schema work actually is
+
+The open item is not "invent Sieve support." It is specifically:
+
+1. Extend [`pkg/smailnaild/accounts/types.go`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/types.go) with durable Sieve settings.
+2. Add a DB migration in [`pkg/smailnaild/db.go`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/db.go) and SQL/repository support in [`pkg/smailnaild/accounts/repository.go`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/repository.go).
+3. Decide whether Sieve should reuse the IMAP secret by default or optionally store a second secret when providers require it.
+4. Update the hosted account service and tests in [`pkg/smailnaild/accounts/service.go`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service.go) and [`pkg/smailnaild/accounts/integration_test.go`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/integration_test.go).
+
+### Why it was left open in this implementation round
+
+The runtime and JS API work could be completed and validated without making a rushed schema decision. That was the right tradeoff because:
+
+- the donor runtime port was already a large change,
+- the hosted-account schema choice has product and security implications,
+- a bad schema decision is harder to undo than a missing schema field.
+
+### Recommendation
+
+Treat the current behavior as:
+
+- good enough for inline credentials and same-host installations,
+- good enough for prototyping and MCP/internal usage,
+- not yet the final hosted-account contract for Sieve.
+
+The follow-up should start with the smallest durable extension:
+
+- `sieve_enabled`
+- `sieve_server`
+- `sieve_port`
+- `sieve_username` only if it can differ from IMAP
+- no second secret unless a real provider forces it
+
+## Quickstart Cookbook
+
+If you are new to this codebase and want to get started immediately, use the examples below before reading the lower-level implementation. The embedded examples in [`pkg/js/modules/smailnail/docs/examples.js`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/docs/examples.js) contain the same starter patterns in a machine-queryable form for the MCP docs tool.
+
+### Quickstart 1: Use a stored IMAP account
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+const session = svc.connect({
+  accountId: "acc_123",
+  mailbox: "INBOX"
+})
+
+try {
+  const caps = session.capabilities()
+  const boxes = session.list()
+  return { caps, boxes }
+} finally {
+  session.close()
+}
+```
+
+### Quickstart 2: Inspect mailbox status and switch mailboxes
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+const session = svc.connect({
+  server: "imap.example.com",
+  username: "user@example.com",
+  password: "secret"
+})
+
+try {
+  const inbox = session.status("INBOX")
+  const archive = session.selectMailbox("Archive", { readOnly: true })
+  return { inbox, archive, selectedMailbox: session.mailbox }
+} finally {
+  session.close()
+}
+```
+
+### Quickstart 3: Search and fetch messages
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+const session = svc.connect({
+  accountId: "acc_123"
+})
+
+try {
+  const uids = session.search({
+    unseen: true,
+    subject: "invoice"
+  })
+  return session.fetch(uids, ["uid", "flags", "body.text"])
+} finally {
+  session.close()
+}
+```
+
+### Quickstart 4: Mark, move, and delete messages
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+const session = svc.connect({ accountId: "acc_123" })
+
+try {
+  const uids = session.search({ from: "alerts@example.com" })
+  session.addFlags(uids, ["\\Seen"])
+  session.copy(uids, "Archive/Alerts")
+  session.move(uids, "Processed/Alerts")
+  session.delete(uids, { expunge: false })
+  session.expunge()
+} finally {
+  session.close()
+}
+```
+
+### Quickstart 5: Append a message
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+const session = svc.connect({ accountId: "acc_123", mailbox: "Drafts" })
+
+try {
+  const raw = [
+    "From: user@example.com",
+    "To: user@example.com",
+    "Subject: Draft from smailnail",
+    "",
+    "Hello from append."
+  ].join("\r\n")
+
+  return session.append(raw, {
+    mailbox: "Drafts",
+    flags: ["\\Draft"]
+  })
+} finally {
+  session.close()
+}
+```
+
+### Quickstart 6: Build a simple Sieve script
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+
+const script = svc.buildSieveScript((s) => {
+  s.require(["fileinto"])
+  s.if(s.headerContains("Subject", "invoice"), (a) => {
+    a.fileInto("Invoices")
+    a.stop()
+  })
+})
+
+return script
+```
+
+### Quickstart 7: Upload and activate a Sieve script
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+const sieve = svc.connectSieve({ accountId: "acc_123" })
+
+try {
+  const script = svc.buildSieveScript((s) => {
+    s.require(["fileinto"])
+    s.if(s.headerContains("List-Id", "alerts.example.com"), (a) => {
+      a.fileInto("Lists/Alerts")
+      a.stop()
+    })
+  })
+
+  sieve.check(script)
+  sieve.putScript("main", script, { activate: true })
+  return sieve.listScripts()
+} finally {
+  sieve.close()
+}
+```
+
+### Quickstart 8: Read and manage Sieve scripts
+
+```javascript
+const smailnail = require("smailnail")
+const svc = smailnail.newService()
+const sieve = svc.connectSieve({
+  server: "sieve.example.com",
+  username: "user@example.com",
+  password: "secret"
+})
+
+try {
+  const scripts = sieve.listScripts()
+  const first = scripts[0]
+  if (first) {
+    const source = sieve.getScript(first.name)
+    return { scripts, source }
+  }
+  return { scripts, source: "" }
+} finally {
+  sieve.close()
+}
+```
+
 ## Risks, Alternatives, And Open Questions
 
 ### Risk: Sieve transport security
