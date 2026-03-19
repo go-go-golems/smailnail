@@ -1,0 +1,18 @@
+services:
+  dovecot:
+    image: ghcr.io/spezifisch/docker-test-dovecot:latest
+    restart: unless-stopped
+    ports:
+      - "24:24"
+      - "110:110"
+      - "143:143"
+      - "993:993"
+      - "995:995"
+      - "4190:4190"
+    volumes:
+      - dovecot-home:/home
+      - dovecot-ssl:/etc/dovecot/ssl
+
+volumes:
+  dovecot-home:
+  dovecot-ssl:

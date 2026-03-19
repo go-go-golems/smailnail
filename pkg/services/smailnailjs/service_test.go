@@ -17,6 +17,63 @@ func (s *fakeSession) Mailbox() string {
 	return s.mailbox
 }
 
+func (s *fakeSession) Capabilities() map[string]bool {
+	return map[string]bool{"uidplus": true}
+}
+
+func (s *fakeSession) List(pattern string) ([]MailboxInfo, error) {
+	return []MailboxInfo{{Name: "INBOX"}}, nil
+}
+
+func (s *fakeSession) Status(name string) (*MailboxStatus, error) {
+	return &MailboxStatus{Messages: 3, UIDNext: 4}, nil
+}
+
+func (s *fakeSession) SelectMailbox(name string, readOnly bool) (*MailboxSelection, error) {
+	s.mailbox = name
+	return &MailboxSelection{Name: name, ReadOnly: readOnly}, nil
+}
+
+func (s *fakeSession) Search(criteria *SearchCriteria) ([]uint32, error) {
+	return []uint32{101, 202}, nil
+}
+
+func (s *fakeSession) Fetch(uids []uint32, fields []FetchField) ([]*FetchedMessage, error) {
+	return []*FetchedMessage{{UID: 101}}, nil
+}
+
+func (s *fakeSession) AddFlags(uids []uint32, flags []string, silent bool) error {
+	return nil
+}
+
+func (s *fakeSession) RemoveFlags(uids []uint32, flags []string, silent bool) error {
+	return nil
+}
+
+func (s *fakeSession) SetFlags(uids []uint32, flags []string, silent bool) error {
+	return nil
+}
+
+func (s *fakeSession) Move(uids []uint32, dest string) error {
+	return nil
+}
+
+func (s *fakeSession) Copy(uids []uint32, dest string) error {
+	return nil
+}
+
+func (s *fakeSession) Delete(uids []uint32, expunge bool) error {
+	return nil
+}
+
+func (s *fakeSession) Expunge(uids []uint32) error {
+	return nil
+}
+
+func (s *fakeSession) Append(mailbox string, message []byte, flags []string, date *time.Time) (uint32, error) {
+	return 9001, nil
+}
+
 func (s *fakeSession) Close() {
 	s.closed = true
 }
@@ -32,6 +89,77 @@ func (d *fakeDialer) Dial(_ context.Context, opts ConnectOptions) (Session, erro
 		d.session = &fakeSession{mailbox: d.gotOpts.Mailbox}
 	}
 	return d.session, nil
+}
+
+type fakeSieveSession struct {
+	closed bool
+}
+
+func (s *fakeSieveSession) Capabilities() SieveCapabilities {
+	return SieveCapabilities{Implementation: "Fake"}
+}
+
+func (s *fakeSieveSession) ListScripts() ([]ScriptInfo, error) {
+	return []ScriptInfo{{Name: "active", Active: true}}, nil
+}
+
+func (s *fakeSieveSession) GetScript(name string) (string, error) {
+	return "keep;", nil
+}
+
+func (s *fakeSieveSession) PutScript(name, content string, activate bool) error {
+	return nil
+}
+
+func (s *fakeSieveSession) Activate(name string) error {
+	return nil
+}
+
+func (s *fakeSieveSession) Deactivate() error {
+	return nil
+}
+
+func (s *fakeSieveSession) DeleteScript(name string) error {
+	return nil
+}
+
+func (s *fakeSieveSession) RenameScript(oldName, newName string) error {
+	return nil
+}
+
+func (s *fakeSieveSession) CheckScript(content string) error {
+	return nil
+}
+
+func (s *fakeSieveSession) HaveSpace(name string, sizeBytes int) (bool, error) {
+	return true, nil
+}
+
+func (s *fakeSieveSession) Close() {
+	s.closed = true
+}
+
+type fakeSieveDialer struct {
+	gotOpts SieveConnectOptions
+	session *fakeSieveSession
+}
+
+func (d *fakeSieveDialer) DialSieve(_ context.Context, opts SieveConnectOptions) (SieveSession, error) {
+	d.gotOpts = normalizeSieveConnectOptions(opts)
+	if d.session == nil {
+		d.session = &fakeSieveSession{}
+	}
+	return d.session, nil
+}
+
+type fakeStoredAccountResolver struct {
+	gotAccountID string
+	opts         ConnectOptions
+}
+
+func (r *fakeStoredAccountResolver) ResolveConnectOptions(_ context.Context, accountID string) (ConnectOptions, error) {
+	r.gotAccountID = accountID
+	return r.opts, nil
 }
 
 func TestBuildDSLRule(t *testing.T) {
@@ -178,5 +306,92 @@ func TestConnectUsesInjectedDialer(t *testing.T) {
 	session.Close()
 	if !dialer.session.closed {
 		t.Fatalf("session was not closed")
+	}
+}
+
+func TestConnectUsesStoredAccountResolver(t *testing.T) {
+	dialer := &fakeDialer{}
+	resolver := &fakeStoredAccountResolver{
+		opts: ConnectOptions{
+			Server:   "imap.example.com",
+			Port:     993,
+			Username: "user@example.com",
+			Password: "secret",
+			Mailbox:  "Archive",
+		},
+	}
+	service := New(WithDialer(dialer), WithStoredAccountResolver(resolver))
+
+	session, err := service.Connect(context.Background(), ConnectOptions{
+		AccountID: "acc-1",
+	})
+	if err != nil {
+		t.Fatalf("Connect returned error: %v", err)
+	}
+
+	if resolver.gotAccountID != "acc-1" {
+		t.Fatalf("resolver.gotAccountID = %q, want acc-1", resolver.gotAccountID)
+	}
+	if dialer.gotOpts.Username != "user@example.com" || dialer.gotOpts.Password != "secret" {
+		t.Fatalf("unexpected dialer opts: %+v", dialer.gotOpts)
+	}
+	if session.Mailbox() != "Archive" {
+		t.Fatalf("session.Mailbox() = %q, want Archive", session.Mailbox())
+	}
+}
+
+func TestConnectSieveUsesInjectedDialer(t *testing.T) {
+	dialer := &fakeSieveDialer{}
+	service := New(WithSieveDialer(dialer))
+
+	session, err := service.ConnectSieve(context.Background(), SieveConnectOptions{
+		Server:   "sieve.example.com",
+		Username: "user@example.com",
+		Password: "secret",
+	})
+	if err != nil {
+		t.Fatalf("ConnectSieve returned error: %v", err)
+	}
+
+	if dialer.gotOpts.Port != 4190 {
+		t.Fatalf("dialer.gotOpts.Port = %d, want 4190", dialer.gotOpts.Port)
+	}
+	session.Close()
+	if !dialer.session.closed {
+		t.Fatalf("expected sieve session to be closed")
+	}
+}
+
+func TestConnectSieveUsesStoredAccountResolver(t *testing.T) {
+	sieveDialer := &fakeSieveDialer{}
+	resolver := &fakeStoredAccountResolver{
+		opts: ConnectOptions{
+			Server:   "imap.example.com",
+			Port:     993,
+			Username: "user@example.com",
+			Password: "secret",
+			Mailbox:  "Archive",
+		},
+	}
+	service := New(WithSieveDialer(sieveDialer), WithStoredAccountResolver(resolver))
+
+	_, err := service.ConnectSieve(context.Background(), SieveConnectOptions{
+		AccountID: "acc-1",
+	})
+	if err != nil {
+		t.Fatalf("ConnectSieve returned error: %v", err)
+	}
+
+	if resolver.gotAccountID != "acc-1" {
+		t.Fatalf("resolver.gotAccountID = %q, want acc-1", resolver.gotAccountID)
+	}
+	if sieveDialer.gotOpts.Server != "imap.example.com" {
+		t.Fatalf("sieveDialer.gotOpts.Server = %q, want imap.example.com", sieveDialer.gotOpts.Server)
+	}
+	if sieveDialer.gotOpts.Username != "user@example.com" || sieveDialer.gotOpts.Password != "secret" {
+		t.Fatalf("unexpected sieve dialer opts: %+v", sieveDialer.gotOpts)
+	}
+	if sieveDialer.gotOpts.Port != 4190 {
+		t.Fatalf("sieveDialer.gotOpts.Port = %d, want 4190", sieveDialer.gotOpts.Port)
 	}
 }

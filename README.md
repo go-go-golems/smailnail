@@ -8,6 +8,10 @@ It currently contains three CLIs:
 - `mailgen`: generate synthetic email from YAML templates and optionally append it to IMAP
 - `imap-tests`: helper commands for creating mailboxes and storing fixture messages
 
+There is now also an initial hosted application binary:
+
+- `smailnaild`: hosted app backend with account CRUD, account tests, mailbox previews, rule CRUD, and rule dry-runs
+
 There is also a dedicated MCP binary for the JavaScript runtime:
 
 - `smailnail-imap-mcp`: exposes `executeIMAPJS` and `getIMAPJSDocumentation`
@@ -21,7 +25,7 @@ The repository now also contains an initial reusable JavaScript surface:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp
+go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp ./cmd/smailnaild
 ```
 
 ## Commands
@@ -115,13 +119,95 @@ Start the server over stdio, SSE, or streamable HTTP:
 ```bash
 go run ./cmd/smailnail-imap-mcp mcp start --transport stdio
 go run ./cmd/smailnail-imap-mcp mcp start --transport sse --port 3201
-go run ./cmd/smailnail-imap-mcp mcp start --transport streamable_http --port 3201
+go run ./cmd/smailnail-imap-mcp mcp start
 ```
+
+The default HTTP deployment shape now is:
+
+- transport: `streamable_http`
+- port: `3201`
 
 The server intentionally exposes only two tools:
 
 - `executeIMAPJS`: run JavaScript against `require("smailnail")`
 - `getIMAPJSDocumentation`: query embedded package/symbol/example/concept docs or render markdown
+
+Production packaging and Coolify deployment notes are in `docs/deployments/smailnail-imap-mcp-coolify.md`. The repository root `Dockerfile` is now the Coolify-facing build entrypoint for this MCP service.
+
+### `smailnaild`
+
+The hosted backend now requires an encryption key for stored IMAP credentials.
+Pass it through the Glazed encryption section:
+
+```bash
+ENCRYPTION_KEY="$(openssl rand -base64 32)"
+go run ./cmd/smailnaild serve \
+  --encryption-key-base64 "$ENCRYPTION_KEY"
+```
+
+Start the hosted backend with the default SQLite app database:
+
+```bash
+go run ./cmd/smailnaild serve \
+  --encryption-key-base64 "$ENCRYPTION_KEY"
+```
+
+That defaults to:
+
+- bind address `0.0.0.0:8080`
+- application DB `smailnaild.sqlite`
+
+Useful endpoints:
+
+- `GET /healthz`
+- `GET /readyz`
+- `GET /api/info`
+- `GET /api/accounts`
+- `POST /api/accounts`
+- `POST /api/accounts/:id/test`
+- `GET /api/accounts/:id/mailboxes`
+- `GET /api/accounts/:id/messages`
+- `GET /api/accounts/:id/messages/:uid`
+- `GET /api/rules`
+- `POST /api/rules`
+- `POST /api/rules/:id/dry-run`
+
+Use Clay SQL flags to point it at another database. For example, Postgres via DSN:
+
+```bash
+go run ./cmd/smailnaild serve \
+  --listen-host 0.0.0.0 \
+  --listen-port 8080 \
+  --dsn 'postgres://user:pass@localhost:5432/smailnail?sslmode=disable'
+```
+
+Or SQLite with an explicit file path:
+
+```bash
+go run ./cmd/smailnaild serve \
+  --db-type sqlite \
+  --database ./data/smailnaild.sqlite
+```
+
+Local hosted-account testing notes and curl examples are in `docs/smailnaild-local-account-flow.md`.
+
+For the React/Vite UI in `ui/`, start the backend and dev server separately:
+
+```bash
+go run ./cmd/smailnaild serve \
+  --encryption-key-base64 "$ENCRYPTION_KEY"
+```
+
+```bash
+cd ui
+pnpm run dev
+```
+
+The UI now defaults to `http://localhost:5050` and proxies `/api` to `http://localhost:8080`.
+To point the UI at another backend, copy `ui/.env.example` to `ui/.env.local` and set either:
+
+- `SMAILNAIL_UI_BACKEND_URL=http://localhost:3001`
+- or `SMAILNAIL_UI_BACKEND_PORT=3001`
 
 ## Environment variables
 
@@ -133,6 +219,18 @@ The Cobra parser is configured with app name `smailnail`, so shared IMAP setting
 - `SMAILNAIL_PASSWORD`
 - `SMAILNAIL_MAILBOX`
 - `SMAILNAIL_INSECURE`
+
+The hosted binary uses app name `smailnaild`, so its flags can also be supplied through `SMAILNAILD_*` environment variables.
+
+Important hosted-backend encryption fields:
+
+- `--encryption-key-base64`: base64-encoded 32-byte AES-GCM key for encrypting stored IMAP passwords
+- `--encryption-key-id`: logical key identifier stored with encrypted secrets
+
+Because these are normal Glazed fields, they can also be supplied through the command environment layer, for example:
+
+- `SMAILNAILD_ENCRYPTION_KEY_BASE64`
+- `SMAILNAILD_ENCRYPTION_KEY_ID`
 
 ## Examples
 
@@ -164,6 +262,73 @@ make smoke-docker-imap
 ```
 
 If the fixture lives somewhere else locally, override it with `DOCKER_IMAP_FIXTURE_ROOT=/path/to/docker-test-dovecot`.
+
+## Local Dovecot + Keycloak Stack
+
+For hosted-app and OIDC work, the repo now includes a local Docker Compose stack with:
+
+- Dovecot test fixture on the usual local IMAP ports
+- Keycloak on `http://127.0.0.1:18080`
+- PostgreSQL backing Keycloak persistence
+
+Start it with:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+docker compose -f docker-compose.local.yml up -d
+```
+
+Useful endpoints and defaults:
+
+- Dovecot IMAPS: `127.0.0.1:993`
+- Dovecot test users: `a`, `b`, `c`, `d`
+- Dovecot password: `pass`
+- Keycloak admin: `http://127.0.0.1:18080/admin`
+- Keycloak bootstrap admin username: `admin`
+- Keycloak bootstrap admin password: `admin`
+- Imported realm: `smailnail-dev`
+- Realm issuer: `http://127.0.0.1:18080/realms/smailnail-dev`
+
+The stack also imports two initial OIDC clients in the `smailnail-dev` realm:
+
+- `smailnail-web`
+- `smailnail-mcp`
+
+Predictable local auth defaults after a fresh Keycloak reset:
+
+- Keycloak admin user: `admin`
+- Keycloak admin password: `admin`
+- `smailnail-web` client secret: `smailnail-web-secret`
+- local test user: `alice`
+- local test user password: `secret`
+
+Key references for the shared-identity slice:
+
+- [docs/deployments/smailnaild-oidc-keycloak.md](docs/deployments/smailnaild-oidc-keycloak.md)
+- [docs/shared-oidc-playbook.md](docs/shared-oidc-playbook.md)
+- [docs/deployments/smailnail-imap-mcp-coolify.md](docs/deployments/smailnail-imap-mcp-coolify.md)
+
+Stop it with:
+
+```bash
+docker compose -f docker-compose.local.yml down
+```
+
+To run the hosted-backend integration suite against the local Dovecot fixture:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+export SMAILNAILD_ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)"
+SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/...
+SMAILNAILD_DOVECOT_TEST=1 go test ./...
+```
+
+To run the full shared OIDC + stored-account + local Dovecot smoke:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+SMAILNAIL_LOCAL_STACK_TEST=1 go test ./pkg/mcp/imapjs -run TestExecuteIMAPJSAgainstLocalKeycloakAndDovecot -v
+```
 
 ## JavaScript module smoke
 

@@ -18,8 +18,8 @@ func TestLoadDocsRegistry(t *testing.T) {
 	if registry.store.BySymbol["connect"] == nil {
 		t.Fatalf("expected connect symbol doc")
 	}
-	if registry.store.ByExample["connect-basic"] == nil {
-		t.Fatalf("expected connect-basic example")
+	if registry.store.ByExample["imap-session-automation"] == nil {
+		t.Fatalf("expected imap-session-automation example")
 	}
 }
 
@@ -46,11 +46,17 @@ func TestGetIMAPJSDocumentationSymbolMode(t *testing.T) {
 	if len(decoded.Symbols) != 1 || decoded.Symbols[0].Name != "connect" {
 		t.Fatalf("unexpected symbols: %#v", decoded.Symbols)
 	}
-	if len(decoded.Examples) == 0 || decoded.Examples[0].ID != "connect-basic" {
-		t.Fatalf("unexpected examples: %#v", decoded.Examples)
+	found := false
+	for _, example := range decoded.Examples {
+		if example.ID == "imap-session-automation" {
+			found = true
+			if example.Body == "" {
+				t.Fatalf("expected example body to be included")
+			}
+		}
 	}
-	if decoded.Examples[0].Body == "" {
-		t.Fatalf("expected example body to be included")
+	if !found {
+		t.Fatalf("expected imap-session-automation example, got %#v", decoded.Examples)
 	}
 }
 

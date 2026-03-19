@@ -1,0 +1,16 @@
+.git
+.github
+.gocache
+.idea
+.cursor
+dist
+ttmp
+data
+smailnail
+smailnail-imap-mcp
+smailnaild
+mailgen
+imap-tests
+*.test
+*.out
+
