@@ -4,4 +4,6 @@ provider "keycloak" {
   realm         = var.keycloak_admin_realm
   client_id     = var.keycloak_client_id
   client_secret = var.keycloak_client_secret
+  username      = var.keycloak_username
+  password      = var.keycloak_password
 }

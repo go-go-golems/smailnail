@@ -13,10 +13,22 @@ variable "keycloak_admin_realm" {
 }
 
 variable "keycloak_client_id" {
-  type = string
+  type    = string
+  default = "admin-cli"
 }
 
 variable "keycloak_client_secret" {
+  type      = string
+  default   = null
+  sensitive = true
+  nullable  = true
+}
+
+variable "keycloak_username" {
+  type = string
+}
+
+variable "keycloak_password" {
   type      = string
   sensitive = true
 }

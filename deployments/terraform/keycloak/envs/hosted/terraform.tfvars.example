@@ -1,6 +1,8 @@
 keycloak_url           = "https://auth.scapegoat.dev"
 keycloak_admin_realm   = "master"
-keycloak_client_id     = "terraform"
-keycloak_client_secret = "replace-with-admin-client-secret"
+keycloak_client_id     = "admin-cli"
+keycloak_client_secret = null
+keycloak_username      = "replace-with-bootstrap-admin-username"
+keycloak_password      = "replace-with-bootstrap-admin-password"
 web_client_secret      = "replace-with-smailnail-web-secret"
 mcp_client_secret      = null
