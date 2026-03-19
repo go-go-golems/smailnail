@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/jmoiron/sqlx"
@@ -36,6 +37,63 @@ func (d *testDialer) Dial(_ context.Context, opts smailnailjs.ConnectOptions) (s
 
 func (s *testSession) Mailbox() string {
 	return s.mailbox
+}
+
+func (s *testSession) Capabilities() map[string]bool {
+	return map[string]bool{"uidplus": true}
+}
+
+func (s *testSession) List(pattern string) ([]smailnailjs.MailboxInfo, error) {
+	return []smailnailjs.MailboxInfo{{Name: s.mailbox}}, nil
+}
+
+func (s *testSession) Status(name string) (*smailnailjs.MailboxStatus, error) {
+	return &smailnailjs.MailboxStatus{Messages: 1, UIDNext: 2}, nil
+}
+
+func (s *testSession) SelectMailbox(name string, readOnly bool) (*smailnailjs.MailboxSelection, error) {
+	s.mailbox = name
+	return &smailnailjs.MailboxSelection{Name: name, ReadOnly: readOnly}, nil
+}
+
+func (s *testSession) Search(criteria *smailnailjs.SearchCriteria) ([]uint32, error) {
+	return []uint32{1}, nil
+}
+
+func (s *testSession) Fetch(uids []uint32, fields []smailnailjs.FetchField) ([]*smailnailjs.FetchedMessage, error) {
+	return []*smailnailjs.FetchedMessage{{UID: 1}}, nil
+}
+
+func (s *testSession) AddFlags(uids []uint32, flags []string, silent bool) error {
+	return nil
+}
+
+func (s *testSession) RemoveFlags(uids []uint32, flags []string, silent bool) error {
+	return nil
+}
+
+func (s *testSession) SetFlags(uids []uint32, flags []string, silent bool) error {
+	return nil
+}
+
+func (s *testSession) Move(uids []uint32, dest string) error {
+	return nil
+}
+
+func (s *testSession) Copy(uids []uint32, dest string) error {
+	return nil
+}
+
+func (s *testSession) Delete(uids []uint32, expunge bool) error {
+	return nil
+}
+
+func (s *testSession) Expunge(uids []uint32) error {
+	return nil
+}
+
+func (s *testSession) Append(mailbox string, message []byte, flags []string, date *time.Time) (uint32, error) {
+	return 1, nil
 }
 
 func (s *testSession) Close() {}
