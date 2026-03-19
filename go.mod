@@ -7,7 +7,7 @@ require (
 	github.com/dop251/goja v0.0.0-20250630131328-58d95d85e994
 	github.com/emersion/go-imap/v2 v2.0.0-beta.5
 	github.com/emersion/go-message v0.18.2
-	github.com/go-go-golems/glazed v1.0.4
+	github.com/go-go-golems/glazed v1.0.5
 	github.com/go-go-golems/go-go-goja v0.4.2
 	github.com/go-go-golems/go-go-mcp v0.0.18-0.20260318203355-419230270810
 	github.com/pkg/errors v0.9.1
