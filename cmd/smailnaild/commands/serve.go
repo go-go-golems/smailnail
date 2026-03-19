@@ -188,7 +188,7 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		_ = hostedapp.ShutdownServer(shutdownCtx, server)
 	}()

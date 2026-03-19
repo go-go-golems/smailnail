@@ -45,7 +45,7 @@ type SieveClient struct {
 
 // ConnectSieve opens a ManageSieve connection and authenticates with PLAIN.
 func ConnectSieve(opts SieveOptions) (*SieveClient, error) {
-	addr := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
+	addr := net.JoinHostPort(opts.Host, strconv.Itoa(opts.Port))
 	log.Debug().Str("addr", addr).Msg("connecting to ManageSieve")
 
 	conn, err := net.Dial("tcp", addr)

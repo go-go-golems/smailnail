@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -27,13 +28,8 @@ func buildAndCopy() error {
 	distDir := filepath.Join(frontendDir, "dist", "public")
 	embedDir := filepath.Join(repoRoot, "pkg", "smailnaild", "web", "embed", "public")
 
-	fmt.Println("Building frontend with Vite...")
-	buildCmd := exec.Command("pnpm", "run", "build")
-	buildCmd.Dir = frontendDir
-	buildCmd.Stdout = os.Stdout
-	buildCmd.Stderr = os.Stderr
-	if err := buildCmd.Run(); err != nil {
-		return fmt.Errorf("vite build failed: %w", err)
+	if err := runFrontendBuild(frontendDir, embedDir); err != nil {
+		return err
 	}
 
 	if err := os.RemoveAll(embedDir); err != nil && !os.IsNotExist(err) {
@@ -50,6 +46,44 @@ func buildAndCopy() error {
 
 	fmt.Println("Frontend build and copy completed successfully!")
 	return nil
+}
+
+func runFrontendBuild(frontendDir, embedDir string) error {
+	buildTool, toolArgs, err := frontendBuildCommand()
+	if err != nil {
+		if hasGeneratedEmbedAssets(embedDir) {
+			fmt.Printf("Skipping frontend rebuild: %v\n", err)
+			return nil
+		}
+		return err
+	}
+
+	fmt.Printf("Building frontend with %s...\n", strings.Join(append([]string{buildTool}, toolArgs...), " "))
+	buildCmd := exec.Command(buildTool, toolArgs...)
+	buildCmd.Dir = frontendDir
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+	if err := buildCmd.Run(); err != nil {
+		return fmt.Errorf("vite build failed: %w", err)
+	}
+	return nil
+}
+
+func frontendBuildCommand() (string, []string, error) {
+	if _, err := exec.LookPath("pnpm"); err == nil {
+		return "pnpm", []string{"run", "build"}, nil
+	}
+	if _, err := exec.LookPath("npm"); err == nil {
+		return "npm", []string{"run", "build"}, nil
+	}
+	return "", nil, fmt.Errorf("neither pnpm nor npm is available in PATH")
+}
+
+func hasGeneratedEmbedAssets(embedDir string) bool {
+	if _, err := os.Stat(filepath.Join(embedDir, "index.html")); err != nil {
+		return false
+	}
+	return true
 }
 
 func findRepoRoot() (string, error) {

@@ -155,8 +155,9 @@ func (a *OIDCAuthenticator) HandleLogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	setShortLivedCookie(w, authStateCookieName, state)
-	setShortLivedCookie(w, authNonceCookieName, nonce)
+	secureCookies := a.shouldUseSecureCookies(r)
+	setShortLivedCookie(w, authStateCookieName, state, secureCookies)
+	setShortLivedCookie(w, authNonceCookieName, nonce, secureCookies)
 
 	url := a.oauthConfig.AuthCodeURL(state, oauth2.SetAuthURLParam("nonce", nonce))
 	log.Debug().
@@ -215,8 +216,9 @@ func (a *OIDCAuthenticator) HandleCallback(w http.ResponseWriter, r *http.Reques
 		Str("query_state", queryState).
 		Str("nonce", nonceCookie.Value).
 		Msg("OIDC callback passed state and nonce cookie checks")
-	clearCookie(w, authStateCookieName)
-	clearCookie(w, authNonceCookieName)
+	secureCookies := a.shouldUseSecureCookies(r)
+	clearCookie(w, authStateCookieName, secureCookies)
+	clearCookie(w, authNonceCookieName, secureCookies)
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, a.httpClient)
 	token, err := a.oauthConfig.Exchange(ctx, code)
@@ -316,7 +318,7 @@ func (a *OIDCAuthenticator) HandleCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	setSessionCookie(w, a.settings.SessionCookieName, sessionID, expiry)
+	setSessionCookie(w, a.settings.SessionCookieName, sessionID, expiry, secureCookies)
 	log.Debug().
 		Str("user_id", resolved.User.ID).
 		Str("session_id", sessionID).
@@ -338,7 +340,7 @@ func (a *OIDCAuthenticator) HandleLogout(w http.ResponseWriter, r *http.Request)
 			Msg("Deleting hosted session during logout")
 		_ = a.identityRepo.DeleteSession(r.Context(), cookie.Value)
 	}
-	clearCookie(w, cookieName)
+	clearCookie(w, cookieName, a.shouldUseSecureCookies(r))
 	redirectURL := a.buildLogoutRedirectURL()
 	log.Debug().
 		Str("cookie_name", cookieName).
@@ -523,18 +525,36 @@ func fetchOIDCDiscovery(ctx context.Context, client *http.Client, discoveryURL s
 	return doc, nil
 }
 
-func setShortLivedCookie(w http.ResponseWriter, name, value string) {
+func (a *OIDCAuthenticator) shouldUseSecureCookies(r *http.Request) bool {
+	if r != nil {
+		if r.TLS != nil {
+			return true
+		}
+		if strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https") {
+			return true
+		}
+	}
+	redirectURL := strings.TrimSpace(a.oauthConfig.RedirectURL)
+	if redirectURL == "" {
+		return false
+	}
+	parsed, err := url.Parse(redirectURL)
+	return err == nil && strings.EqualFold(parsed.Scheme, "https")
+}
+
+func setShortLivedCookie(w http.ResponseWriter, name, value string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Path:     "/",
+		Secure:   secure,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int((10 * time.Minute).Seconds()),
 	})
 }
 
-func setSessionCookie(w http.ResponseWriter, name, value string, expiresAt time.Time) {
+func setSessionCookie(w http.ResponseWriter, name, value string, expiresAt time.Time, secure bool) {
 	if strings.TrimSpace(name) == "" {
 		name = DefaultSessionCookieName
 	}
@@ -542,6 +562,7 @@ func setSessionCookie(w http.ResponseWriter, name, value string, expiresAt time.
 		Name:     name,
 		Value:    value,
 		Path:     "/",
+		Secure:   secure,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expiresAt.UTC(),
@@ -549,11 +570,12 @@ func setSessionCookie(w http.ResponseWriter, name, value string, expiresAt time.
 	})
 }
 
-func clearCookie(w http.ResponseWriter, name string) {
+func clearCookie(w http.ResponseWriter, name string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    "",
 		Path:     "/",
+		Secure:   secure,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,

@@ -231,13 +231,7 @@ func (s *Service) Create(ctx context.Context, userID string, input CreateInput) 
 	if count == 0 {
 		account.IsDefault = true
 	}
-	if account.IsDefault {
-		if err := s.repo.ClearDefaultForUser(ctx, account.UserID); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := s.repo.Create(ctx, account); err != nil {
+	if err := s.repo.CreateAtomic(ctx, account, account.IsDefault); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, account.UserID, account.ID)
@@ -303,13 +297,7 @@ func (s *Service) Update(ctx context.Context, userID, accountID string, input Up
 		return nil, err
 	}
 
-	if account.IsDefault {
-		if err := s.repo.ClearDefaultForUser(ctx, account.UserID); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := s.repo.Update(ctx, account); err != nil {
+	if err := s.repo.UpdateAtomic(ctx, account, account.IsDefault); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, userID, accountID)

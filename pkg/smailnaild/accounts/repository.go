@@ -33,7 +33,7 @@ func (r *Repository) Create(ctx context.Context, account *Account) error {
 		return fmt.Errorf("account is nil")
 	}
 
-	_, err := r.db.NamedExecContext(ctx, `INSERT INTO imap_accounts (
+	_, err := sqlx.NamedExecContext(ctx, r.db, `INSERT INTO imap_accounts (
 		id,
 		user_id,
 		label,
@@ -131,7 +131,7 @@ func (r *Repository) Update(ctx context.Context, account *Account) error {
 		return fmt.Errorf("account is nil")
 	}
 
-	result, err := r.db.NamedExecContext(ctx, `UPDATE imap_accounts SET
+	result, err := sqlx.NamedExecContext(ctx, r.db, `UPDATE imap_accounts SET
 		label = :label,
 		provider_hint = :provider_hint,
 		server = :server,
@@ -162,28 +162,130 @@ func (r *Repository) Update(ctx context.Context, account *Account) error {
 }
 
 func (r *Repository) Delete(ctx context.Context, userID, accountID string) error {
-	if _, err := r.db.ExecContext(ctx, r.db.Rebind(`DELETE FROM imap_account_tests WHERE imap_account_id = ?`), accountID); err != nil {
-		return err
-	}
+	return r.withTx(ctx, func(tx *sqlx.Tx) error {
+		if _, err := tx.ExecContext(ctx, r.db.Rebind(`DELETE FROM imap_account_tests
+WHERE imap_account_id IN (
+	SELECT id FROM imap_accounts WHERE id = ? AND user_id = ?
+)`), accountID, userID); err != nil {
+			return err
+		}
 
-	result, err := r.db.ExecContext(ctx, r.db.Rebind(`DELETE FROM imap_accounts WHERE id = ? AND user_id = ?`), accountID, userID)
-	if err != nil {
-		return err
-	}
+		result, err := tx.ExecContext(ctx, r.db.Rebind(`DELETE FROM imap_accounts WHERE id = ? AND user_id = ?`), accountID, userID)
+		if err != nil {
+			return err
+		}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrNotFound
-	}
-	return nil
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
 }
 
 func (r *Repository) ClearDefaultForUser(ctx context.Context, userID string) error {
 	_, err := r.db.ExecContext(ctx, r.db.Rebind(`UPDATE imap_accounts SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`), userID)
 	return err
+}
+
+func (r *Repository) CreateAtomic(ctx context.Context, account *Account, clearExistingDefault bool) error {
+	return r.withTx(ctx, func(tx *sqlx.Tx) error {
+		if clearExistingDefault {
+			if _, err := tx.ExecContext(ctx, r.db.Rebind(`UPDATE imap_accounts SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`), account.UserID); err != nil {
+				return err
+			}
+		}
+		_, err := sqlx.NamedExecContext(ctx, tx, `INSERT INTO imap_accounts (
+			id,
+			user_id,
+			label,
+			provider_hint,
+			server,
+			port,
+			username,
+			mailbox_default,
+			insecure,
+			auth_kind,
+			secret_ciphertext,
+			secret_nonce,
+			secret_key_id,
+			is_default,
+			mcp_enabled
+		) VALUES (
+			:id,
+			:user_id,
+			:label,
+			:provider_hint,
+			:server,
+			:port,
+			:username,
+			:mailbox_default,
+			:insecure,
+			:auth_kind,
+			:secret_ciphertext,
+			:secret_nonce,
+			:secret_key_id,
+			:is_default,
+			:mcp_enabled
+		)`, account)
+		return err
+	})
+}
+
+func (r *Repository) UpdateAtomic(ctx context.Context, account *Account, clearExistingDefault bool) error {
+	return r.withTx(ctx, func(tx *sqlx.Tx) error {
+		if clearExistingDefault {
+			if _, err := tx.ExecContext(ctx, r.db.Rebind(`UPDATE imap_accounts
+SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE user_id = ? AND id <> ?`), account.UserID, account.ID); err != nil {
+				return err
+			}
+		}
+
+		result, err := sqlx.NamedExecContext(ctx, tx, `UPDATE imap_accounts SET
+			label = :label,
+			provider_hint = :provider_hint,
+			server = :server,
+			port = :port,
+			username = :username,
+			mailbox_default = :mailbox_default,
+			insecure = :insecure,
+			auth_kind = :auth_kind,
+			secret_ciphertext = :secret_ciphertext,
+			secret_nonce = :secret_nonce,
+			secret_key_id = :secret_key_id,
+			is_default = :is_default,
+			mcp_enabled = :mcp_enabled,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = :id AND user_id = :user_id`, account)
+		if err != nil {
+			return err
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+func (r *Repository) withTx(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *Repository) CreateTest(ctx context.Context, test *AccountTest) error {

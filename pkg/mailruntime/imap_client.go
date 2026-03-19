@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -866,7 +867,9 @@ func ParseUIDSet(v goja.Value) imap.UIDSet {
 		for i := 0; i < length; i++ {
 			el := arr.Get(strconv.Itoa(i))
 			if el != nil {
-				uids = append(uids, imap.UID(el.ToInteger()))
+				if uid, ok := jsValueToUID(el); ok {
+					uids = append(uids, uid)
+				}
 			}
 		}
 		return imap.UIDSetNum(uids...)
@@ -894,4 +897,12 @@ func ParseUIDSet(v goja.Value) imap.UIDSet {
 		}
 	}
 	return set
+}
+
+func jsValueToUID(v goja.Value) (imap.UID, bool) {
+	raw := v.ToInteger()
+	if raw <= 0 || raw > math.MaxUint32 {
+		return 0, false
+	}
+	return imap.UID(uint32(raw)), true
 }

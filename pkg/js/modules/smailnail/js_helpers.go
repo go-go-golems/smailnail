@@ -3,6 +3,7 @@ package smailnailmodule
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -33,32 +34,68 @@ func jsToUint32Slice(value goja.Value) []uint32 {
 	case []interface{}:
 		ret := make([]uint32, 0, len(v))
 		for _, entry := range v {
-			switch n := entry.(type) {
-			case int64:
-				ret = append(ret, uint32(n))
-			case float64:
-				ret = append(ret, uint32(n))
-			case int:
-				ret = append(ret, uint32(n))
-			case uint32:
+			if n, ok := coerceUint32(entry); ok {
 				ret = append(ret, n)
 			}
 		}
 		return ret
 	case int64:
-		return []uint32{uint32(v)}
+		if n, ok := coerceUint32(v); ok {
+			return []uint32{n}
+		}
+		return nil
 	case float64:
-		return []uint32{uint32(v)}
+		if n, ok := coerceUint32(v); ok {
+			return []uint32{n}
+		}
+		return nil
 	default:
 		if obj, ok := value.(*goja.Object); ok && obj.Get("length") != nil {
 			length := int(obj.Get("length").ToInteger())
 			ret := make([]uint32, 0, length)
 			for i := 0; i < length; i++ {
-				ret = append(ret, uint32(obj.Get(strconv.Itoa(i)).ToInteger()))
+				if n, ok := coerceUint32(obj.Get(strconv.Itoa(i)).Export()); ok {
+					ret = append(ret, n)
+				}
 			}
 			return ret
 		}
-		return []uint32{uint32(value.ToInteger())}
+		if n, ok := coerceUint32(value.Export()); ok {
+			return []uint32{n}
+		}
+		return nil
+	}
+}
+
+func coerceUint32(value interface{}) (uint32, bool) {
+	switch v := value.(type) {
+	case int:
+		if v < 0 {
+			return 0, false
+		}
+		if uint64(v) > math.MaxUint32 {
+			return 0, false
+		}
+		return uint32(v), true
+	case int64:
+		if v < 0 || v > math.MaxUint32 {
+			return 0, false
+		}
+		return uint32(v), true
+	case float64:
+		if v < 0 || v > math.MaxUint32 || math.Trunc(v) != v {
+			return 0, false
+		}
+		return uint32(v), true
+	case uint32:
+		return v, true
+	case uint64:
+		if v > math.MaxUint32 {
+			return 0, false
+		}
+		return uint32(v), true
+	default:
+		return 0, false
 	}
 }
 
