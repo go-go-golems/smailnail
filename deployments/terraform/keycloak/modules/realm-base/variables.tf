@@ -40,3 +40,9 @@ variable "ssl_required" {
   type    = string
   default = "external"
 }
+
+variable "default_signature_algorithm" {
+  type     = string
+  default  = null
+  nullable = true
+}

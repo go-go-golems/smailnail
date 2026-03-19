@@ -7,7 +7,9 @@ variable "client_id" {
 }
 
 variable "name" {
-  type = string
+  type     = string
+  default  = null
+  nullable = true
 }
 
 variable "client_secret" {
@@ -16,6 +18,11 @@ variable "client_secret" {
 }
 
 variable "enabled" {
+  type    = bool
+  default = true
+}
+
+variable "use_refresh_tokens" {
   type    = bool
   default = true
 }
@@ -36,4 +43,9 @@ variable "default_scopes" {
 variable "optional_scopes" {
   type    = list(string)
   default = []
+}
+
+variable "manage_scope_attachments" {
+  type    = bool
+  default = true
 }

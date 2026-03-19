@@ -32,6 +32,11 @@ variable "direct_access_grants_enabled" {
   default = false
 }
 
+variable "use_refresh_tokens" {
+  type    = bool
+  default = true
+}
+
 variable "valid_redirect_uris" {
   type = list(string)
 }
@@ -48,4 +53,9 @@ variable "default_scopes" {
 variable "optional_scopes" {
   type    = list(string)
   default = []
+}
+
+variable "manage_scope_attachments" {
+  type    = bool
+  default = true
 }
