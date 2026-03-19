@@ -79,3 +79,20 @@ Expanded the ticket guide with an explicit explanation of the remaining hosted-a
 
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/design-doc/01-intern-guide-expanding-js-imap-and-adding-a-sieve-scripting-layer.md — Open-item explanation plus quickstart cookbook
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/docs/examples.js — Expanded starter example set for IMAP and Sieve flows
+
+
+## 2026-03-19 - PR review and CI cleanup (commit 91dd372)
+
+Addressed the open PR review findings and the hosted-app CI failures by making account default/deletion mutations transactional, scoping account-test deletion by owning user, hardening OIDC cookie security, fixing unsafe JS-to-UID integer conversions, using IPv6-safe ManageSieve dialing, preserving shutdown context values without `context.Background()`, and making `go generate` reuse committed frontend assets when package managers are unavailable in CI.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/repository.go — Transactional create/update/delete logic and tenant-safe test deletion
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service.go — Service now routes default-account mutations through transactional repository helpers
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service_internal_test.go — Regression tests for failed default reassignment and cross-tenant delete safety
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc.go — Secure-cookie handling now tracks HTTPS transport/redirect configuration
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc_test.go — Cookie security regression coverage
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/js_helpers.go — Bounded JS integer conversion for UID-style arrays
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/imap_client.go — Bounded UID parsing for JS array inputs
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/sieve_client.go — IPv6-safe ManageSieve dialing
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/web/generate_build.go — CI-friendly frontend-build fallback when `pnpm` is unavailable

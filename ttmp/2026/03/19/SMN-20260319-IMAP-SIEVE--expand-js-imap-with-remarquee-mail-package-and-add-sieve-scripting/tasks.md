@@ -60,6 +60,7 @@
 ## Phase 7: Validation, Diary, And Commits
 
 - [x] Run focused Go tests for `pkg/mailruntime`, `pkg/services/smailnailjs`, `pkg/js/modules/smailnail`, and `pkg/mcp/imapjs`
+- [x] Address PR review findings and failing hosted-app build/security checks
 - [x] Commit the shared runtime port in a focused commit
 - [x] Commit the service/module/runtime-surface expansion in a focused commit
 - [x] Commit the ticket bookkeeping and diary updates in a focused commit

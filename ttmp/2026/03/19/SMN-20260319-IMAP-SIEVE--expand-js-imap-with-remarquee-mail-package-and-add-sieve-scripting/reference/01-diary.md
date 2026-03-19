@@ -767,3 +767,137 @@ go test ./pkg/js/modules/smailnail ./pkg/mcp/imapjs -count=1
 docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30
 git commit -m "Expand starter documentation and examples"
 ```
+
+## Step 9: Address PR review findings and unblock the hosted-app CI checks
+
+This step responded to the open code-review comments on PR `#3` and the failing hosted-app CI jobs instead of treating them as separate follow-up work. The practical goal was to land one cleanup pass that removed the review blockers, fixed the concrete lint/test/gosec failures, and added regression tests for the data-loss and cookie-security cases so the branch could be reviewed from a stable baseline.
+
+The main outcome is that the branch now handles default-account mutations transactionally, scopes account-test deletion to the owning user, uses bounded integer conversion for JS UID inputs, uses IPv6-safe ManageSieve dialing, avoids `context.Background()` in the shutdown goroutine, and allows `go generate` to succeed in CI even when `pnpm` is missing as long as committed frontend assets already exist.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Address code review issues: https://github.com/wesen/smailnail/pull/3"
+
+**Assistant interpretation:** Inspect PR `#3`, resolve the concrete review findings and failing CI checks in the branch, validate the fixes locally, and record the work in the ticket diary.
+
+**Inferred user intent:** Remove the blockers keeping the feature branch from being reviewable and merge-ready.
+
+**Commit (code):** `91dd372` — "Fix PR review findings and CI build failures"
+
+### What I did
+- Queried PR `#3` with GitHub CLI and REST API calls to extract the actual review comments and failing checks:
+  - `gh pr view 3 --repo wesen/smailnail --json ...`
+  - `gh api repos/wesen/smailnail/pulls/3/comments --paginate`
+  - `gh pr checks 3 --repo wesen/smailnail`
+  - `gh run view ... --log-failed`
+- Fixed the review findings in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/repository.go` and `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service.go` by:
+  - making create/update default-account changes transactional,
+  - making delete transactional,
+  - deleting `imap_account_tests` rows only through the owning account record.
+- Added account regression tests in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service_internal_test.go`.
+- Fixed OIDC cookie security findings in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc.go` by wiring the `Secure` flag through request transport / forwarded proto / redirect URL inference.
+- Added cookie regression coverage in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc_test.go`.
+- Fixed the `govet` IPv6 host/port issue in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/sieve_client.go` by switching to `net.JoinHostPort`.
+- Fixed `gosec` integer-conversion findings in:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/js_helpers.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/imap_client.go`
+- Fixed the shutdown-context finding in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/cmd/smailnaild/commands/serve.go` by using `context.WithoutCancel(ctx)`.
+- Fixed the hosted-app `go generate` failure in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/web/generate_build.go` by:
+  - using `pnpm` when present,
+  - falling back to `npm`,
+  - and reusing committed generated assets when neither package manager exists in CI.
+- Ran and passed:
+  - `PATH=$(dirname $(which go)) go generate ./pkg/smailnaild/web`
+  - `go test ./pkg/smailnaild/... ./pkg/mailruntime ./pkg/js/modules/smailnail ./cmd/smailnaild/... -count=1`
+  - `golangci-lint run ./pkg/smailnaild/... ./pkg/mailruntime ./pkg/js/modules/smailnail ./cmd/smailnaild/...`
+  - `gosec -exclude=G101,G304,G301,G306,G204 -exclude-dir=.history ./pkg/smailnaild/... ./pkg/mailruntime ./pkg/js/modules/smailnail ./cmd/smailnaild/...`
+- Committed the code fix set as `91dd372`.
+
+### Why
+- The PR had three substantive review findings:
+  - cross-tenant test-history deletion,
+  - non-atomic default-account reassignment,
+  - insecure cookies in the hosted OIDC flow.
+- CI also had real build/security failures beyond the review comments:
+  - IPv6-unsafe host formatting,
+  - unsafe integer casts,
+  - a shutdown-context warning,
+  - `go generate` assuming `pnpm` exists in CI.
+
+### What worked
+- The review comments mapped cleanly to a single repository/service transaction refactor plus targeted regression tests.
+- The stripped-`PATH` `go generate` run reproduced the CI shape closely enough to verify the fallback behavior locally.
+- The pre-commit hook on the code commit ran `golangci-lint run -v` and `go test ./...` successfully, which provided broader validation than the targeted package checks alone.
+
+### What didn't work
+- `gh pr view 3 --comments` failed because GitHub's classic project-card GraphQL field is now deprecated in that query path:
+
+```text
+GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. (repository.pullRequest.projectCards)
+```
+
+- I worked around that by switching to `gh pr view --json ...`, `gh api repos/.../pulls/3/comments`, and `gh run view --log-failed`.
+- One CI failure remains outside the codebase itself:
+
+```text
+Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled
+```
+
+- That failure is a GitHub repository setting issue, not something fixable in this branch.
+
+### What I learned
+- The review bot comments were accurate on the data-integrity issues; both delete ownership and default-account mutation ordering needed real transaction boundaries, not just narrower SQL.
+- The generated frontend assets already being committed means `go generate` does not need to be fragile. It can prefer a rebuild when tooling exists and still remain reproducible in a lean CI environment.
+
+### What was tricky to build
+- The trickiest correctness issue was the delete path. Deleting `imap_account_tests` first looked harmless because the subsequent account delete was ownership-scoped, but the symptom is cross-tenant data loss if another user's `accountID` is targeted. The fix needed both ownership scoping and a transaction so the test-history delete and account delete cannot diverge.
+- The second subtle issue was default-account reassignment. Clearing the old default before a failing insert or update leaves the user with no default account, which is easy to miss in happy-path tests. I handled that by moving the clear-and-write sequence into transactional repository helpers and adding a regression test that forces a duplicate-ID create failure.
+- The CI build fix also had a sharp edge: the first fallback design could have silently skipped asset generation even when no committed assets existed. I guarded that by only skipping the rebuild when `embed/public/index.html` is already present; otherwise `go generate` still fails loudly.
+
+### What warrants a second pair of eyes
+- The secure-cookie inference in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc.go`. It now respects direct TLS, `X-Forwarded-Proto`, and an HTTPS redirect URL, but someone familiar with the expected reverse-proxy deployment should confirm that is the desired production rule.
+- The account repository transaction helpers. They are intentionally small and local, but reviewers should confirm this is the preferred pattern versus a more generic transactional repository abstraction.
+
+### What should be done in the future
+- Enable GitHub dependency graph / dependency review for the repository so the remaining Actions failure can clear without disabling the check.
+- If more JS-exposed numeric identifiers are added later, reuse the same bounded-conversion pattern instead of direct casts.
+
+### Code review instructions
+- Start with the transactional account changes:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/repository.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service_internal_test.go`
+- Then review the hosted auth and CI/build fixes:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc_test.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/web/generate_build.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/cmd/smailnaild/commands/serve.go`
+- Finally inspect the runtime hardening:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/js_helpers.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/imap_client.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/sieve_client.go`
+- Validate with the commands listed below plus a rerun of the PR checks after pushing.
+
+### Technical details
+- Review and CI inspection commands:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+gh pr view 3 --repo wesen/smailnail --json number,title,reviewDecision,reviews,files
+gh api repos/wesen/smailnail/pulls/3/comments --paginate
+gh pr checks 3 --repo wesen/smailnail
+gh run view 23306013654 --repo wesen/smailnail --log-failed
+gh run view 23306013656 --repo wesen/smailnail --log-failed
+gh run view 23306013630 --repo wesen/smailnail --log-failed
+```
+
+- Validation and commit commands:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+PATH=$(dirname $(which go)) go generate ./pkg/smailnaild/web
+go test ./pkg/smailnaild/... ./pkg/mailruntime ./pkg/js/modules/smailnail ./cmd/smailnaild/... -count=1
+golangci-lint run ./pkg/smailnaild/... ./pkg/mailruntime ./pkg/js/modules/smailnail ./cmd/smailnaild/...
+gosec -exclude=G101,G304,G301,G306,G204 -exclude-dir=.history ./pkg/smailnaild/... ./pkg/mailruntime ./pkg/js/modules/smailnail ./cmd/smailnaild/...
+git commit -m "Fix PR review findings and CI build failures"
+```
