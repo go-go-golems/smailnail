@@ -1,0 +1,10 @@
+keycloak_url           = "http://127.0.0.1:18080"
+keycloak_admin_realm   = "master"
+keycloak_client_id     = "admin-cli"
+keycloak_client_secret = null
+keycloak_username      = "admin"
+keycloak_password      = "admin"
+web_client_secret      = "smailnail-web-secret"
+alice_password         = "secret"
+realm_name             = "smailnail-dev"
+realm_display_name     = "smailnail-dev"
