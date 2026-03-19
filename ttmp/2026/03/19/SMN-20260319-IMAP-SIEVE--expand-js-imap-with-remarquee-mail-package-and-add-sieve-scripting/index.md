@@ -40,6 +40,11 @@ WhenToUse: ""
 
 - **Related Files**: See frontmatter RelatedFiles field
 - **External Sources**: See frontmatter ExternalSources field
+- [Project Report](./reference/02-project-report-today-s-imap-and-sieve-work.md)
+- [Design Guide](./design-doc/01-intern-guide-expanding-js-imap-and-adding-a-sieve-scripting-layer.md)
+- [Diary](./reference/01-diary.md)
+- [Task List](./tasks.md)
+- [Changelog](./changelog.md)
 
 ## Status
 
