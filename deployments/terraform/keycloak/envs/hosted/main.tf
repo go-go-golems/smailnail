@@ -11,10 +11,10 @@ module "browser_client" {
   name          = "smailnail-web"
   client_secret = var.web_client_secret
   valid_redirect_uris = [
-    "https://smailnail.scapegoat.dev/auth/callback",
+    "https://smailnail.mcp.scapegoat.dev/auth/callback",
   ]
   web_origins = [
-    "https://smailnail.scapegoat.dev",
+    "https://smailnail.mcp.scapegoat.dev",
   ]
 }
 
@@ -29,7 +29,7 @@ module "mcp_client" {
   valid_redirect_uris = [
     "https://claude.ai/api/mcp/auth_callback",
     "https://claude.com/api/mcp/auth_callback",
-    "https://smailnail.scapegoat.dev/*",
+    "https://smailnail.mcp.scapegoat.dev/*",
   ]
   web_origins = ["+"]
 }
