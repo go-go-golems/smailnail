@@ -62,7 +62,7 @@
 - [x] Run focused Go tests for `pkg/mailruntime`, `pkg/services/smailnailjs`, `pkg/js/modules/smailnail`, and `pkg/mcp/imapjs`
 - [x] Commit the shared runtime port in a focused commit
 - [x] Commit the service/module/runtime-surface expansion in a focused commit
-- [ ] Commit the ticket bookkeeping and diary updates in a focused commit
-- [ ] Update the diary with what changed, what failed, the exact test commands, and review guidance
-- [ ] Update `changelog.md` with commit hashes and implementation milestones
-- [ ] Re-run `docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30`
+- [x] Commit the ticket bookkeeping and diary updates in a focused commit
+- [x] Update the diary with what changed, what failed, the exact test commands, and review guidance
+- [x] Update `changelog.md` with commit hashes and implementation milestones
+- [x] Re-run `docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30`

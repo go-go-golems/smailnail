@@ -605,3 +605,91 @@ git commit -m "Expand smailnail JS IMAP and Sieve APIs"
 golangci-lint run -v
 go test ./...
 ```
+
+## Step 7: Sync the ticket metadata, relate the landed files, and close the implementation loop
+
+This step tied the implementation back into the ticket so the documentation now reflects the code that actually landed. The goal was to make the ticket useful for the next person, not just correct for the current moment: updated task status, explicit commit references, richer related-file metadata, and a clean `docmgr doctor` pass after the implementation notes were added.
+
+The result is that the ticket now contains a current task matrix, a detailed execution diary, changelog entries keyed to the actual commits, and file relations that point from the docs directly to the landed runtime/service/module code. That closes the loop between design, implementation, and review.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 4)
+
+**Assistant interpretation:** Finish the implementation workflow properly by updating the ticket artifacts to match the code that was committed.
+
+**Inferred user intent:** Leave behind a ticket that is genuinely useful as an engineering record, not just a code diff plus a stale plan.
+
+**Commit (code):** `bc4baaa` — "Record IMAP and Sieve implementation ticket progress"
+
+### What I did
+- Updated `tasks.md` to reflect which implementation phases are complete and which follow-ups remain open.
+- Expanded `reference/01-diary.md` with the implementation steps, exact commands, failures, lessons, and commit hashes.
+- Expanded `changelog.md` with commit-specific implementation milestones for:
+  - `439258f71f655e80c664583cfe4e8c33041ea76a`
+  - `e66bd4545660a065f9bea828a9e2a1adf1565536`
+- Ran `docmgr doc relate` to bind the new runtime and JS files into the diary and design doc metadata.
+- Re-ran `docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30`.
+- Committed the repo-local docmgr workspace config and ticket artifacts.
+
+### Why
+- The user explicitly asked for a detailed diary and task-by-task execution.
+- The ticket had moved from "analysis artifact" to "live implementation record," so the metadata needed to reflect the real commit history and landed file set.
+
+### What worked
+- `docmgr doc relate` updated both the diary and design doc metadata cleanly.
+- `docmgr doctor` passed after the implementation updates.
+- The ticket commit remained isolated from unrelated generated files in the worktree.
+
+### What didn't work
+- The worktree still contains unrelated untracked/generated files outside the ticket and feature work:
+
+```text
+?? smailnail-imap-mcp
+?? smailnaild.sqlite
+?? ui/tsconfig.tsbuildinfo
+```
+
+- I intentionally left those out of the implementation commits.
+
+### What I learned
+- The ticket artifacts are only genuinely useful if they are updated after the code lands; doing that bookkeeping at the end is what turns a design doc into a maintainable engineering record.
+
+### What was tricky to build
+- The main sharp edge here was avoiding accidental staging. The repo already had unrelated untracked/generated files, while the ticket work itself was also entirely untracked because the local `docmgr` workspace had never been committed before. I solved that by staging only `.ttmp.yaml`, `ttmp/.docmgrignore`, `ttmp/_guidelines`, `ttmp/_templates`, `ttmp/vocabulary.yaml`, and the ticket tree under `ttmp/2026/...`, while leaving the unrelated generated files untouched.
+
+### What warrants a second pair of eyes
+- The repo-local `docmgr` bootstrap files (`.ttmp.yaml`, `ttmp/_guidelines`, `ttmp/_templates`, `ttmp/vocabulary.yaml`) are now committed. Reviewers should confirm that keeping those workspace files in-repo is the intended long-term workflow for `smailnail`.
+
+### What should be done in the future
+- If the hosted-account Sieve schema follow-up happens, append new diary steps to this same ticket rather than starting a disconnected note.
+
+### Code review instructions
+- Start with the ticket files:
+  - `tasks.md`
+  - `reference/01-diary.md`
+  - `changelog.md`
+- Confirm the commit hashes referenced in the docs exist in the branch history.
+- Re-run:
+  - `docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30`
+
+### Technical details
+- Final bookkeeping commands:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+docmgr doc relate --root ttmp --doc ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/reference/01-diary.md \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/imap_client.go:Donor-derived IMAP runtime port used by implementation commit 439258f" \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/sieve_client.go:Donor-derived ManageSieve runtime port used by implementation commit 439258f" \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/services/smailnailjs/service.go:Expanded service contract and stored-account aware IMAP/Sieve wiring" \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/module.go:Richer goja export layer for IMAP and Sieve" \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/sieve_builder.go:Offline Sieve builder added in JS runtime expansion"
+
+docmgr doc relate --root ttmp --doc ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/design-doc/01-intern-guide-expanding-js-imap-and-adding-a-sieve-scripting-layer.md \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/imap_client.go:Implementation now follows the proposed transplant boundary" \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mailruntime/sieve_client.go:Implementation now follows the proposed transplant boundary" \
+  --file-note "/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/module.go:JS runtime now exposes the richer IMAP and Sieve surface described in the guide"
+
+docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30
+git commit -m "Record IMAP and Sieve implementation ticket progress"
+```

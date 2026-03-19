@@ -56,3 +56,16 @@ Expanded the `smailnail` goja module to expose richer IMAP session methods, Mana
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/docs/service.js — Symbol docs for the expanded runtime surface
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/docs/examples.js — Updated IMAP and Sieve examples
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mcp/imapjs/docs_tool_test.go — Documentation query expectations for the richer example set
+
+
+## 2026-03-19 - Ticket bookkeeping synced to implementation (commit bc4baaa)
+
+Updated the task matrix, diary, changelog, and related-file metadata so the ticket now reflects the landed implementation commits and the current follow-up boundary for hosted-account Sieve settings.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/tasks.md — Execution status updated after the implementation commits
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/reference/01-diary.md — Detailed implementation diary with failures, commands, and commit hashes
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/changelog.md — Commit-indexed implementation milestones
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/.ttmp.yaml — Repo-local docmgr workspace configuration now tracked in git
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/vocabulary.yaml — Repo-local topic vocabulary tracked with the ticket workspace
