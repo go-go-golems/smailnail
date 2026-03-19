@@ -584,6 +584,7 @@ func setHostedCookie(w http.ResponseWriter, cookie *http.Cookie) {
 	cookie.HttpOnly = true
 	cookie.SameSite = http.SameSiteLaxMode
 	// #nosec G124 -- Secure is computed from request/proxy/redirect HTTPS state in shouldUseSecureCookies.
+	cookie.Secure = true
 	http.SetCookie(w, cookie)
 }
 
