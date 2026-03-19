@@ -542,41 +542,51 @@ func (a *OIDCAuthenticator) shouldUseSecureCookies(r *http.Request) bool {
 	return err == nil && strings.EqualFold(parsed.Scheme, "https")
 }
 
+// #nosec G124 -- Secure is intentionally transport-dependent and inferred by shouldUseSecureCookies.
 func setShortLivedCookie(w http.ResponseWriter, name, value string, secure bool) {
 	setHostedCookie(w, &http.Cookie{
-		Name:   name,
-		Value:  value,
-		Path:   "/",
-		Secure: secure,
-		MaxAge: int((10 * time.Minute).Seconds()),
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		Secure:   secure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int((10 * time.Minute).Seconds()),
 	})
 }
 
+// #nosec G124 -- Secure is intentionally transport-dependent and inferred by shouldUseSecureCookies.
 func setSessionCookie(w http.ResponseWriter, name, value string, expiresAt time.Time, secure bool) {
 	if strings.TrimSpace(name) == "" {
 		name = DefaultSessionCookieName
 	}
 	setHostedCookie(w, &http.Cookie{
-		Name:    name,
-		Value:   value,
-		Path:    "/",
-		Secure:  secure,
-		Expires: expiresAt.UTC(),
-		MaxAge:  int(time.Until(expiresAt).Seconds()),
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		Secure:   secure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  expiresAt.UTC(),
+		MaxAge:   int(time.Until(expiresAt).Seconds()),
 	})
 }
 
+// #nosec G124 -- Secure is intentionally transport-dependent and inferred by shouldUseSecureCookies.
 func clearCookie(w http.ResponseWriter, name string, secure bool) {
 	setHostedCookie(w, &http.Cookie{
-		Name:    name,
-		Value:   "",
-		Path:    "/",
-		Secure:  secure,
-		MaxAge:  -1,
-		Expires: time.Unix(0, 0).UTC(),
+		Name:     name,
+		Value:    "",
+		Path:     "/",
+		Secure:   secure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0).UTC(),
 	})
 }
 
+// #nosec G124 -- Centralized cookie writer for hosted auth; Secure comes from shouldUseSecureCookies.
 func setHostedCookie(w http.ResponseWriter, cookie *http.Cookie) {
 	if cookie == nil {
 		return
