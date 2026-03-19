@@ -69,3 +69,13 @@ Updated the task matrix, diary, changelog, and related-file metadata so the tick
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/changelog.md — Commit-indexed implementation milestones
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/.ttmp.yaml — Repo-local docmgr workspace configuration now tracked in git
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/vocabulary.yaml — Repo-local topic vocabulary tracked with the ticket workspace
+
+
+## 2026-03-19 - Starter documentation and example expansion (commit c6fd9c6)
+
+Expanded the ticket guide with an explicit explanation of the remaining hosted-account Sieve follow-up and added a much larger starter example set so new users can copy working IMAP and Sieve patterns immediately.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/design-doc/01-intern-guide-expanding-js-imap-and-adding-a-sieve-scripting-layer.md — Open-item explanation plus quickstart cookbook
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/docs/examples.js — Expanded starter example set for IMAP and Sieve flows

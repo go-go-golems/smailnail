@@ -693,3 +693,77 @@ docmgr doc relate --root ttmp --doc ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--exp
 docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30
 git commit -m "Record IMAP and Sieve implementation ticket progress"
 ```
+
+## Step 8: Make the docs starter-friendly and explain the remaining hosted-account Sieve gap
+
+This step focused on usability rather than new runtime behavior. The user asked for exhaustive documentation with enough examples that someone can get started immediately, so I expanded the ticket guide and the embedded JS examples to function more like a starter cookbook than a minimal API reference.
+
+The important outcome is that the documentation now explicitly explains the remaining hosted-account Sieve open item and provides multiple copyable examples for stored-account IMAP usage, mailbox inspection, search/fetch flows, message mutation, append usage, and several Sieve management patterns.
+
+### Prompt Context
+
+**User prompt (verbatim):** "explain the opepn item. Also make sure the documentation is exhaustive and has a lot of example, so that someone can get started rightaway"
+
+**Assistant interpretation:** Explain the remaining hosted-account Sieve follow-up clearly and expand the docs/examples so a new user can begin using the feature immediately.
+
+**Inferred user intent:** Remove ambiguity around the remaining gap and turn the docs into a practical starting point instead of a thin reference.
+
+**Commit (code):** `c6fd9c6` — "Expand starter documentation and examples"
+
+### What I did
+- Expanded [`pkg/js/modules/smailnail/docs/examples.js`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/docs/examples.js) with more starter-oriented examples:
+  - stored-account IMAP connect,
+  - mailbox discovery,
+  - search/fetch/move,
+  - copy/delete/expunge,
+  - append,
+  - list/read Sieve scripts,
+  - vacation-rule builder,
+  - rename/delete Sieve scripts.
+- Expanded the ticket design guide in [`design-doc/01-intern-guide-expanding-js-imap-and-adding-a-sieve-scripting-layer.md`](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ttmp/2026/03/19/SMN-20260319-IMAP-SIEVE--expand-js-imap-with-remarquee-mail-package-and-add-sieve-scripting/design-doc/01-intern-guide-expanding-js-imap-and-adding-a-sieve-scripting-layer.md) with:
+  - an explicit explanation of the open hosted-account Sieve item,
+  - a step-by-step quickstart cookbook,
+  - copyable JavaScript snippets for common flows.
+- Re-ran:
+  - `go test ./pkg/js/modules/smailnail ./pkg/mcp/imapjs -count=1`
+  - `docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30`
+
+### Why
+- The previous docs were accurate but still too sparse for a new person starting from zero.
+- The open item around hosted-account Sieve settings needed a concrete explanation of what works now, what is only a partial solution, and exactly what follow-up schema work still exists.
+
+### What worked
+- The example expansion did not break the JS docs or MCP documentation tests.
+- The quickstart section made it possible to explain the open item in practical terms instead of abstract architecture language.
+
+### What didn't work
+- N/A
+
+### What I learned
+- The difference between "exhaustive" and "usable" documentation is often example density. Once the API surface is broad, people need pattern-based entrypoints more than they need one more paragraph of architectural context.
+
+### What was tricky to build
+- The tricky part here was avoiding duplication without leaving holes. The embedded JS docs and the ticket guide serve different readers: the embedded docs need many short, queryable examples, while the ticket guide needs a narrative explanation of the unresolved schema issue. I handled that by giving the guide the architectural explanation and quickstart cookbook, while pushing the higher-volume copy/paste snippets into `examples.js`.
+
+### What warrants a second pair of eyes
+- The example set is now much broader, but reviewers should check whether the first example a newcomer sees should be the stored-account flow rather than the inline-credential flow everywhere the docs are rendered.
+
+### What should be done in the future
+- If the hosted-account Sieve schema follow-up lands, update the quickstart section to move that path from "partial/defaulted" to "fully modeled."
+
+### Code review instructions
+- Read the new open-item explanation and quickstart cookbook in the design guide.
+- Then scan the embedded examples file to confirm the examples cover the most common user journeys.
+- Validate with:
+  - `go test ./pkg/js/modules/smailnail ./pkg/mcp/imapjs -count=1`
+  - `docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30`
+
+### Technical details
+- Commands:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/js/modules/smailnail ./pkg/mcp/imapjs -count=1
+docmgr doctor --root ttmp --ticket SMN-20260319-IMAP-SIEVE --stale-after 30
+git commit -m "Expand starter documentation and examples"
+```
