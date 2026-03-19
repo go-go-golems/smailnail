@@ -543,14 +543,12 @@ func (a *OIDCAuthenticator) shouldUseSecureCookies(r *http.Request) bool {
 }
 
 func setShortLivedCookie(w http.ResponseWriter, name, value string, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     "/",
-		Secure:   secure,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int((10 * time.Minute).Seconds()),
+	setHostedCookie(w, &http.Cookie{
+		Name:   name,
+		Value:  value,
+		Path:   "/",
+		Secure: secure,
+		MaxAge: int((10 * time.Minute).Seconds()),
 	})
 }
 
@@ -558,29 +556,35 @@ func setSessionCookie(w http.ResponseWriter, name, value string, expiresAt time.
 	if strings.TrimSpace(name) == "" {
 		name = DefaultSessionCookieName
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     "/",
-		Secure:   secure,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  expiresAt.UTC(),
-		MaxAge:   int(time.Until(expiresAt).Seconds()),
+	setHostedCookie(w, &http.Cookie{
+		Name:    name,
+		Value:   value,
+		Path:    "/",
+		Secure:  secure,
+		Expires: expiresAt.UTC(),
+		MaxAge:  int(time.Until(expiresAt).Seconds()),
 	})
 }
 
 func clearCookie(w http.ResponseWriter, name string, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     name,
-		Value:    "",
-		Path:     "/",
-		Secure:   secure,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,
-		Expires:  time.Unix(0, 0).UTC(),
+	setHostedCookie(w, &http.Cookie{
+		Name:    name,
+		Value:   "",
+		Path:    "/",
+		Secure:  secure,
+		MaxAge:  -1,
+		Expires: time.Unix(0, 0).UTC(),
 	})
+}
+
+func setHostedCookie(w http.ResponseWriter, cookie *http.Cookie) {
+	if cookie == nil {
+		return
+	}
+	cookie.HttpOnly = true
+	cookie.SameSite = http.SameSiteLaxMode
+	// #nosec G124 -- Secure is computed from request/proxy/redirect HTTPS state in shouldUseSecureCookies.
+	http.SetCookie(w, cookie)
 }
 
 func randomToken() (string, error) {
