@@ -1,5 +1,16 @@
 # smailnail Keycloak Terraform
 
+This directory is no longer the canonical hosted Terraform location.
+
+Use the shared infra repo instead:
+
+- [keycloak/README.md](/home/manuel/code/wesen/terraform/keycloak/README.md)
+- [apps/smailnail/envs/local](/home/manuel/code/wesen/terraform/keycloak/apps/smailnail/envs/local/main.tf)
+- [apps/smailnail/envs/hosted](/home/manuel/code/wesen/terraform/keycloak/apps/smailnail/envs/hosted/main.tf)
+
+The original repo-local scaffold remains as historical context for how the
+first Terraform version was developed before centralization.
+
 This directory is the initial Terraform scaffold for managing the `smailnail`
 Keycloak setup declaratively.
 
