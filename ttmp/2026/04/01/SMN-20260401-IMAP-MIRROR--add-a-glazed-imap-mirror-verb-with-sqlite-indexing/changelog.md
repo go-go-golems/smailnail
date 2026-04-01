@@ -38,3 +38,14 @@ Step 4: added incremental raw-message sync, fixed the UIDNEXT search boundary, a
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/files.go — Raw-message file layout and idempotent writes
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Incremental UID sync
 
+
+## 2026-04-01
+
+Step 5: parsed raw RFC 822 messages into body_text, body_html, parts_json, and search_text, and validated multipart HTML mirroring against Docker Dovecot (commit f30a4c432200b77456cb116f4443477c4d8759e3)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/parser.go — New raw-message parser and search-text normalization
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/parser_test.go — New parser and projection tests
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Message records now prefer parsed raw-message fields
+

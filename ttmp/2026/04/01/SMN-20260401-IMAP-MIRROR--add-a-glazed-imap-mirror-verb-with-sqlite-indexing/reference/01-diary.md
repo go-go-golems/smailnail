@@ -32,6 +32,10 @@ RelatedFiles:
         Fixed insecure TLS support required by the Docker Dovecot mirror smoke in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
     - Path: smailnail/pkg/mirror/files.go
       Note: Added raw-message pathing
+    - Path: smailnail/pkg/mirror/parser.go
+      Note: Added raw-message MIME parsing and search-text projection in commit f30a4c432200b77456cb116f4443477c4d8759e3
+    - Path: smailnail/pkg/mirror/parser_test.go
+      Note: Added parser coverage and record-projection tests in commit f30a4c432200b77456cb116f4443477c4d8759e3
     - Path: smailnail/pkg/mirror/schema.go
       Note: Added mirror schema bootstrap and FTS detection in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/pkg/mirror/service.go
@@ -52,10 +56,11 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T20:40:00-04:00
+LastUpdated: 2026-04-01T20:55:00-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
+
 
 
 
@@ -654,3 +659,127 @@ exit status 1
   - `pkg/mirror/files_test.go`
   - `pkg/mirror/service.go`
   - `pkg/mirror/service_test.go`
+
+## Step 5: Parse Raw RFC 822 Messages Into Searchable Fields
+
+This step moved the mirror from “metadata plus raw files” to “metadata plus a searchable content projection.” Instead of relying only on envelope data and the ad hoc `FetchBodyText` field, the mirror now parses the stored raw RFC 822 message bytes with `go-message/mail` and uses that parsed view to populate `body_text`, `body_html`, attachment metadata, and a normalized `search_text` field.
+
+The key value in this slice is that it validates the design direction of raw-message-first mirroring. Because the raw `.eml` bytes are already persisted, the parser can be improved independently of the sync transport. This step used that property directly and verified it on the local Docker Dovecot fixture with a multipart HTML message.
+
+### Prompt Context
+
+**User prompt (verbatim):** "alright, create detailed tasks in the ticket, and then work on them one by one, committing at appropriate intervals, keeping a diary."
+
+**Assistant interpretation:** Continue through the planned implementation phases and document each code slice with the same discipline as the earlier ones.
+
+**Inferred user intent:** The user wants the mirror to keep becoming more implementation-complete without losing commit hygiene, test coverage, or the reasoning trail in the ticket.
+
+**Commit (code):** `f30a4c432200b77456cb116f4443477c4d8759e3` — `feat(mirror): parse raw messages into search fields`
+
+### What I did
+
+- Added `pkg/mirror/parser.go`:
+  - `ParseMessage(raw []byte)`
+  - parsed message subject, message-id, sent date, addresses
+  - extracted inline `text/plain` and `text/html` parts
+  - detected attachment parts and captured parsed part metadata
+  - normalized search-text generation
+  - simple HTML stripping for search indexing
+- Updated `pkg/mirror/service.go`:
+  - `buildMessageRecord` now prefers parsed raw-message values when parsing succeeds
+  - parsed part metadata now replaces the earlier attachment-only `parts_json` projection
+- Added `pkg/mirror/parser_test.go`:
+  - multipart alternative parsing coverage
+  - record-building coverage that proves parsed output overrides fallback envelope/body fields
+- Verified with:
+  - `go test ./pkg/mirror`
+  - `go test ./pkg/mirror ./cmd/smailnail`
+  - repo pre-commit `go test ./...`
+  - repo pre-commit `golangci-lint run -v`
+- Verified against Docker Dovecot with a multipart HTML message:
+  - `docker compose -f docker-compose.local.yml up -d dovecot`
+  - `go run ./cmd/imap-tests store-html-message ...`
+  - `go run ./cmd/smailnail mirror ...`
+  - `sqlite3 /tmp/smailnail-mirror-parser-smoke/mirror.sqlite "select subject, substr(body_text,1,40), body_html != '', instr(search_text,'Mirror HTML smoke') > 0 ..."`
+  - `docker compose -f docker-compose.local.yml down`
+
+### Why
+
+- The mirror needs searchable message content, not just raw bytes and envelope metadata.
+- Parsing from stored `.eml` files keeps the sync loop simpler and makes future parser improvements local and deterministic.
+- HTML-message validation against Docker Dovecot was necessary because parser tests alone do not prove that the mirrored raw bytes coming from IMAP are the same shape the parser expects.
+
+### What worked
+
+- The parser successfully extracted both plain text and HTML from multipart/alternative messages in unit tests.
+- `buildMessageRecord` now upgrades the SQLite projection with parsed subject/body/attachment/search fields when raw parsing succeeds.
+- The Docker HTML smoke verified the end-to-end path:
+  - message stored through the fixture
+  - raw message downloaded by `smailnail mirror`
+  - SQLite row contained:
+    - the expected subject
+    - non-empty `body_text`
+    - non-empty `body_html`
+    - `search_text` containing stripped HTML text
+
+### What didn't work
+
+- N/A
+
+### What I learned
+
+- The raw-first architecture pays off quickly: once the `.eml` bytes are durable, parser improvements become purely local transformations over already mirrored data.
+- Even a simple HTML stripping pass is enough to make `search_text` materially better for a first search-oriented projection.
+- It is still useful to keep the fetched IMAP envelope/body data as a fallback path so malformed raw messages do not block the mirror.
+
+### What was tricky to build
+
+- The main tricky part was deciding how aggressive the parser should be in v1. It would be easy to start normalizing every header and MIME nuance immediately, but that would slow the implementation and make the slice harder to verify. I kept the parser focused on the fields the schema already cares about: subject, date, address summaries, plain text, HTML, attachment presence, and a deterministic search projection.
+
+- Another subtle point was making parsed data override fallback IMAP fetch data without making parsing mandatory. The solution was to parse opportunistically inside `buildMessageRecord` and only replace individual fields when the parser yields a stronger value. That keeps the mirror resilient while still benefiting from richer parsing whenever the raw message is well-formed.
+
+### What warrants a second pair of eyes
+
+- Whether the current HTML stripping is sufficient for search-text generation, or whether a more HTML-aware normalization pass is needed sooner.
+- Whether attachment metadata in `parts_json` should distinguish inline related parts from true user-visible attachments more explicitly.
+- Whether the parser should also become the source of truth for `headers_json` in a later slice instead of continuing to reuse fetched header maps.
+
+### What should be done in the future
+
+- Finish the remaining Phase 5 gap:
+  - decide whether `headers_json` should come from the parser rather than IMAP fetch headers
+- Add search/query behavior that can use `search_text` even when FTS5 is unavailable.
+- Add a smoke case for attachment-heavy multipart messages, not just HTML alternatives.
+
+### Code review instructions
+
+- Start with:
+  - `pkg/mirror/parser.go`
+  - `pkg/mirror/parser_test.go`
+- Then inspect integration points in:
+  - `pkg/mirror/service.go`
+- Validate with:
+  - `go test ./pkg/mirror`
+  - `docker compose -f docker-compose.local.yml up -d dovecot`
+  - `go run ./cmd/imap-tests store-html-message --server 127.0.0.1 --port 993 --username a --password pass --mailbox INBOX --insecure --from parser@example.com --to a@test.local --subject "Mirror HTML smoke ..." --text-body "Plain html smoke body" --html-body '<html>...</html>' --output json`
+  - `go run ./cmd/smailnail mirror --server 127.0.0.1 --port 993 --username a --password pass --mailbox INBOX --insecure --sqlite-path /tmp/smailnail-mirror-parser-smoke/mirror.sqlite --mirror-root /tmp/smailnail-mirror-parser-smoke/root --batch-size 25 --output json`
+  - inspect the mirrored row with `sqlite3`
+
+### Technical details
+
+- The SQLite spot-check used for the real-fixture validation returned:
+
+```text
+Mirror HTML smoke 2026-04-01T20:50Z|Plain html smoke body|1|1
+```
+
+- Interpreted left to right, that row means:
+  - the expected subject was mirrored
+  - `body_text` started with the expected plain-text alternative
+  - `body_html` was non-empty
+  - `search_text` contained stripped HTML content matching `Mirror HTML smoke`
+
+- Files changed in the code commit:
+  - `pkg/mirror/parser.go`
+  - `pkg/mirror/parser_test.go`
+  - `pkg/mirror/service.go`

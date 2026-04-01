@@ -4,7 +4,7 @@
 
 It currently contains three CLIs:
 
-- `smailnail`: search, fetch, and process mail with a YAML DSL or direct CLI flags
+- `smailnail`: search, fetch, mirror, and process mail with a YAML DSL or direct CLI flags
 - `mailgen`: generate synthetic email from YAML templates and optionally append it to IMAP
 - `imap-tests`: helper commands for creating mailboxes and storing fixture messages
 
@@ -53,6 +53,31 @@ go run ./cmd/smailnail fetch-mail \
   --password secret \
   --mailbox INBOX \
   --subject-contains "invoice" \
+  --output json
+```
+
+Local mirror via SQLite plus raw `.eml` storage:
+
+```bash
+go run ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Print the mirror plan without creating local files:
+
+```bash
+go run ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --print-plan \
   --output json
 ```
 
@@ -262,6 +287,38 @@ make smoke-docker-imap
 ```
 
 If the fixture lives somewhere else locally, override it with `DOCKER_IMAP_FIXTURE_ROOT=/path/to/docker-test-dovecot`.
+
+To validate the local mirror against the bundled Docker Compose fixture in this repo:
+
+```bash
+cd /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail
+docker compose -f docker-compose.local.yml up -d dovecot
+
+go run ./cmd/imap-tests store-text-message \
+  --server 127.0.0.1 \
+  --port 993 \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --insecure \
+  --from seed@example.com \
+  --to a@test.local \
+  --subject "Mirror fixture message" \
+  --output json
+
+go run ./cmd/smailnail mirror \
+  --server 127.0.0.1 \
+  --port 993 \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --insecure \
+  --sqlite-path /tmp/smailnail-mirror.sqlite \
+  --mirror-root /tmp/smailnail-mirror \
+  --output json
+
+docker compose -f docker-compose.local.yml down
+```
 
 ## Local Dovecot + Keycloak Stack
 

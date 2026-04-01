@@ -52,11 +52,11 @@
 
 ## Phase 5: MIME Parsing And Searchable Projection
 
-- [ ] Create `pkg/mirror/parser.go`
-- [ ] Parse downloaded RFC 822 messages with `github.com/emersion/go-message/mail`
+- [x] Create `pkg/mirror/parser.go`
+- [x] Parse downloaded RFC 822 messages with `github.com/emersion/go-message/mail`
 - [ ] Extract headers, message-id, address summaries, plain text, HTML, and attachment presence
-- [ ] Build a stable `search_text` projection
-- [ ] Persist parsed data into the SQLite mirror schema
+- [x] Build a stable `search_text` projection
+- [x] Persist parsed data into the SQLite mirror schema
 - [ ] Add fallback basic search support even when FTS5 is unavailable
 
 ## Phase 6: Reconciliation And Reporting
@@ -69,10 +69,10 @@
 
 ## Phase 7: Validation And Documentation
 
-- [ ] Add unit tests for schema bootstrap and migration upgrades
-- [ ] Add unit tests for parser behavior and search-text generation
-- [ ] Add tests for mailbox sync-state transitions and `UIDVALIDITY` reset handling
+- [x] Add unit tests for schema bootstrap and migration upgrades
+- [x] Add unit tests for parser behavior and search-text generation
+- [x] Add tests for mailbox sync-state transitions and `UIDVALIDITY` reset handling
 - [ ] Add an end-to-end smoke test against the maintained Docker IMAP fixture
-- [ ] Update `README.md` and `cmd/smailnail/README.md` with mirror usage examples
-- [ ] Update the diary after each meaningful implementation slice
-- [ ] Commit focused slices separately with clear messages
+- [x] Update `README.md` and `cmd/smailnail/README.md` with mirror usage examples
+- [x] Update the diary after each meaningful implementation slice
+- [x] Commit focused slices separately with clear messages

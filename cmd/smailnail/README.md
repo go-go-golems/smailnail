@@ -6,6 +6,7 @@ It supports two main flows:
 
 - `mail-rules`: load a YAML rule file and optionally execute actions on matched messages
 - `fetch-mail`: build a temporary rule from CLI flags for quick searches
+- `mirror`: mirror IMAP mail into a local SQLite database plus raw `.eml` files
 
 ## Build
 
@@ -20,6 +21,7 @@ go build ./cmd/smailnail
 go run ./cmd/smailnail --help
 go run ./cmd/smailnail mail-rules --help
 go run ./cmd/smailnail fetch-mail --help
+go run ./cmd/smailnail mirror --help
 ```
 
 ## Rule-driven usage
@@ -67,6 +69,60 @@ Both subcommands accept:
 - `--insecure`
 
 These can also be supplied through `SMAILNAIL_*` environment variables.
+
+## Local mirror usage
+
+Bootstrap and sync one mailbox into a local mirror:
+
+```bash
+go run ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Mirror all listed mailboxes:
+
+```bash
+go run ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Print the plan without mutating local state:
+
+```bash
+go run ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --print-plan \
+  --output json
+```
+
+Reset the stored local checkpoint before a resync:
+
+```bash
+go run ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --reset-mailbox-state \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
 
 ## Examples
 
