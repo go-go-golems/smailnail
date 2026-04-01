@@ -27,6 +27,7 @@ type SyncOptions struct {
 	MirrorRoot        string
 	BatchSize         int
 	ResetMailboxState bool
+	ReconcileFull     bool
 }
 
 type imapSession interface {
@@ -103,6 +104,8 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		report.MessagesStored += mailboxReport.StoredMessages
 		report.RawFilesWritten += mailboxReport.RawFilesWritten
 		report.ReusedFileWrites += mailboxReport.ReusedFileWrites
+		report.TombstonedMessages += mailboxReport.TombstonedMessages
+		report.RestoredMessages += mailboxReport.RestoredMessages
 	}
 
 	return report, nil
@@ -216,26 +219,18 @@ func (s *Service) syncMailbox(
 	}()
 
 	report := &MailboxSyncResult{
-		MailboxName:     mailboxName,
-		UIDValidity:     status.UIDValidity,
-		UIDNext:         status.UIDNext,
-		PreviousHighUID: previousHighUID,
-		HighestUID:      previousHighUID,
-		ResetApplied:    resetApplied,
+		MailboxName:      mailboxName,
+		UIDValidity:      status.UIDValidity,
+		UIDNext:          status.UIDNext,
+		PreviousHighUID:  previousHighUID,
+		HighestUID:       previousHighUID,
+		ReconcileApplied: opts.ReconcileFull,
+		ResetApplied:     resetApplied,
 	}
 
 	searchCriteria, shouldSearch := newUIDSearchCriteria(previousHighUID, status.UIDNext)
 	if !shouldSearch {
-		syncTime := s.now().UTC()
-		if err := upsertMailboxSyncState(ctx, s.store.db, MailboxSyncState{
-			AccountKey:  accountKey,
-			MailboxName: mailboxName,
-			UIDValidity: status.UIDValidity,
-			HighestUID:  previousHighUID,
-			LastUIDNext: status.UIDNext,
-			LastSyncAt:  &syncTime,
-			Status:      "active",
-		}); err != nil {
+		if err := s.finalizeMailboxSync(ctx, session, accountKey, mailboxName, status, report, opts.ReconcileFull); err != nil {
 			return nil, err
 		}
 		return report, nil
@@ -250,16 +245,7 @@ func (s *Service) syncMailbox(
 	})
 
 	if len(uids) == 0 {
-		syncTime := s.now().UTC()
-		if err := upsertMailboxSyncState(ctx, s.store.db, MailboxSyncState{
-			AccountKey:  accountKey,
-			MailboxName: mailboxName,
-			UIDValidity: status.UIDValidity,
-			HighestUID:  previousHighUID,
-			LastUIDNext: status.UIDNext,
-			LastSyncAt:  &syncTime,
-			Status:      "active",
-		}); err != nil {
+		if err := s.finalizeMailboxSync(ctx, session, accountKey, mailboxName, status, report, opts.ReconcileFull); err != nil {
 			return nil, err
 		}
 		return report, nil
@@ -287,7 +273,48 @@ func (s *Service) syncMailbox(
 		}
 	}
 
+	if err := s.finalizeMailboxSync(ctx, session, accountKey, mailboxName, status, report, opts.ReconcileFull); err != nil {
+		return nil, err
+	}
+
 	return report, nil
+}
+
+func (s *Service) finalizeMailboxSync(
+	ctx context.Context,
+	session imapSession,
+	accountKey, mailboxName string,
+	status *mailruntime.MailboxStatus,
+	report *MailboxSyncResult,
+	reconcileFull bool,
+) error {
+	if reconcileFull {
+		remoteUIDs, err := session.Search(&mailruntime.SearchCriteria{All: true})
+		if err != nil {
+			return errors.Wrap(err, "search mailbox UIDs for reconcile")
+		}
+		tombstoned, restored, err := reconcileMailboxSnapshot(ctx, s.store.db, accountKey, mailboxName, status.UIDValidity, remoteUIDs)
+		if err != nil {
+			return err
+		}
+		report.TombstonedMessages += tombstoned
+		report.RestoredMessages += restored
+	}
+
+	syncTime := s.now().UTC()
+	if err := upsertMailboxSyncState(ctx, s.store.db, MailboxSyncState{
+		AccountKey:  accountKey,
+		MailboxName: mailboxName,
+		UIDValidity: status.UIDValidity,
+		HighestUID:  report.HighestUID,
+		LastUIDNext: status.UIDNext,
+		LastSyncAt:  &syncTime,
+		Status:      "active",
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func newUIDSearchCriteria(previousHighUID, uidNext uint32) (*mailruntime.SearchCriteria, bool) {
@@ -566,6 +593,11 @@ type sqlExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
+type localUIDState struct {
+	UID           uint32 `db:"uid"`
+	RemoteDeleted bool   `db:"remote_deleted"`
+}
+
 func upsertMailboxSyncState(ctx context.Context, executor sqlExecutor, state MailboxSyncState) error {
 	query := `INSERT INTO mailbox_sync_state (
 		account_key, mailbox_name, uidvalidity, highest_uid, last_uidnext, last_sync_at, status
@@ -589,6 +621,111 @@ func upsertMailboxSyncState(ctx context.Context, executor sqlExecutor, state Mai
 	); err != nil {
 		return errors.Wrap(err, "upsert mailbox sync state")
 	}
+	return nil
+}
+
+func reconcileMailboxSnapshot(
+	ctx context.Context,
+	db *sqlx.DB,
+	accountKey, mailboxName string,
+	uidValidity uint32,
+	remoteUIDs []imap.UID,
+) (int, int, error) {
+	localRows := []localUIDState{}
+	if err := db.SelectContext(
+		ctx,
+		&localRows,
+		`SELECT uid, remote_deleted FROM messages
+		 WHERE account_key = ? AND mailbox_name = ? AND uidvalidity = ?`,
+		accountKey,
+		mailboxName,
+		uidValidity,
+	); err != nil {
+		return 0, 0, errors.Wrap(err, "load mirrored mailbox snapshot for reconcile")
+	}
+	if len(localRows) == 0 {
+		return 0, 0, nil
+	}
+
+	remoteSet := make(map[uint32]struct{}, len(remoteUIDs))
+	for _, uid := range remoteUIDs {
+		remoteSet[uint32(uid)] = struct{}{}
+	}
+
+	tombstoneUIDs := make([]uint32, 0)
+	restoreUIDs := make([]uint32, 0)
+	for _, row := range localRows {
+		_, present := remoteSet[row.UID]
+		switch {
+		case present && row.RemoteDeleted:
+			restoreUIDs = append(restoreUIDs, row.UID)
+		case !present && !row.RemoteDeleted:
+			tombstoneUIDs = append(tombstoneUIDs, row.UID)
+		}
+	}
+
+	if len(tombstoneUIDs) == 0 && len(restoreUIDs) == 0 {
+		return 0, 0, nil
+	}
+
+	tx, err := db.BeginTxx(ctx, nil)
+	if err != nil {
+		return 0, 0, errors.Wrap(err, "begin mailbox reconcile transaction")
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if err := updateRemoteDeletedState(ctx, tx, accountKey, mailboxName, uidValidity, tombstoneUIDs, true); err != nil {
+		return 0, 0, err
+	}
+	if err := updateRemoteDeletedState(ctx, tx, accountKey, mailboxName, uidValidity, restoreUIDs, false); err != nil {
+		return 0, 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, 0, errors.Wrap(err, "commit mailbox reconcile transaction")
+	}
+
+	return len(tombstoneUIDs), len(restoreUIDs), nil
+}
+
+func updateRemoteDeletedState(
+	ctx context.Context,
+	tx *sqlx.Tx,
+	accountKey, mailboxName string,
+	uidValidity uint32,
+	uids []uint32,
+	remoteDeleted bool,
+) error {
+	if len(uids) == 0 {
+		return nil
+	}
+
+	args := make([]interface{}, 0, 4+len(uids))
+	args = append(args, remoteDeleted, accountKey, mailboxName, uidValidity)
+	for _, uid := range uids {
+		args = append(args, uid)
+	}
+
+	query, queryArgs, err := sqlx.In(
+		`UPDATE messages
+		 SET remote_deleted = ?
+		 WHERE account_key = ?
+		   AND mailbox_name = ?
+		   AND uidvalidity = ?
+		   AND uid IN (?)`,
+		args...,
+	)
+	if err != nil {
+		return errors.Wrap(err, "build remote_deleted update query")
+	}
+	query = tx.Rebind(query)
+
+	if _, err := tx.ExecContext(ctx, query, queryArgs...); err != nil {
+		return errors.Wrap(err, "update remote_deleted state")
+	}
+
 	return nil
 }
 

@@ -176,6 +176,137 @@ func TestNewUIDSearchCriteriaUsesUIDNextBoundary(t *testing.T) {
 	}
 }
 
+func TestServiceSyncReconcileTombstonesMissingMessages(t *testing.T) {
+	store := openTestStore(t)
+	root := t.TempDir()
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	session := newFakeIMAPSession()
+	session.mailboxes = []mailruntime.MailboxInfo{{Name: "INBOX"}}
+	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 4}
+	session.messages["INBOX"] = map[uint32]*mailruntime.FetchedMessage{
+		1: newFetchedMessage(1, "Alpha"),
+		2: newFetchedMessage(2, "Beta"),
+		3: newFetchedMessage(3, "Gamma"),
+	}
+
+	service := NewService(store)
+	service.dial = func(_ context.Context, _ mailruntime.IMAPOptions) (imapSession, error) {
+		return session, nil
+	}
+	service.now = func() time.Time { return time.Date(2026, 4, 1, 20, 30, 0, 0, time.UTC) }
+
+	if _, err := service.Sync(t.Context(), SyncOptions{
+		Server:     "localhost",
+		Port:       993,
+		Username:   "a",
+		Password:   "pass",
+		Insecure:   true,
+		Mailbox:    "INBOX",
+		MirrorRoot: root,
+		BatchSize:  10,
+	}); err != nil {
+		t.Fatalf("initial Sync() error = %v", err)
+	}
+
+	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 4}
+	delete(session.messages["INBOX"], 2)
+
+	report, err := service.Sync(t.Context(), SyncOptions{
+		Server:        "localhost",
+		Port:          993,
+		Username:      "a",
+		Password:      "pass",
+		Insecure:      true,
+		Mailbox:       "INBOX",
+		MirrorRoot:    root,
+		BatchSize:     10,
+		ReconcileFull: true,
+	})
+	if err != nil {
+		t.Fatalf("reconcile Sync() error = %v", err)
+	}
+
+	if len(report.Mailboxes) != 1 {
+		t.Fatalf("expected 1 mailbox report, got %+v", report.Mailboxes)
+	}
+	if !report.Mailboxes[0].ReconcileApplied {
+		t.Fatalf("expected reconcile to be recorded, got %+v", report.Mailboxes[0])
+	}
+	if report.Mailboxes[0].TombstonedMessages != 1 || report.TombstonedMessages != 1 {
+		t.Fatalf("expected one tombstoned message, got mailbox=%+v report=%+v", report.Mailboxes[0], report)
+	}
+	if got := messageRemoteDeleted(t, store.db, "INBOX", 2); !got {
+		t.Fatalf("expected UID 2 to be marked remote_deleted")
+	}
+	if got := messageRemoteDeleted(t, store.db, "INBOX", 1); got {
+		t.Fatalf("expected UID 1 to remain active")
+	}
+}
+
+func TestServiceSyncReconcileRestoresPresentMessages(t *testing.T) {
+	store := openTestStore(t)
+	root := t.TempDir()
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	session := newFakeIMAPSession()
+	session.mailboxes = []mailruntime.MailboxInfo{{Name: "INBOX"}}
+	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 3}
+	session.messages["INBOX"] = map[uint32]*mailruntime.FetchedMessage{
+		1: newFetchedMessage(1, "Alpha"),
+		2: newFetchedMessage(2, "Beta"),
+	}
+
+	service := NewService(store)
+	service.dial = func(_ context.Context, _ mailruntime.IMAPOptions) (imapSession, error) {
+		return session, nil
+	}
+	service.now = func() time.Time { return time.Date(2026, 4, 1, 20, 45, 0, 0, time.UTC) }
+
+	if _, err := service.Sync(t.Context(), SyncOptions{
+		Server:     "localhost",
+		Port:       993,
+		Username:   "a",
+		Password:   "pass",
+		Insecure:   true,
+		Mailbox:    "INBOX",
+		MirrorRoot: root,
+		BatchSize:  10,
+	}); err != nil {
+		t.Fatalf("initial Sync() error = %v", err)
+	}
+
+	if _, err := store.db.Exec(`UPDATE messages SET remote_deleted = TRUE WHERE mailbox_name = ? AND uid = ?`, "INBOX", 2); err != nil {
+		t.Fatalf("seed remote_deleted state error = %v", err)
+	}
+
+	report, err := service.Sync(t.Context(), SyncOptions{
+		Server:        "localhost",
+		Port:          993,
+		Username:      "a",
+		Password:      "pass",
+		Insecure:      true,
+		Mailbox:       "INBOX",
+		MirrorRoot:    root,
+		BatchSize:     10,
+		ReconcileFull: true,
+	})
+	if err != nil {
+		t.Fatalf("reconcile Sync() error = %v", err)
+	}
+
+	if report.Mailboxes[0].RestoredMessages != 1 || report.RestoredMessages != 1 {
+		t.Fatalf("expected one restored message, got mailbox=%+v report=%+v", report.Mailboxes[0], report)
+	}
+	if got := messageRemoteDeleted(t, store.db, "INBOX", 2); got {
+		t.Fatalf("expected UID 2 to be restored")
+	}
+}
+
 func openTestStore(t *testing.T) *Store {
 	t.Helper()
 
@@ -197,6 +328,16 @@ func countMessages(t *testing.T, db *sqlx.DB, mailboxName string) int {
 		t.Fatalf("count messages error = %v", err)
 	}
 	return count
+}
+
+func messageRemoteDeleted(t *testing.T, db *sqlx.DB, mailboxName string, uid uint32) bool {
+	t.Helper()
+
+	var remoteDeleted bool
+	if err := db.Get(&remoteDeleted, `SELECT remote_deleted FROM messages WHERE mailbox_name = ? AND uid = ?`, mailboxName, uid); err != nil {
+		t.Fatalf("lookup remote_deleted error = %v", err)
+	}
+	return remoteDeleted
 }
 
 func assertFileExists(t *testing.T, path string) {
