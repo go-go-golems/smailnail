@@ -439,6 +439,13 @@ func buildMessageRecord(
 	}
 
 	if parsed, err := ParseMessage(msg.BodyRaw); err == nil {
+		if len(parsed.Headers) > 0 {
+			headersJSON, err = marshalJSON(parsed.Headers, "parsed headers")
+			if err != nil {
+				return MessageRecord{}, err
+			}
+			record.HeadersJSON = headersJSON
+		}
 		if parsed.MessageID != "" {
 			record.MessageID = parsed.MessageID
 		}

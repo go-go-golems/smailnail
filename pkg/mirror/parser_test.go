@@ -2,6 +2,7 @@ package mirror
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,12 @@ func TestParseMessageMultipartAlternative(t *testing.T) {
 	}
 	if parsed.BodyText != "Plain parser body" {
 		t.Fatalf("parsed.BodyText = %q, want %q", parsed.BodyText, "Plain parser body")
+	}
+	if parsed.Headers["From"] != "Parser <parser@example.com>" {
+		t.Fatalf("parsed.Headers[From] = %q, want normalized From header", parsed.Headers["From"])
+	}
+	if parsed.Headers["Message-Id"] != "<parser@example.com>" {
+		t.Fatalf("parsed.Headers[Message-Id] = %q, want normalized Message-Id", parsed.Headers["Message-Id"])
 	}
 	if !strings.Contains(parsed.BodyHTML, "<strong>parser</strong>") {
 		t.Fatalf("expected HTML body to be preserved, got %q", parsed.BodyHTML)
@@ -73,6 +80,9 @@ func TestBuildMessageRecordUsesParsedProjection(t *testing.T) {
 	if record.Subject != "Attachment Subject" {
 		t.Fatalf("record.Subject = %q, want parsed subject", record.Subject)
 	}
+	if record.FromSummary != "Parser <parser@example.com>" {
+		t.Fatalf("record.FromSummary = %q, want parsed From summary", record.FromSummary)
+	}
 	if record.BodyText != "Attachment body text" {
 		t.Fatalf("record.BodyText = %q, want parsed plain text", record.BodyText)
 	}
@@ -81,6 +91,17 @@ func TestBuildMessageRecordUsesParsedProjection(t *testing.T) {
 	}
 	if !strings.Contains(record.PartsJSON, "invoice.txt") {
 		t.Fatalf("expected parts JSON to include filename, got %s", record.PartsJSON)
+	}
+
+	headers := map[string]string{}
+	if err := json.Unmarshal([]byte(record.HeadersJSON), &headers); err != nil {
+		t.Fatalf("unmarshal HeadersJSON error = %v", err)
+	}
+	if headers["Subject"] != "Attachment Subject" {
+		t.Fatalf("headers[Subject] = %q, want parsed subject", headers["Subject"])
+	}
+	if headers["Message-Id"] != "<attachment@example.com>" {
+		t.Fatalf("headers[Message-Id] = %q, want parsed message-id", headers["Message-Id"])
 	}
 }
 
