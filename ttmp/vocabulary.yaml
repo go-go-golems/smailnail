@@ -15,6 +15,12 @@ topics:
       description: Email message content, delivery, and mailbox workflows
     - slug: mcp
       description: Model Context Protocol tools, transport, and runtime integration
+    - slug: cli
+      description: Command-line interface work and command design
+    - slug: glazed
+      description: Work involving the Glazed command and output framework
+    - slug: sqlite
+      description: Work involving SQLite storage, schema, or querying
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
