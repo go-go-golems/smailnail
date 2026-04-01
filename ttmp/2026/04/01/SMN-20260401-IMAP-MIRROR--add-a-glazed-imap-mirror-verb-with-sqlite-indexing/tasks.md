@@ -14,21 +14,21 @@
 
 ## Phase 1: Command Scaffold
 
-- [ ] Add `MirrorCommand` in `cmd/smailnail/commands/mirror.go`
-- [ ] Define `MirrorSettings` with Glazed tags for IMAP, local storage, and sync controls
-- [ ] Reuse `pkg/imap.NewIMAPSection()` in the new command
-- [ ] Add mirror-specific flags for `--sqlite-path`, `--mirror-root`, `--batch-size`, `--all-mailboxes`, `--search-mode`, `--print-plan`, and `--reset-mailbox-state`
-- [ ] Register the new command in `cmd/smailnail/main.go`
-- [ ] Add CLI help text and examples in the command long description
+- [x] Add `MirrorCommand` in `cmd/smailnail/commands/mirror.go`
+- [x] Define `MirrorSettings` with Glazed tags for IMAP, local storage, and sync controls
+- [x] Reuse `pkg/imap.NewIMAPSection()` in the new command
+- [x] Add mirror-specific flags for `--sqlite-path`, `--mirror-root`, `--batch-size`, `--all-mailboxes`, `--search-mode`, `--print-plan`, and `--reset-mailbox-state`
+- [x] Register the new command in `cmd/smailnail/main.go`
+- [x] Add CLI help text and examples in the command long description
 
 ## Phase 2: Local Mirror Store Bootstrap
 
-- [ ] Create `pkg/mirror/types.go` for store state, reports, and parsed message view structs
-- [ ] Create `pkg/mirror/store.go` for opening the local SQLite DB with `sqlx`
-- [ ] Create `pkg/mirror/schema.go` for mirror-specific migrations and version tracking
-- [ ] Add bootstrap tables for metadata, mailbox sync state, and mirrored messages
-- [ ] Add indexes for mailbox/UID lookup and basic search fields
-- [ ] Add optional FTS5 bootstrap with graceful fallback metadata
+- [x] Create `pkg/mirror/types.go` for store state, reports, and parsed message view structs
+- [x] Create `pkg/mirror/store.go` for opening the local SQLite DB with `sqlx`
+- [x] Create `pkg/mirror/schema.go` for mirror-specific migrations and version tracking
+- [x] Add bootstrap tables for metadata, mailbox sync state, and mirrored messages
+- [x] Add indexes for mailbox/UID lookup and basic search fields
+- [x] Add optional FTS5 bootstrap with graceful fallback metadata
 
 ## Phase 3: File Store And Canonical Raw Message Persistence
 
@@ -63,7 +63,7 @@
 
 - [ ] Add summary reporting rows from the mirror command
 - [ ] Report mirrored mailbox count, fetched message count, written files, and DB path
-- [ ] Add `--print-plan` dry-run behavior
+- [x] Add `--print-plan` dry-run behavior
 - [ ] Add `--reset-mailbox-state` behavior
 - [ ] Add optional tombstoning for missing remote messages after full scans
 

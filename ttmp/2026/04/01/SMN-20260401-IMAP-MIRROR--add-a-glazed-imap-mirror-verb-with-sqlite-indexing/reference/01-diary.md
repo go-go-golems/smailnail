@@ -17,10 +17,20 @@ RelatedFiles:
       Note: |-
         Current CLI command that shaped the recommended Glazed command structure
         Existing CLI command that shaped the recommended Glazed structure
+    - Path: smailnail/cmd/smailnail/commands/mirror.go
+      Note: Implemented the mirror Glazed command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+    - Path: smailnail/cmd/smailnail/main.go
+      Note: Registered the new mirror command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/pkg/mailruntime/imap_client.go
       Note: |-
         Existing UID-based IMAP runtime identified as the recommended sync foundation
         Runtime identified as the best sync foundation during research
+    - Path: smailnail/pkg/mirror/schema.go
+      Note: Added mirror schema bootstrap and FTS detection in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+    - Path: smailnail/pkg/mirror/store.go
+      Note: Added local mirror store bootstrap in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+    - Path: smailnail/pkg/mirror/store_test.go
+      Note: Added initial mirror schema tests in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/pkg/smailnaild/accounts/service.go
       Note: |-
         Existing hosted account and mailbox preview flow reviewed for integration boundaries
@@ -31,10 +41,11 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T17:55:00-04:00
+LastUpdated: 2026-04-01T19:25:00-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
+
 
 
 # Diary
@@ -262,3 +273,174 @@ I rewrote the implementation section of the task list into seven concrete phases
 - Files changed in this step:
   - `tasks.md`
   - `reference/01-diary.md`
+
+## Step 3: Land The Mirror Command And Store Bootstrap
+
+This step turned the ticket from design-only into executable code. I implemented the first two planned phases together because they form one clean boundary: a new Glazed `mirror` verb that can print its plan or bootstrap a local mirror database and file root, without yet attempting any IMAP synchronization.
+
+The resulting slice is intentionally narrow but production-shaped. The command is registered in the real CLI, the local store can create its schema and metadata, FTS5 capability is detected with graceful fallback, and the ticket now has a concrete starting point for the next slice: incremental mailbox sync built on `pkg/mailruntime`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Start implementing the mirror feature in small, reviewable slices, commit each slice cleanly, and keep the ticket diary aligned with the code.
+
+**Inferred user intent:** The user wants the planned IMAP mirror built incrementally, with disciplined commit boundaries and enough written traceability that later work can continue without re-discovery.
+
+**Commit (code):** `1d9578a08372607e77e4de17bb95a1b75522568d` — `feat(mirror): scaffold local mirror store`
+
+### What I did
+
+- Added the new mirror command in `cmd/smailnail/commands/mirror.go`.
+- Defined `MirrorSettings` with Glazed tags for:
+  - IMAP connection settings via the reused IMAP section
+  - local SQLite path
+  - local mirror root
+  - batch size
+  - search mode
+  - plan/reset/all-mailboxes controls
+- Registered the command in `cmd/smailnail/main.go`.
+- Added the first local mirror package files:
+  - `pkg/mirror/types.go`
+  - `pkg/mirror/schema.go`
+  - `pkg/mirror/store.go`
+  - `pkg/mirror/store_test.go`
+- Implemented schema bootstrap for:
+  - `mirror_metadata`
+  - `mailbox_sync_state`
+  - `messages`
+- Added core indexes for mailbox/UID and date/message-id lookup.
+- Added FTS5 bootstrap detection with `basic`, `fts-auto`, and `fts-required` behavior.
+- Added a command dry-run path with `--print-plan`.
+- Validated the slice with:
+  - `go test ./cmd/smailnail ./pkg/mirror`
+  - `go run ./cmd/smailnail mirror --print-plan --output json`
+  - `go run ./cmd/smailnail mirror --sqlite-path "$db" --mirror-root "$root" --output json`
+- Committed the code after the repository pre-commit hooks completed successfully.
+
+### Why
+
+- The command scaffold and store bootstrap are the minimum useful foundation for all later phases.
+- Landing them first keeps the next sync implementation focused on IMAP behavior instead of mixing schema/CLI churn into the same commit.
+- Reusing the existing Glazed and IMAP-section patterns keeps the new verb consistent with the rest of the CLI.
+
+### What worked
+
+- The mirror command integrated cleanly with the existing `cmd/smailnail/main.go` command registration flow.
+- The local SQLite bootstrap worked both in unit tests and in a real `go run` invocation against a temporary directory.
+- FTS5 detection degraded cleanly to `fts_status = "unavailable"` during runtime validation, which matches the design goal for portable local mirrors.
+- The repo pre-commit pipeline passed, including full `go test ./...` and `golangci-lint run -v`.
+
+### What didn't work
+
+- My first attempt to inspect the IMAP/runtime layout used the wrong guessed filenames:
+
+```text
+sed: can't read /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/imap/imap.go: No such file or directory
+sed: can't read /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mailruntime/runtime.go: No such file or directory
+sed: can't read /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mailruntime/store.go: No such file or directory
+```
+
+- The fix was straightforward: use `rg --files smailnail/pkg/mailruntime` and read the real files:
+  - `pkg/imap/layer.go`
+  - `pkg/mailruntime/imap_client.go`
+  - `pkg/mailruntime/types.go`
+
+### What I learned
+
+- `pkg/mailruntime.IMAPClient` already has the right primitives for the next phase:
+  - `List`
+  - `Status`
+  - `SelectMailbox`
+  - `Search`
+  - `Fetch`
+  - `FetchRaw`
+- The first mirror slice did not need to talk to IMAP at all. Keeping that separation made it easier to validate the local schema and CLI behavior independently.
+- FTS5 availability cannot be assumed, so persisting the capability result in mirror metadata is useful for later reporting and search-path selection.
+
+### What was tricky to build
+
+- The main tricky part was choosing the exact boundary for the first commit. It would have been easy to immediately start mixing in sync logic, but that would have tangled together command-shape decisions, schema design, filesystem layout, and IMAP behavior. I deliberately stopped at a locally verifiable boundary: a command that can either describe its plan or bootstrap durable local state.
+
+- The other sharp edge was deciding how strict the FTS behavior should be. The implementation keeps three explicit modes instead of silently doing “best effort” all the time. That makes later operational behavior clearer: local search can remain functional in basic mode, but `fts-required` can fail fast when someone explicitly depends on FTS-backed indexing.
+
+### What warrants a second pair of eyes
+
+- Whether the initial `messages` table fields are the right minimal set before the parser/import phase expands them.
+- Whether the mirror command should already return a richer bootstrap report schema, or wait until mailbox sync exists.
+- Whether FTS5 metadata should track more than availability/status in v1.
+
+### What should be done in the future
+
+- Implement Phase 3 and Phase 4:
+  - raw `.eml` file persistence
+  - mailbox/account slugging
+  - incremental UID-based sync using `pkg/mailruntime`
+- Add transaction-scoped upserts so each fetch batch lands atomically in both filesystem and SQLite metadata.
+- Expand reporting once real mailbox sync statistics exist.
+
+### Code review instructions
+
+- Start with:
+  - `cmd/smailnail/commands/mirror.go`
+  - `pkg/mirror/store.go`
+  - `pkg/mirror/schema.go`
+- Then check wiring in:
+  - `cmd/smailnail/main.go`
+- Validate with:
+  - `go test ./cmd/smailnail ./pkg/mirror`
+  - `go run ./cmd/smailnail mirror --print-plan --output json`
+  - `tmpdir=$(mktemp -d) && db="$tmpdir/mirror.sqlite" && root="$tmpdir/root" && go run ./cmd/smailnail mirror --sqlite-path "$db" --mirror-root "$root" --output json`
+
+### Technical details
+
+- Runtime validation output for `--print-plan`:
+
+```json
+[
+  {
+    "all_mailboxes": false,
+    "batch_size": 100,
+    "fts_available": false,
+    "fts_status": "",
+    "mirror_root": "smailnail-mirror",
+    "reset_mailbox_state": false,
+    "schema_version": 0,
+    "search_mode": "fts-auto",
+    "selected_mailbox": "INBOX",
+    "sqlite_driver": "sqlite3",
+    "sqlite_path": "smailnail-mirror.sqlite",
+    "status": "plan"
+  }
+]
+```
+
+- Runtime validation output for actual bootstrap:
+
+```json
+[
+  {
+    "all_mailboxes": false,
+    "batch_size": 100,
+    "fts_available": false,
+    "fts_status": "unavailable",
+    "mirror_root": "/tmp/tmp.K3SGSSmFjk/root",
+    "reset_mailbox_state": false,
+    "schema_version": 1,
+    "search_mode": "fts-auto",
+    "selected_mailbox": "INBOX",
+    "sqlite_driver": "sqlite3",
+    "sqlite_path": "/tmp/tmp.K3SGSSmFjk/mirror.sqlite",
+    "status": "bootstrapped"
+  }
+]
+```
+
+- Files changed in the code commit:
+  - `cmd/smailnail/main.go`
+  - `cmd/smailnail/commands/mirror.go`
+  - `pkg/mirror/types.go`
+  - `pkg/mirror/schema.go`
+  - `pkg/mirror/store.go`
+  - `pkg/mirror/store_test.go`
