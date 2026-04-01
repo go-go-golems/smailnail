@@ -69,3 +69,34 @@ type BootstrapReport struct {
 	BatchSize       int          `json:"batchSize"`
 	ResetState      bool         `json:"resetState"`
 }
+
+type RawMessageResult struct {
+	Path         string `json:"path"`
+	SHA256       string `json:"sha256"`
+	BytesWritten int    `json:"bytesWritten"`
+	Reused       bool   `json:"reused"`
+}
+
+type MailboxSyncResult struct {
+	MailboxName      string `json:"mailboxName"`
+	UIDValidity      uint32 `json:"uidValidity"`
+	UIDNext          uint32 `json:"uidNext"`
+	PreviousHighUID  uint32 `json:"previousHighUid"`
+	HighestUID       uint32 `json:"highestUid"`
+	FetchedMessages  int    `json:"fetchedMessages"`
+	StoredMessages   int    `json:"storedMessages"`
+	RawFilesWritten  int    `json:"rawFilesWritten"`
+	ReusedFileWrites int    `json:"reusedFileWrites"`
+	ResetApplied     bool   `json:"resetApplied"`
+}
+
+type SyncReport struct {
+	AccountKey       string              `json:"accountKey"`
+	MailboxesPlanned int                 `json:"mailboxesPlanned"`
+	MailboxesSynced  int                 `json:"mailboxesSynced"`
+	MessagesFetched  int                 `json:"messagesFetched"`
+	MessagesStored   int                 `json:"messagesStored"`
+	RawFilesWritten  int                 `json:"rawFilesWritten"`
+	ReusedFileWrites int                 `json:"reusedFileWrites"`
+	Mailboxes        []MailboxSyncResult `json:"mailboxes"`
+}

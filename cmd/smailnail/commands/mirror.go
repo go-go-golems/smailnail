@@ -139,6 +139,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		ResetState:      settings.ResetMailboxState,
 	}
 
+	var syncReport *mirror.SyncReport
 	if !settings.PrintPlan {
 		store, err := mirror.OpenStore(settings.SQLitePath)
 		if err != nil {
@@ -158,6 +159,23 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		report.AllMailboxes = settings.AllMailboxes
 		report.BatchSize = settings.BatchSize
 		report.ResetState = settings.ResetMailboxState
+
+		service := mirror.NewService(store)
+		syncReport, err = service.Sync(ctx, mirror.SyncOptions{
+			Server:            settings.Server,
+			Port:              settings.Port,
+			Username:          settings.Username,
+			Password:          settings.Password,
+			Insecure:          settings.Insecure,
+			Mailbox:           settings.Mailbox,
+			AllMailboxes:      settings.AllMailboxes,
+			MirrorRoot:        settings.MirrorRoot,
+			BatchSize:         settings.BatchSize,
+			ResetMailboxState: settings.ResetMailboxState,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	row := types.NewRow()
@@ -173,6 +191,15 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	row.Set("all_mailboxes", report.AllMailboxes)
 	row.Set("batch_size", report.BatchSize)
 	row.Set("reset_mailbox_state", report.ResetState)
+	if syncReport != nil {
+		row.Set("account_key", syncReport.AccountKey)
+		row.Set("mailboxes_planned", syncReport.MailboxesPlanned)
+		row.Set("mailboxes_synced", syncReport.MailboxesSynced)
+		row.Set("messages_fetched", syncReport.MessagesFetched)
+		row.Set("messages_stored", syncReport.MessagesStored)
+		row.Set("raw_files_written", syncReport.RawFilesWritten)
+		row.Set("reused_file_writes", syncReport.ReusedFileWrites)
+	}
 
 	return gp.AddRow(ctx, row)
 }
@@ -181,5 +208,5 @@ func statusFromPlan(printPlan bool) string {
 	if printPlan {
 		return "plan"
 	}
-	return "bootstrapped"
+	return "synced"
 }
