@@ -4,6 +4,7 @@
 all: gifs
 
 VERSION=v0.1.14
+SQLITE_TAGS ?= sqlite_fts5
 
 TAPES=$(wildcard doc/vhs/*tape)
 gifs: $(TAPES)
@@ -14,17 +15,17 @@ gifs: $(TAPES)
 	for i in $(TAPES); do vhs < $$i; done
 
 docker-lint:
-	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:latest golangci-lint run -v
+	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:latest golangci-lint run -v --build-tags $(SQLITE_TAGS)
 
 lint:
-	golangci-lint run -v
+	golangci-lint run -v --build-tags $(SQLITE_TAGS)
 
 test:
-	go test ./...
+	go test -tags "$(SQLITE_TAGS)" ./...
 
 build:
 	go generate ./...
-	go build ./...
+	go build -tags "$(SQLITE_TAGS)" ./...
 
 goreleaser:
 	goreleaser release --skip=sign --snapshot --clean
@@ -52,7 +53,7 @@ bump-glazed:
 
 smailnail_BINARY=$(shell which smailnail)
 install:
-	go build -o ./dist/smailnail ./cmd/smailnail && \
+	go build -tags "$(SQLITE_TAGS)" -o ./dist/smailnail ./cmd/smailnail && \
 		cp ./dist/smailnail $(smailnail_BINARY)
 
 smoke-docker-imap:
@@ -86,4 +87,4 @@ frontend-check:
 	pnpm -C $(UI_DIR) run check
 
 build-embed: frontend-build
-	go build -tags embed ./...
+	go build -tags "embed $(SQLITE_TAGS)" ./...
