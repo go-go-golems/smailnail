@@ -59,3 +59,14 @@ Step 6: required SQLite FTS5 build tags at compile time, updated tagged validati
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/require_fts5_build_tag.go — Compile-time guard that fails untagged mirror builds
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/Makefile — Default tagged build, test, lint, and install targets
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/scripts/docker-imap-smoke.sh — Docker smoke now runs `smailnail` with the required build tag
+
+
+## 2026-04-01
+
+Step 7: removed the runtime FTS fallback and deleted the `--search-mode` split so mirror bootstrap now assumes a single FTS-backed contract (commit 215920ddf1ec71cbee377ff6624615e861a1acf8)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Mirror command no longer exposes a dead `--search-mode` flag
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/schema.go — Schema bootstrap now requires FTS table creation unconditionally
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/store.go — Store bootstrap no longer accepts a runtime search-mode selector

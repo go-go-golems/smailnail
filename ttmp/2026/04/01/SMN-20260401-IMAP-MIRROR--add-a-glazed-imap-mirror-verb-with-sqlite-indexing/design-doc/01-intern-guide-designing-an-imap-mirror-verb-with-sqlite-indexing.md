@@ -637,7 +637,6 @@ Recommended v1 flags:
 - `--max-messages`: optional cap for test runs
 - `--download-raw`: default `true`
 - `--import-sqlite`: default `true`
-- `--search-mode`: `basic|fts-auto|fts-required`
 - `--print-plan`: show what would happen without downloading
 - `--reset-mailbox-state`: clear stored state for the selected mailbox before syncing
 - `--tombstone-missing`: mark remotely missing messages as deleted in the local DB after a full mailbox scan
@@ -817,7 +816,6 @@ type SyncOptions struct {
     MaxMessages       int
     DownloadRaw       bool
     ImportSQLite      bool
-    SearchMode        string
     TombstoneMissing  bool
 }
 
@@ -1000,7 +998,7 @@ The mirror database should store mirrored mail data and sync state, not password
 
 1. Should v1 mirror only one mailbox by default, or enumerate all mailboxes when `--mailbox` is omitted?
 2. Should the canonical local artifact be a raw `.eml` file plus SQLite metadata, or should SQLite BLOB mode also be supported behind a flag?
-3. Is FTS5 availability consistent enough in the target environments to make `fts-auto` worthwhile immediately?
+3. Should release packaging and cross-compilation be tightened further now that FTS5 is a required build-time capability?
 4. Do you want the first implementation to support hosted stored accounts via `--account-id`, or should it stay credential-flag-based in v1?
 5. Should deleted remote messages be tombstoned by default or only when `--tombstone-missing` is set?
 

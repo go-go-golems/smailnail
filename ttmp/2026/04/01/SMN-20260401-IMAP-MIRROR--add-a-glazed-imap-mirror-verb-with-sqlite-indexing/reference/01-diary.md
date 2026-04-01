@@ -21,6 +21,7 @@ RelatedFiles:
       Note: |-
         Implemented the mirror Glazed command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
         Extended the mirror command to run sync and report aggregate counts in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
+        Removed the dead runtime search-mode split in commit 215920ddf1ec71cbee377ff6624615e861a1acf8
     - Path: smailnail/cmd/smailnail/main.go
       Note: Registered the new mirror command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/docker-compose.local.yml
@@ -39,13 +40,17 @@ RelatedFiles:
     - Path: smailnail/pkg/mirror/require_fts5_build_tag.go
       Note: Added compile-time SQLite FTS5 build-tag enforcement in commit d2bed23557ada03540fbf4fc4e1f393df9fdfcbb
     - Path: smailnail/pkg/mirror/schema.go
-      Note: Added mirror schema bootstrap and FTS detection in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+      Note: |-
+        Added mirror schema bootstrap and FTS detection in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+        Simplified bootstrap to an unconditional FTS-backed path in commit 215920ddf1ec71cbee377ff6624615e861a1acf8
     - Path: smailnail/pkg/mirror/service.go
       Note: Added incremental IMAP sync orchestration in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
     - Path: smailnail/pkg/mirror/service_test.go
       Note: Added incremental sync and UIDVALIDITY regression tests in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
     - Path: smailnail/pkg/mirror/store.go
-      Note: Added local mirror store bootstrap in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+      Note: |-
+        Added local mirror store bootstrap in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+        Removed runtime search-mode selection from store bootstrap in commit 215920ddf1ec71cbee377ff6624615e861a1acf8
     - Path: smailnail/pkg/mirror/store_test.go
       Note: Added initial mirror schema tests in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/Makefile
@@ -62,7 +67,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T15:05:00-04:00
+LastUpdated: 2026-04-01T15:12:00-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -909,3 +914,110 @@ pkg/mirror/require_fts5_build_tag.go:5:9: undefined: requires_sqlite_fts5_build_
   - `.github/workflows/push.yml`
   - `.github/workflows/lint.yml`
   - `scripts/docker-imap-smoke.sh`
+
+## Step 7: Remove The Remaining Runtime FTS Fallback
+
+This step brought the runtime in line with the build contract introduced in the previous slice. Once the build already requires SQLite FTS5, the mirror no longer benefits from carrying three runtime “search modes” or exposing a `--search-mode` flag that no longer represents a supported operational choice.
+
+The cleanup was small but architectural: the schema bootstrap now always creates the FTS table, the store bootstrap no longer accepts a runtime search-mode selector, and the mirror command now presents a single supported path. I reran the tagged repo checks and the Docker compose IMAP smoke to verify that removing the dead branch did not change normal behavior.
+
+### Prompt Context
+
+**User prompt (verbatim):** "go ahead, add tasks, and then work on them as before."
+
+**Assistant interpretation:** Update the ticket with the next implementation tasks and continue executing them with the same commit and diary discipline as earlier slices.
+
+**Inferred user intent:** The user wants the design cleanup to continue incrementally, with each meaningful slice implemented, tested, committed, and documented in the ticket.
+
+**Commit (code):** `215920ddf1ec71cbee377ff6624615e861a1acf8` — `refactor(mirror): make fts bootstrap mandatory`
+
+### What I did
+
+- Updated the task list to add and then complete the “remove runtime FTS fallback” slice.
+- Removed the `--search-mode` field and flag from `cmd/smailnail/commands/mirror.go`.
+- Simplified `pkg/mirror/schema.go`:
+  - `bootstrapSchema` no longer accepts a search-mode parameter
+  - `bootstrapFTS` now always attempts to create the FTS5 virtual table
+  - FTS creation failure is always treated as an error
+- Simplified `pkg/mirror/store.go` so `Store.Bootstrap` no longer takes a runtime search-mode argument.
+- Updated `pkg/mirror/store_test.go` and `pkg/mirror/service_test.go` to use the single supported FTS-backed bootstrap path.
+- Updated the implementation guide so it no longer documents `--search-mode` as a supported v1 flag.
+- Validated with:
+  - `go test -tags sqlite_fts5 ./pkg/mirror ./cmd/smailnail`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - `DOCKER_IMAP_FIXTURE_ROOT=/home/manuel/code/others/docker-test-dovecot ./scripts/docker-imap-smoke.sh`
+
+### Why
+
+- The mirror already fails at build time without FTS5, so keeping runtime “basic” and “auto” branches only creates a misleading API surface.
+- Removing the dead selector makes the command help, schema bootstrap, and tests easier to understand for the next implementer.
+- This cleanup reduces the number of branches to reason about before adding more substantive behavior like tombstoning and raw-header canonicalization.
+
+### What worked
+
+- The mirror package and CLI compiled cleanly after the `Store.Bootstrap` signature change and flag removal.
+- Tagged repo tests and lint still passed without additional changes.
+- The Docker compose IMAP smoke still passed, showing that the supported operator path did not depend on the removed runtime search-mode branch.
+
+### What didn't work
+
+- N/A
+
+### What I learned
+
+- The compile-time FTS requirement and the runtime bootstrap path should be treated as one contract. If they disagree, the codebase starts advertising choices that do not really exist.
+- The dead branch removal was smaller than it looked because the earlier FTS enforcement slice had already aligned most build surfaces.
+
+### What was tricky to build
+
+- The main subtlety was deciding whether to keep `search_mode` around as a user-configurable setting for later. I removed the flag entirely because it no longer reflects a supported runtime choice, but I kept `search_mode` in the bootstrap report as the fixed value `fts5` so current output remains explicit about the backend in use. That keeps the contract clear without adding a compatibility layer.
+
+- The other small sharp edge was the constructor signature change on `Store.Bootstrap`. That kind of API cleanup is easy to miss in tests, so I used a ripgrep sweep before the full test run to catch stale callsites quickly.
+
+### What warrants a second pair of eyes
+
+- Whether the `search_mode` output field should stay as a fixed informational value or be renamed later to something less choice-shaped, such as `search_backend`.
+- Whether the design guide should be updated further to describe the runtime FTS table maintenance strategy now that FTS is fully mandatory.
+
+### What should be done in the future
+
+- Implement full-mailbox reconciliation and tombstoning for remotely deleted messages.
+- Make the raw RFC 822 parser the canonical source for stored headers and address summaries.
+- Consider renaming `search_mode` output to reduce the impression that multiple runtime modes still exist.
+
+### Code review instructions
+
+- Start with:
+  - `pkg/mirror/schema.go`
+  - `pkg/mirror/store.go`
+  - `cmd/smailnail/commands/mirror.go`
+- Then inspect:
+  - `pkg/mirror/store_test.go`
+  - `pkg/mirror/service_test.go`
+- Validate with:
+  - `go test -tags sqlite_fts5 ./pkg/mirror ./cmd/smailnail`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - `DOCKER_IMAP_FIXTURE_ROOT=/home/manuel/code/others/docker-test-dovecot ./scripts/docker-imap-smoke.sh`
+
+### Technical details
+
+- The removed runtime split covered three values:
+  - `basic`
+  - `fts-auto`
+  - `fts-required`
+
+- After this slice, the supported runtime path is:
+  - build with `sqlite_fts5`
+  - bootstrap the mirror schema
+  - create `messages_fts`
+  - fail immediately if FTS creation does not succeed
+
+- Files changed in the code commit:
+  - `cmd/smailnail/commands/mirror.go`
+  - `pkg/mirror/schema.go`
+  - `pkg/mirror/store.go`
+  - `pkg/mirror/store_test.go`
+  - `pkg/mirror/service_test.go`
+  - `pkg/mirror/types.go`

@@ -17,7 +17,7 @@
 - [x] Add `MirrorCommand` in `cmd/smailnail/commands/mirror.go`
 - [x] Define `MirrorSettings` with Glazed tags for IMAP, local storage, and sync controls
 - [x] Reuse `pkg/imap.NewIMAPSection()` in the new command
-- [x] Add mirror-specific flags for `--sqlite-path`, `--mirror-root`, `--batch-size`, `--all-mailboxes`, `--search-mode`, `--print-plan`, and `--reset-mailbox-state`
+- [x] Add mirror-specific flags for `--sqlite-path`, `--mirror-root`, `--batch-size`, `--all-mailboxes`, `--print-plan`, and `--reset-mailbox-state`
 - [x] Register the new command in `cmd/smailnail/main.go`
 - [x] Add CLI help text and examples in the command long description
 
@@ -28,8 +28,9 @@
 - [x] Create `pkg/mirror/schema.go` for mirror-specific migrations and version tracking
 - [x] Add bootstrap tables for metadata, mailbox sync state, and mirrored messages
 - [x] Add indexes for mailbox/UID lookup and basic search fields
-- [x] Add optional FTS5 bootstrap with graceful fallback metadata
+- [x] Add FTS5 bootstrap for searchable local mirror metadata
 - [x] Require `sqlite_fts5` or `fts5` build tags so mirror builds fail fast when SQLite FTS5 is not compiled in
+- [x] Remove the remaining runtime FTS fallback branches and make FTS-backed bootstrap the only supported path
 
 ## Phase 3: File Store And Canonical Raw Message Persistence
 
@@ -58,7 +59,7 @@
 - [ ] Extract headers, message-id, address summaries, plain text, HTML, and attachment presence
 - [x] Build a stable `search_text` projection
 - [x] Persist parsed data into the SQLite mirror schema
-- [ ] Add fallback basic search support even when FTS5 is unavailable
+- [ ] Make raw RFC 822 parsing the canonical source for stored headers and address summaries
 
 ## Phase 6: Reconciliation And Reporting
 
@@ -67,6 +68,7 @@
 - [x] Add `--print-plan` dry-run behavior
 - [x] Add `--reset-mailbox-state` behavior
 - [ ] Add optional tombstoning for missing remote messages after full scans
+- [ ] Add a full-mailbox reconciliation mode that marks locally mirrored rows as remotely deleted when the server no longer reports them
 
 ## Phase 7: Validation And Documentation
 
