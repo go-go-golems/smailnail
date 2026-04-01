@@ -32,23 +32,23 @@
 
 ## Phase 3: File Store And Canonical Raw Message Persistence
 
-- [ ] Create `pkg/mirror/files.go` for raw message storage helpers
-- [ ] Define the on-disk layout under `<mirror-root>/raw/<account-key>/<mailbox>/<uidvalidity>/<uid>.eml`
-- [ ] Add deterministic mailbox/account slugging
-- [ ] Add SHA-256 calculation for raw message content
-- [ ] Make raw writes idempotent and crash-safe
+- [x] Create `pkg/mirror/files.go` for raw message storage helpers
+- [x] Define the on-disk layout under `<mirror-root>/raw/<account-key>/<mailbox>/<uidvalidity>/<uid>.eml`
+- [x] Add deterministic mailbox/account slugging
+- [x] Add SHA-256 calculation for raw message content
+- [x] Make raw writes idempotent and crash-safe
 
 ## Phase 4: Incremental IMAP Sync Engine
 
-- [ ] Create `pkg/mirror/service.go` for orchestration
-- [ ] Connect with `pkg/mailruntime.Connect`
-- [ ] Support syncing one mailbox or enumerating all mailboxes
-- [ ] Select mailboxes read-only during sync
-- [ ] Load and update per-mailbox sync state keyed by mailbox and `UIDVALIDITY`
-- [ ] Detect `UIDVALIDITY` resets and reset the local snapshot cleanly
-- [ ] Search for new UIDs using `pkg/mailruntime.IMAPClient.Search`
-- [ ] Fetch messages in bounded UID batches
-- [ ] Persist raw messages and upsert metadata inside transactional batch commits
+- [x] Create `pkg/mirror/service.go` for orchestration
+- [x] Connect with `pkg/mailruntime.Connect`
+- [x] Support syncing one mailbox or enumerating all mailboxes
+- [x] Select mailboxes read-only during sync
+- [x] Load and update per-mailbox sync state keyed by mailbox and `UIDVALIDITY`
+- [x] Detect `UIDVALIDITY` resets and reset the local snapshot cleanly
+- [x] Search for new UIDs using `pkg/mailruntime.IMAPClient.Search`
+- [x] Fetch messages in bounded UID batches
+- [x] Persist raw messages and upsert metadata inside transactional batch commits
 
 ## Phase 5: MIME Parsing And Searchable Projection
 
@@ -61,10 +61,10 @@
 
 ## Phase 6: Reconciliation And Reporting
 
-- [ ] Add summary reporting rows from the mirror command
-- [ ] Report mirrored mailbox count, fetched message count, written files, and DB path
+- [x] Add summary reporting rows from the mirror command
+- [x] Report mirrored mailbox count, fetched message count, written files, and DB path
 - [x] Add `--print-plan` dry-run behavior
-- [ ] Add `--reset-mailbox-state` behavior
+- [x] Add `--reset-mailbox-state` behavior
 - [ ] Add optional tombstoning for missing remote messages after full scans
 
 ## Phase 7: Validation And Documentation

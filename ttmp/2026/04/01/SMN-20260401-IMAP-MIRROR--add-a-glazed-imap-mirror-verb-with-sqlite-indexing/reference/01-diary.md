@@ -18,15 +18,26 @@ RelatedFiles:
         Current CLI command that shaped the recommended Glazed command structure
         Existing CLI command that shaped the recommended Glazed structure
     - Path: smailnail/cmd/smailnail/commands/mirror.go
-      Note: Implemented the mirror Glazed command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+      Note: |-
+        Implemented the mirror Glazed command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+        Extended the mirror command to run sync and report aggregate counts in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
     - Path: smailnail/cmd/smailnail/main.go
       Note: Registered the new mirror command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+    - Path: smailnail/docker-compose.local.yml
+      Note: Local Docker Dovecot fixture used for the real mirror smoke validation
     - Path: smailnail/pkg/mailruntime/imap_client.go
       Note: |-
         Existing UID-based IMAP runtime identified as the recommended sync foundation
         Runtime identified as the best sync foundation during research
+        Fixed insecure TLS support required by the Docker Dovecot mirror smoke in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
+    - Path: smailnail/pkg/mirror/files.go
+      Note: Added raw-message pathing
     - Path: smailnail/pkg/mirror/schema.go
       Note: Added mirror schema bootstrap and FTS detection in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+    - Path: smailnail/pkg/mirror/service.go
+      Note: Added incremental IMAP sync orchestration in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
+    - Path: smailnail/pkg/mirror/service_test.go
+      Note: Added incremental sync and UIDVALIDITY regression tests in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
     - Path: smailnail/pkg/mirror/store.go
       Note: Added local mirror store bootstrap in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/pkg/mirror/store_test.go
@@ -41,10 +52,11 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T19:25:00-04:00
+LastUpdated: 2026-04-01T20:40:00-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
+
 
 
 
@@ -444,3 +456,201 @@ sed: can't read /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pk
   - `pkg/mirror/schema.go`
   - `pkg/mirror/store.go`
   - `pkg/mirror/store_test.go`
+
+## Step 4: Add Incremental Raw-Message Sync And Verify It Against Docker Dovecot
+
+This step added the first real mirroring behavior: connect to IMAP through `pkg/mailruntime`, discover new UIDs, fetch raw messages in bounded batches, persist `.eml` files under the mirror root, and upsert a durable mailbox/message snapshot into SQLite. It also tightened the command output so the CLI now reports account key, mailbox counts, message counts, and raw-file write counts after a sync.
+
+The most important part of this step was not just getting the sync loop to work in unit tests, but validating it against the Docker Compose Dovecot fixture the repo already uses elsewhere. That real-server check surfaced one subtle incremental-search bug that the unit tests did not catch at first, and fixing that bug before commit substantially increased confidence in the current mirror foundation.
+
+### Prompt Context
+
+**User prompt (verbatim):** "alright, create detailed tasks in the ticket, and then work on them one by one, committing at appropriate intervals, keeping a diary."
+
+**Assistant interpretation:** Continue the mirror implementation in focused slices, keep the ticket diary current, and use the task list as the execution order.
+
+**Inferred user intent:** The user wants steady forward implementation with commit hygiene, documented reasoning, and enough verification that the work is trustworthy before moving to the next phase.
+
+**Commit (code):** `9b0afe7a06542be44f8ae87f397c446232ec8efb` — `feat(mirror): add incremental raw-message sync`
+
+### What I did
+
+- Added `pkg/mirror/files.go`:
+  - deterministic account/mailbox slugging
+  - raw mirror path generation under `raw/<account-key>/<mailbox-slug>/<uidvalidity>/<uid>.eml`
+  - SHA-256 hashing
+  - idempotent atomic raw writes through temp-file + rename
+- Added `pkg/mirror/service.go`:
+  - `SyncOptions`
+  - `Service`
+  - mailbox enumeration for single-mailbox and `--all-mailboxes`
+  - per-mailbox state loading and updates
+  - `UIDVALIDITY` reset handling
+  - bounded UID batching
+  - transactional message/state upserts
+- Extended `cmd/smailnail/commands/mirror.go` so the command now:
+  - bootstraps the local store
+  - runs sync
+  - reports mailbox/message/raw-file counters
+- Extended `pkg/mirror/types.go` with sync/result structs.
+- Added tests:
+  - `pkg/mirror/files_test.go`
+  - `pkg/mirror/service_test.go`
+- Fixed `pkg/mailruntime.Connect` and `pkg/services/smailnailjs/service.go` so `insecure` means TLS with skipped verification, which is required for the local self-signed Dovecot fixture.
+- Verified locally with:
+  - `go test ./pkg/mirror ./cmd/smailnail ./pkg/mailruntime ./pkg/services/smailnailjs`
+  - repo pre-commit `go test ./...`
+  - repo pre-commit `golangci-lint run -v`
+- Verified against the Docker Compose IMAP fixture with:
+  - `docker compose -f docker-compose.local.yml up -d dovecot`
+  - `go run ./cmd/imap-tests store-text-message ...`
+  - `go run ./cmd/smailnail mirror ...`
+  - `docker compose -f docker-compose.local.yml down`
+
+### Why
+
+- Raw message persistence and incremental UID sync are the first point where the feature becomes materially useful.
+- The design specifically called for building on `pkg/mailruntime`, so this slice turns that recommendation into real code rather than creating a separate IMAP stack.
+- Verifying against Docker Dovecot was important because IMAP range semantics and self-signed TLS behavior are easy to get subtly wrong even when unit tests are green.
+
+### What worked
+
+- The raw file layout landed cleanly and produces deterministic paths keyed by account, mailbox, `UIDVALIDITY`, and UID.
+- The SQLite state/model updates worked in unit tests for:
+  - first sync
+  - incremental second sync
+  - `UIDVALIDITY` reset replacement
+- The local Dovecot smoke succeeded end to end:
+  - first mirror run imported the existing mailbox snapshot
+  - second run performed a true no-op
+  - after appending one more fixture message, the next run fetched exactly one new message
+- The insecure TLS fix made the `pkg/mailruntime` path compatible with the local test fixture instead of forcing plain IMAP semantics.
+
+### What didn't work
+
+- My first attempt to seed the fixture used `imap-tests store-text-message` without required sender/recipient fields:
+
+```text
+Field from is required
+Error: Field from is required
+exit status 1
+```
+
+- The fix was simply to rerun with:
+  - `--from seed@example.com`
+  - `--to a@test.local`
+
+- A more interesting failure showed up during the first Docker incremental smoke. The second mirror run fetched one already-mirrored message again when it should have fetched zero. Inspecting `/tmp/smailnail-mirror-smoke/mirror.sqlite` showed the stored state was:
+
+```text
+127-0-0-1-993-a-d1e840edfa83|INBOX|1775068041|2|3
+1|test mail 1775068041 to a|...
+2|Mirror smoke 2026-04-01T20:15Z|...
+```
+
+- The root cause was the incremental search window. I initially used a dynamic IMAP range equivalent to `UID 3:*`. With `UIDNEXT = 3`, `*` resolves to the current maximum UID, and the resulting reversed range still matches the existing last message. The fix was to bound the search explicitly to `previousHighUID+1 .. UIDNEXT-1` and skip SEARCH entirely when that window is empty.
+
+- One commit attempt also failed on lint because an updated test file had not been restaged, leaving the staged snapshot with two `copy` variable names that trigger the `predeclared` linter. Restaging the file fixed that cleanly.
+
+### What I learned
+
+- The IMAP incremental boundary should use `UIDNEXT` as an upper bound, not `*`, when searching for “newer than highest mirrored UID”.
+- The local Docker Dovecot fixture is valuable for catching exactly these protocol-edge issues; the fake test session was not enough by itself.
+- The existing `pkg/mailruntime` layer was close to reusable as-is, but the insecure TLS semantics needed correction for real local testing.
+
+### What was tricky to build
+
+- The hardest part was IMAP UID-window semantics. On paper, “search for UIDs greater than the highest mirrored UID” sounds trivial. In practice, the `*` token means “current highest assigned UID”, and IMAP ranges are not invalidated just because the left side is greater than the right side. That created a subtle replay bug right at the boundary where the mirror had already caught up. The resolution was to use mailbox status data more carefully and construct a bounded range from `highest+1` to `uidNext-1`.
+
+- The other tricky part was defining what “reset local snapshot cleanly” should mean for this slice. I chose to make the SQLite snapshot authoritative for reset behavior now, while keeping raw files namespaced by `UIDVALIDITY`. That avoids mixed generations in the DB while leaving room to add more aggressive raw-file cleanup later if we decide it is worth the extra risk/complexity.
+
+### What warrants a second pair of eyes
+
+- Whether the current reset strategy should also prune old raw-file directories immediately, or whether leaving older `UIDVALIDITY` directories on disk is the right v1 tradeoff.
+- Whether the command should already expose per-mailbox rows instead of only an aggregate summary row.
+- Whether `pkg/mailruntime.Fetch` plus `FetchBodyRaw` remains the right medium-term primitive once the MIME parser/import phase lands.
+
+### What should be done in the future
+
+- Implement Phase 5:
+  - add `pkg/mirror/parser.go`
+  - parse RFC 822 properly with `go-message/mail`
+  - populate richer text/HTML/attachment/search projections
+- Add optional tombstoning/reconcile behavior for full scans.
+- Add a dedicated end-to-end test that drives the maintained Docker Dovecot fixture automatically, not just the manual smoke path used in this step.
+
+### Code review instructions
+
+- Start with:
+  - `pkg/mirror/service.go`
+  - `pkg/mirror/files.go`
+  - `cmd/smailnail/commands/mirror.go`
+- Then review the support changes:
+  - `pkg/mailruntime/imap_client.go`
+  - `pkg/services/smailnailjs/service.go`
+- Validate with:
+  - `go test ./pkg/mirror ./cmd/smailnail ./pkg/mailruntime ./pkg/services/smailnailjs`
+  - `docker compose -f docker-compose.local.yml up -d dovecot`
+  - `go run ./cmd/imap-tests store-text-message --server 127.0.0.1 --port 993 --username a --password pass --mailbox INBOX --insecure --from seed@example.com --to a@test.local --subject "Mirror smoke ..." --body "Mirror smoke body ..." --output json`
+  - `go run ./cmd/smailnail mirror --server 127.0.0.1 --port 993 --username a --password pass --mailbox INBOX --insecure --sqlite-path /tmp/smailnail-mirror-smoke/mirror.sqlite --mirror-root /tmp/smailnail-mirror-smoke/root --batch-size 25 --output json`
+  - rerun the mirror command once to confirm `messages_fetched = 0`
+  - append one more message and rerun to confirm `messages_fetched = 1`
+
+### Technical details
+
+- Real Docker fixture outputs observed during this step included:
+
+```json
+[
+  {
+    "account_key": "127-0-0-1-993-a-d1e840edfa83",
+    "mailboxes_planned": 1,
+    "mailboxes_synced": 1,
+    "messages_fetched": 2,
+    "messages_stored": 2,
+    "raw_files_written": 2,
+    "reused_file_writes": 0,
+    "status": "synced"
+  }
+]
+```
+
+```json
+[
+  {
+    "account_key": "127-0-0-1-993-a-d1e840edfa83",
+    "mailboxes_planned": 1,
+    "mailboxes_synced": 1,
+    "messages_fetched": 0,
+    "messages_stored": 0,
+    "raw_files_written": 0,
+    "reused_file_writes": 0,
+    "status": "synced"
+  }
+]
+```
+
+```json
+[
+  {
+    "account_key": "127-0-0-1-993-a-d1e840edfa83",
+    "mailboxes_planned": 1,
+    "mailboxes_synced": 1,
+    "messages_fetched": 1,
+    "messages_stored": 1,
+    "raw_files_written": 1,
+    "reused_file_writes": 0,
+    "status": "synced"
+  }
+]
+```
+
+- Files changed in the code commit:
+  - `cmd/smailnail/commands/mirror.go`
+  - `pkg/mailruntime/imap_client.go`
+  - `pkg/services/smailnailjs/service.go`
+  - `pkg/mirror/types.go`
+  - `pkg/mirror/files.go`
+  - `pkg/mirror/files_test.go`
+  - `pkg/mirror/service.go`
+  - `pkg/mirror/service_test.go`

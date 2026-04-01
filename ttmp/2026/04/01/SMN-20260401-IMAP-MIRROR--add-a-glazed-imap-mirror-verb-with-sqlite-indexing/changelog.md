@@ -26,3 +26,15 @@ Step 3: landed the mirror command and local store bootstrap (commit 1d9578a08372
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/schema.go — New mirror schema
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/store.go — New local SQLite store bootstrap
 
+
+## 2026-04-01
+
+Step 4: added incremental raw-message sync, fixed the UIDNEXT search boundary, and validated against Docker Dovecot (commit 9b0afe7a06542be44f8ae87f397c446232ec8efb)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Mirror command now runs sync and reports aggregate counters
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mailruntime/imap_client.go — TLS insecure support for local self-signed IMAP fixtures
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/files.go — Raw-message file layout and idempotent writes
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Incremental UID sync
+
