@@ -34,9 +34,13 @@ RelatedFiles:
     - Path: smailnail/pkg/mirror/files.go
       Note: Added raw-message pathing
     - Path: smailnail/pkg/mirror/parser.go
-      Note: Added raw-message MIME parsing and search-text projection in commit f30a4c432200b77456cb116f4443477c4d8759e3
+      Note: |-
+        Added raw-message MIME parsing and search-text projection in commit f30a4c432200b77456cb116f4443477c4d8759e3
+        Added normalized parsed-header projection in commit bb97160ae5d9bd89af0233f2bf9bda6ba46fc2af
     - Path: smailnail/pkg/mirror/parser_test.go
-      Note: Added parser coverage and record-projection tests in commit f30a4c432200b77456cb116f4443477c4d8759e3
+      Note: |-
+        Added parser coverage and record-projection tests in commit f30a4c432200b77456cb116f4443477c4d8759e3
+        Extended parser coverage for normalized parsed headers in commit bb97160ae5d9bd89af0233f2bf9bda6ba46fc2af
     - Path: smailnail/pkg/mirror/require_fts5_build_tag.go
       Note: Added compile-time SQLite FTS5 build-tag enforcement in commit d2bed23557ada03540fbf4fc4e1f393df9fdfcbb
     - Path: smailnail/pkg/mirror/schema.go
@@ -44,7 +48,9 @@ RelatedFiles:
         Added mirror schema bootstrap and FTS detection in commit 1d9578a08372607e77e4de17bb95a1b75522568d
         Simplified bootstrap to an unconditional FTS-backed path in commit 215920ddf1ec71cbee377ff6624615e861a1acf8
     - Path: smailnail/pkg/mirror/service.go
-      Note: Added incremental IMAP sync orchestration in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
+      Note: |-
+        Added incremental IMAP sync orchestration in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
+        Switched mirrored rows to prefer normalized parsed headers in commit bb97160ae5d9bd89af0233f2bf9bda6ba46fc2af
     - Path: smailnail/pkg/mirror/service_test.go
       Note: Added incremental sync and UIDVALIDITY regression tests in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
     - Path: smailnail/pkg/mirror/store.go
@@ -67,7 +73,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T15:12:00-04:00
+LastUpdated: 2026-04-01T16:20:00-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -1021,3 +1027,130 @@ The cleanup was small but architectural: the schema bootstrap now always creates
   - `pkg/mirror/store_test.go`
   - `pkg/mirror/service_test.go`
   - `pkg/mirror/types.go`
+
+## Step 8: Normalize Parsed Header Projections
+
+This step finished the semantic-header direction for the mirror. The raw `.eml` file remains the exact archived message source, but the convenient SQLite projection now prefers normalized values derived from parsing that raw message instead of mixing fetched IMAP header maps with parsed body fields.
+
+The key behavioral change is in `headers_json`. When raw parsing succeeds, the mirror now stores a normalized parsed header map for important fields like `From`, `To`, `Cc`, `Date`, `Subject`, and `Message-Id`, aligned with the explicit message columns and the search projection. That removes formatting noise such as quoted display-name variants and double-bracketed message IDs.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, 2"
+
+**Assistant interpretation:** Proceed with normalizing parsed addresses and headers into a stable summary/projection format instead of keeping raw RFC-style formatting in SQLite.
+
+**Inferred user intent:** The user wants the raw message to remain the source of truth while keeping the searchable SQLite projection deterministic and human-readable.
+
+**Commit (code):** `bb97160ae5d9bd89af0233f2bf9bda6ba46fc2af` — `feat(mirror): normalize parsed header projections`
+
+### What I did
+
+- Updated `pkg/mirror/parser.go`:
+  - added parsed raw-header extraction using `net/mail`
+  - canonicalized header keys with MIME-style capitalization
+  - normalized display-name summaries into `Name <address>` form
+  - normalized `Message-Id` into a single bracketed semantic value
+  - built a normalized parsed header map that prefers semantic parsed values for key headers
+- Updated `pkg/mirror/service.go` so `buildMessageRecord` replaces fetched `headers_json` with the normalized parsed header map whenever raw parsing succeeds.
+- Updated `pkg/mirror/parser_test.go`:
+  - added direct assertions for normalized parsed `From` and `Message-Id`
+  - verified `buildMessageRecord` stores parsed normalized headers instead of fallback fetched headers
+- Verified with:
+  - `go test -tags sqlite_fts5 ./pkg/mirror -run 'TestParseMessageMultipartAlternative|TestBuildMessageRecordUsesParsedProjection'`
+  - `go test -tags sqlite_fts5 ./pkg/mirror ./cmd/smailnail`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - Docker Dovecot smoke using the repo-local compose fixture plus a SQLite spot-check:
+    - `go run ./cmd/imap-tests store-text-message ...`
+    - `go run -tags sqlite_fts5 ./cmd/smailnail mirror ...`
+    - `sqlite3 ... "select subject || '|' || json_extract(headers_json, '$.From') || '|' || json_extract(headers_json, '$.\"Message-Id\"') ..."`
+
+### Why
+
+- The exact wire-format source is already preserved in the mirrored `.eml` file, so `headers_json` should optimize for stable semantics, not byte-faithful reproduction.
+- A normalized header projection is a better fit for SQLite consumers, search, and tests than a lossy pseudo-raw header dump.
+- This keeps the row internally consistent: the explicit columns and `headers_json` now come from the same parsed raw source.
+
+### What worked
+
+- Parser tests now pass with normalized address and `Message-Id` expectations.
+- Full tagged repo tests and lint passed after the change.
+- The repo-local Docker Dovecot smoke produced the expected normalized `From` header in SQLite:
+
+```text
+Mirror Header Canonicalization 1775074690|Header Parser <parser@example.com>|
+```
+
+- That confirms the parsed-header path is active end to end for mirrored rows.
+
+### What didn't work
+
+- The first end-to-end Docker attempt failed because an earlier external Dovecot fixture I had started in this session was still holding ports `993` and `4190`.
+- After stopping `docker-test-dovecot-testcot-1`, the next attempt raced Dovecot startup and the initial IMAP operation returned `EOF`.
+- I reran the smoke with a stricter readiness wait against `imap-tests list-mailboxes`, after which the mirror smoke completed successfully.
+- The SQLite smoke row showed an empty `Message-Id` field because `imap-tests store-text-message` does not appear to inject a `Message-ID` header. That means end-to-end `Message-Id` canonicalization is still covered by unit tests rather than by this specific Docker fixture path.
+
+### What I learned
+
+- The cleanest mirror contract is:
+  - raw `.eml` for exact source
+  - normalized parsed fields for SQLite projection
+- `headers_json` becomes much more useful once it is treated as a semantic projection rather than an attempt at a pseudo-raw dump.
+- The local Docker fixture is good for proving the parser path is wired, but not every semantic header is guaranteed to exist in every generated fixture message.
+
+### What was tricky to build
+
+- The main sharp edge was that two independent normalizations had to line up:
+  - parsed address summaries should lose formatting noise like added quotes
+  - `Message-Id` needed to avoid double-bracketing
+  It was not enough to normalize only the explicit columns; `headers_json` had to be built from the same semantic view or the row would remain internally inconsistent.
+
+- Another subtle point was key capitalization. The raw header parser can surface keys in various cases, so canonicalizing them with MIME-style capitalization avoids silent duplication between forms like `Message-ID` and `Message-Id` inside the stored JSON map.
+
+### What warrants a second pair of eyes
+
+- Whether `headers_json` should eventually preserve repeated headers in a richer shape instead of a flat `map[string]string`.
+- Whether the fixture generators should explicitly set `Message-ID` so end-to-end smoke coverage can assert the normalized `Message-Id` value as well.
+
+### What should be done in the future
+
+- Implement full-mailbox reconciliation and tombstoning for remotely deleted messages.
+- Consider adding a higher-fidelity structured header/address representation if future consumers need more than summary strings.
+- Add a deterministic smoke case that injects an explicit `Message-ID` so Docker-based validation covers that path too.
+
+### Code review instructions
+
+- Start with:
+  - `pkg/mirror/parser.go`
+  - `pkg/mirror/service.go`
+  - `pkg/mirror/parser_test.go`
+- Validate with:
+  - `go test -tags sqlite_fts5 ./pkg/mirror -run 'TestParseMessageMultipartAlternative|TestBuildMessageRecordUsesParsedProjection'`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - run the repo-local compose Dovecot smoke and inspect the mirrored SQLite row
+
+### Technical details
+
+- The canonical address summary format is now:
+  - `Name <user@example.com>` when a display name exists
+  - `user@example.com` when it does not
+
+- `Message-Id` normalization trims whitespace and angle brackets, then stores a single bracketed form:
+
+```go
+func normalizeMessageID(messageID string) string {
+    messageID = strings.TrimSpace(messageID)
+    messageID = strings.Trim(messageID, "<>")
+    if messageID == "" {
+        return ""
+    }
+    return "<" + messageID + ">"
+}
+```
+
+- Files changed in the code commit:
+  - `pkg/mirror/parser.go`
+  - `pkg/mirror/parser_test.go`
+  - `pkg/mirror/service.go`

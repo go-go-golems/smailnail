@@ -56,10 +56,10 @@
 
 - [x] Create `pkg/mirror/parser.go`
 - [x] Parse downloaded RFC 822 messages with `github.com/emersion/go-message/mail`
-- [ ] Extract headers, message-id, address summaries, plain text, HTML, and attachment presence
+- [x] Extract headers, message-id, address summaries, plain text, HTML, and attachment presence
 - [x] Build a stable `search_text` projection
 - [x] Persist parsed data into the SQLite mirror schema
-- [ ] Make raw RFC 822 parsing the canonical source for stored headers and address summaries
+- [x] Make raw RFC 822 parsing the canonical source for stored headers and address summaries
 
 ## Phase 6: Reconciliation And Reporting
 

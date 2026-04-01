@@ -70,3 +70,14 @@ Step 7: removed the runtime FTS fallback and deleted the `--search-mode` split s
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Mirror command no longer exposes a dead `--search-mode` flag
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/schema.go — Schema bootstrap now requires FTS table creation unconditionally
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/store.go — Store bootstrap no longer accepts a runtime search-mode selector
+
+
+## 2026-04-01
+
+Step 8: normalized parsed header projections so `headers_json` now prefers semantic raw-message values for addresses and `Message-Id` (commit bb97160ae5d9bd89af0233f2bf9bda6ba46fc2af)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/parser.go — Raw parser now emits canonicalized address summaries and normalized parsed headers
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Mirrored rows now prefer normalized parsed header maps over fetched header maps
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/parser_test.go — Parser and record-projection tests now cover normalized header output

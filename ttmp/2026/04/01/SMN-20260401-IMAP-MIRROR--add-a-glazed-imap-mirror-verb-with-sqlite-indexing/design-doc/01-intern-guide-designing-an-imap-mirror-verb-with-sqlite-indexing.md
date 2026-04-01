@@ -803,7 +803,7 @@ The DSL processor is good at fetching and projecting output fields during a live
 - a parser that can be rerun without touching the network,
 - a parser whose output schema is owned by the local mirror package.
 
-That parser does not exist yet. It should be added rather than forcing the mirror to keep reusing the live DSL fetch path after download.
+That parser now exists in the mirror package and should remain the canonical source for normalized header, address, and MIME-body projections rather than falling back to live IMAP fetch metadata when raw parsing succeeds.
 
 ## API Sketches
 
