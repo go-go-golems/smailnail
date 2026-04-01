@@ -437,6 +437,45 @@ func buildMessageRecord(
 		FirstSeenAt:    &now,
 		LastSyncedAt:   &now,
 	}
+
+	if parsed, err := ParseMessage(msg.BodyRaw); err == nil {
+		if parsed.MessageID != "" {
+			record.MessageID = parsed.MessageID
+		}
+		if parsed.SentDate != "" {
+			record.SentDate = parsed.SentDate
+		}
+		if parsed.Subject != "" {
+			record.Subject = parsed.Subject
+		}
+		if parsed.FromSummary != "" {
+			record.FromSummary = parsed.FromSummary
+		}
+		if parsed.ToSummary != "" {
+			record.ToSummary = parsed.ToSummary
+		}
+		if parsed.CCSummary != "" {
+			record.CCSummary = parsed.CCSummary
+		}
+		if parsed.BodyText != "" {
+			record.BodyText = parsed.BodyText
+		}
+		if parsed.BodyHTML != "" {
+			record.BodyHTML = parsed.BodyHTML
+		}
+		if parsed.SearchText != "" {
+			record.SearchText = parsed.SearchText
+		}
+		if len(parsed.Parts) > 0 {
+			partsJSON, err = marshalJSON(parsed.Parts, "parsed parts")
+			if err != nil {
+				return MessageRecord{}, err
+			}
+			record.PartsJSON = partsJSON
+		}
+		record.HasAttachments = parsed.HasAttachments
+	}
+
 	return record, nil
 }
 
