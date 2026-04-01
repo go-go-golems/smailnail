@@ -73,7 +73,7 @@ func schemaMigrations() []schemaMigration {
 	}
 }
 
-func bootstrapSchema(ctx context.Context, db *sqlx.DB, searchMode string) (BootstrapReport, error) {
+func bootstrapSchema(ctx context.Context, db *sqlx.DB) (BootstrapReport, error) {
 	if db == nil {
 		return BootstrapReport{}, fmt.Errorf("database is nil")
 	}
@@ -111,29 +111,20 @@ func bootstrapSchema(ctx context.Context, db *sqlx.DB, searchMode string) (Boots
 		version = migration.version
 	}
 
-	ftsAvailable, ftsStatus, err := bootstrapFTS(ctx, db, searchMode)
+	ftsAvailable, ftsStatus, err := bootstrapFTS(ctx, db)
 	if err != nil {
 		return BootstrapReport{}, err
 	}
 
 	return BootstrapReport{
+		SearchMode:    SearchModeFTS5,
 		FTSAvailable:  ftsAvailable,
 		FTSStatus:     ftsStatus,
 		SchemaVersion: version,
 	}, nil
 }
 
-func bootstrapFTS(ctx context.Context, db *sqlx.DB, searchMode string) (bool, string, error) {
-	if searchMode == "" {
-		searchMode = SearchModeFTSAuto
-	}
-	if searchMode == SearchModeBasic {
-		if err := setMetadataValue(ctx, db, "fts5_status", "disabled"); err != nil {
-			return false, "", err
-		}
-		return false, "disabled", nil
-	}
-
+func bootstrapFTS(ctx context.Context, db *sqlx.DB) (bool, string, error) {
 	_, err := db.ExecContext(ctx, `CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 		account_key,
 		mailbox_name,
@@ -146,13 +137,7 @@ func bootstrapFTS(ctx context.Context, db *sqlx.DB, searchMode string) (bool, st
 		search_text
 	)`)
 	if err != nil {
-		if searchMode == SearchModeFTSRequired {
-			return false, "", fmt.Errorf("fts5 is required but unavailable: %w", err)
-		}
-		if err := setMetadataValue(ctx, db, "fts5_status", "unavailable"); err != nil {
-			return false, "", err
-		}
-		return false, "unavailable", nil
+		return false, "", fmt.Errorf("fts5 is required but unavailable: %w", err)
 	}
 
 	if err := setMetadataValue(ctx, db, "fts5_status", "available"); err != nil {

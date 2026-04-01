@@ -18,7 +18,7 @@ import (
 func TestServiceSyncPersistsIncrementalMessages(t *testing.T) {
 	store := openTestStore(t)
 	root := t.TempDir()
-	if _, err := store.Bootstrap(t.Context(), root, SearchModeBasic); err != nil {
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
 		t.Fatalf("Bootstrap() error = %v", err)
 	}
 
@@ -96,7 +96,7 @@ func TestServiceSyncPersistsIncrementalMessages(t *testing.T) {
 func TestServiceSyncResetsOnUIDValidityChange(t *testing.T) {
 	store := openTestStore(t)
 	root := t.TempDir()
-	if _, err := store.Bootstrap(t.Context(), root, SearchModeBasic); err != nil {
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
 		t.Fatalf("Bootstrap() error = %v", err)
 	}
 

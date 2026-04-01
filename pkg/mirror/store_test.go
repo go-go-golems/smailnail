@@ -11,15 +11,18 @@ func TestBootstrapCreatesCoreTables(t *testing.T) {
 	db := sqlx.MustOpen("sqlite3", ":memory:")
 	defer func() { _ = db.Close() }()
 
-	report, err := bootstrapSchema(context.Background(), db, SearchModeBasic)
+	report, err := bootstrapSchema(context.Background(), db)
 	if err != nil {
 		t.Fatalf("bootstrapSchema() error = %v", err)
 	}
 	if report.SchemaVersion != currentSchemaVersion {
 		t.Fatalf("expected schema version %d, got %d", currentSchemaVersion, report.SchemaVersion)
 	}
-	if report.FTSAvailable {
-		t.Fatal("expected FTS to be disabled in basic mode")
+	if !report.FTSAvailable {
+		t.Fatal("expected FTS to be available")
+	}
+	if report.SearchMode != SearchModeFTS5 {
+		t.Fatalf("expected search mode %q, got %q", SearchModeFTS5, report.SearchMode)
 	}
 
 	expected := []string{
@@ -35,16 +38,16 @@ func TestBootstrapCreatesCoreTables(t *testing.T) {
 	}
 }
 
-func TestBootstrapFTSAutoDoesNotFailWithoutRequirement(t *testing.T) {
+func TestBootstrapRecordsFTSAvailability(t *testing.T) {
 	db := sqlx.MustOpen("sqlite3", ":memory:")
 	defer func() { _ = db.Close() }()
 
-	report, err := bootstrapSchema(context.Background(), db, SearchModeFTSAuto)
+	report, err := bootstrapSchema(context.Background(), db)
 	if err != nil {
 		t.Fatalf("bootstrapSchema() error = %v", err)
 	}
-	if report.FTSStatus == "" {
-		t.Fatal("expected FTS status to be recorded")
+	if report.FTSStatus != "available" {
+		t.Fatalf("expected FTS status %q, got %q", "available", report.FTSStatus)
 	}
 
 	var status string

@@ -8,9 +8,7 @@ const (
 )
 
 const (
-	SearchModeBasic       = "basic"
-	SearchModeFTSAuto     = "fts-auto"
-	SearchModeFTSRequired = "fts-required"
+	SearchModeFTS5 = "fts5"
 )
 
 type DatabaseInfo struct {

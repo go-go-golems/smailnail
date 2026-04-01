@@ -23,7 +23,6 @@ type MirrorSettings struct {
 	SQLitePath        string `glazed:"sqlite-path"`
 	MirrorRoot        string `glazed:"mirror-root"`
 	BatchSize         int    `glazed:"batch-size"`
-	SearchMode        string `glazed:"search-mode"`
 	AllMailboxes      bool   `glazed:"all-mailboxes"`
 	PrintPlan         bool   `glazed:"print-plan"`
 	ResetMailboxState bool   `glazed:"reset-mailbox-state"`
@@ -65,12 +64,6 @@ func NewMirrorCommand() (*MirrorCommand, error) {
 				fields.WithDefault(100),
 			),
 			fields.New(
-				"search-mode",
-				fields.TypeString,
-				fields.WithHelp("Local search mode: basic, fts-auto, or fts-required"),
-				fields.WithDefault(mirror.SearchModeFTSAuto),
-			),
-			fields.New(
 				"all-mailboxes",
 				fields.TypeBool,
 				fields.WithHelp("Mirror all listed mailboxes instead of only the selected mailbox"),
@@ -106,7 +99,7 @@ later sync phases use for durable mailbox downloads.
 Examples:
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX
   smailnail mirror --all-mailboxes --sqlite-path ./mail.db --mirror-root ./mail-mirror
-  smailnail mirror --print-plan --search-mode fts-auto`),
+  smailnail mirror --print-plan`),
 			cmds.WithSections(glazedSection, imapSection, mirrorSection),
 		),
 	}, nil
@@ -131,7 +124,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 			Path:   settings.SQLitePath,
 		},
 		MirrorRoot:      settings.MirrorRoot,
-		SearchMode:      settings.SearchMode,
+		SearchMode:      mirror.SearchModeFTS5,
 		PrintPlan:       settings.PrintPlan,
 		SelectedMailbox: settings.Mailbox,
 		AllMailboxes:    settings.AllMailboxes,
@@ -149,7 +142,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 			_ = store.Close()
 		}()
 
-		bootstrapped, err := store.Bootstrap(ctx, settings.MirrorRoot, settings.SearchMode)
+		bootstrapped, err := store.Bootstrap(ctx, settings.MirrorRoot)
 		if err != nil {
 			return err
 		}

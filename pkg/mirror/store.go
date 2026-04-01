@@ -38,7 +38,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-func (s *Store) Bootstrap(ctx context.Context, mirrorRoot, searchMode string) (*BootstrapReport, error) {
+func (s *Store) Bootstrap(ctx context.Context, mirrorRoot string) (*BootstrapReport, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("store is not open")
 	}
@@ -48,7 +48,7 @@ func (s *Store) Bootstrap(ctx context.Context, mirrorRoot, searchMode string) (*
 	if err := EnsureMirrorRoot(mirrorRoot); err != nil {
 		return nil, err
 	}
-	report, err := bootstrapSchema(ctx, s.db, searchMode)
+	report, err := bootstrapSchema(ctx, s.db)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,6 @@ func (s *Store) Bootstrap(ctx context.Context, mirrorRoot, searchMode string) (*
 		Path:   s.path,
 	}
 	report.MirrorRoot = mirrorRoot
-	report.SearchMode = searchMode
 	return &report, nil
 }
 
