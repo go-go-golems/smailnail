@@ -49,3 +49,13 @@ Step 5: parsed raw RFC 822 messages into body_text, body_html, parts_json, and s
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/parser_test.go — New parser and projection tests
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Message records now prefer parsed raw-message fields
 
+
+## 2026-04-01
+
+Step 6: required SQLite FTS5 build tags at compile time, updated tagged validation entry points, and reran the Docker Dovecot smoke with the tagged `smailnail` CLI (commit d2bed23557ada03540fbf4fc4e1f393df9fdfcbb)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/require_fts5_build_tag.go — Compile-time guard that fails untagged mirror builds
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/Makefile — Default tagged build, test, lint, and install targets
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/scripts/docker-imap-smoke.sh — Docker smoke now runs `smailnail` with the required build tag

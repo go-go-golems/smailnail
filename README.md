@@ -25,8 +25,10 @@ The repository now also contains an initial reusable JavaScript surface:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp ./cmd/smailnaild
+go build -tags sqlite_fts5 ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp ./cmd/smailnaild
 ```
+
+`smailnail` now requires the `sqlite_fts5` build tag because the local mirror and search index depend on SQLite FTS5 being compiled in.
 
 ## Commands
 
@@ -35,7 +37,7 @@ go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp
 Rule-driven execution:
 
 ```bash
-go run ./cmd/smailnail mail-rules \
+go run -tags sqlite_fts5 ./cmd/smailnail mail-rules \
   --rule examples/smailnail/recent-emails.yaml \
   --server imap.example.com \
   --username user@example.com \
@@ -47,7 +49,7 @@ go run ./cmd/smailnail mail-rules \
 Direct fetch via flags:
 
 ```bash
-go run ./cmd/smailnail fetch-mail \
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -59,7 +61,7 @@ go run ./cmd/smailnail fetch-mail \
 Local mirror via SQLite plus raw `.eml` storage:
 
 ```bash
-go run ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -72,7 +74,7 @@ go run ./cmd/smailnail mirror \
 Print the mirror plan without creating local files:
 
 ```bash
-go run ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -306,7 +308,7 @@ go run ./cmd/imap-tests store-text-message \
   --subject "Mirror fixture message" \
   --output json
 
-go run ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --server 127.0.0.1 \
   --port 993 \
   --username a \
@@ -377,7 +379,7 @@ To run the hosted-backend integration suite against the local Dovecot fixture:
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
 export SMAILNAILD_ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)"
 SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/...
-SMAILNAILD_DOVECOT_TEST=1 go test ./...
+SMAILNAILD_DOVECOT_TEST=1 go test -tags sqlite_fts5 ./...
 ```
 
 To run the full shared OIDC + stored-account + local Dovecot smoke:

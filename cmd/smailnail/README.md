@@ -12,22 +12,24 @@ It supports two main flows:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail
+go build -tags sqlite_fts5 ./cmd/smailnail
 ```
+
+`smailnail` requires the `sqlite_fts5` build tag so the mirror database can create and query its FTS5 search index.
 
 ## Help
 
 ```bash
-go run ./cmd/smailnail --help
-go run ./cmd/smailnail mail-rules --help
-go run ./cmd/smailnail fetch-mail --help
-go run ./cmd/smailnail mirror --help
+go run -tags sqlite_fts5 ./cmd/smailnail --help
+go run -tags sqlite_fts5 ./cmd/smailnail mail-rules --help
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail --help
+go run -tags sqlite_fts5 ./cmd/smailnail mirror --help
 ```
 
 ## Rule-driven usage
 
 ```bash
-go run ./cmd/smailnail mail-rules \
+go run -tags sqlite_fts5 ./cmd/smailnail mail-rules \
   --rule examples/smailnail/recent-emails.yaml \
   --server imap.example.com \
   --username user@example.com \
@@ -47,7 +49,7 @@ Rules can also include `actions:` blocks for:
 ## Direct fetch usage
 
 ```bash
-go run ./cmd/smailnail fetch-mail \
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -75,7 +77,7 @@ These can also be supplied through `SMAILNAIL_*` environment variables.
 Bootstrap and sync one mailbox into a local mirror:
 
 ```bash
-go run ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -88,7 +90,7 @@ go run ./cmd/smailnail mirror \
 Mirror all listed mailboxes:
 
 ```bash
-go run ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -101,7 +103,7 @@ go run ./cmd/smailnail mirror \
 Print the plan without mutating local state:
 
 ```bash
-go run ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -113,7 +115,7 @@ go run ./cmd/smailnail mirror \
 Reset the stored local checkpoint before a resync:
 
 ```bash
-go run ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \

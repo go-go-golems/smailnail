@@ -29,6 +29,7 @@
 - [x] Add bootstrap tables for metadata, mailbox sync state, and mirrored messages
 - [x] Add indexes for mailbox/UID lookup and basic search fields
 - [x] Add optional FTS5 bootstrap with graceful fallback metadata
+- [x] Require `sqlite_fts5` or `fts5` build tags so mirror builds fail fast when SQLite FTS5 is not compiled in
 
 ## Phase 3: File Store And Canonical Raw Message Persistence
 
@@ -72,7 +73,8 @@
 - [x] Add unit tests for schema bootstrap and migration upgrades
 - [x] Add unit tests for parser behavior and search-text generation
 - [x] Add tests for mailbox sync-state transitions and `UIDVALIDITY` reset handling
-- [ ] Add an end-to-end smoke test against the maintained Docker IMAP fixture
+- [x] Add an end-to-end smoke test against the maintained Docker IMAP fixture
+- [x] Update CI, smoke scripts, and operator docs to build `smailnail` with `sqlite_fts5`
 - [x] Update `README.md` and `cmd/smailnail/README.md` with mirror usage examples
 - [x] Update the diary after each meaningful implementation slice
 - [x] Commit focused slices separately with clear messages

@@ -36,6 +36,8 @@ RelatedFiles:
       Note: Added raw-message MIME parsing and search-text projection in commit f30a4c432200b77456cb116f4443477c4d8759e3
     - Path: smailnail/pkg/mirror/parser_test.go
       Note: Added parser coverage and record-projection tests in commit f30a4c432200b77456cb116f4443477c4d8759e3
+    - Path: smailnail/pkg/mirror/require_fts5_build_tag.go
+      Note: Added compile-time SQLite FTS5 build-tag enforcement in commit d2bed23557ada03540fbf4fc4e1f393df9fdfcbb
     - Path: smailnail/pkg/mirror/schema.go
       Note: Added mirror schema bootstrap and FTS detection in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/pkg/mirror/service.go
@@ -46,6 +48,10 @@ RelatedFiles:
       Note: Added local mirror store bootstrap in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/pkg/mirror/store_test.go
       Note: Added initial mirror schema tests in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+    - Path: smailnail/Makefile
+      Note: Updated tagged build, test, lint, and install targets in commit d2bed23557ada03540fbf4fc4e1f393df9fdfcbb
+    - Path: smailnail/scripts/docker-imap-smoke.sh
+      Note: Updated the Docker IMAP smoke to invoke `smailnail` with the required SQLite FTS5 build tag in commit d2bed23557ada03540fbf4fc4e1f393df9fdfcbb
     - Path: smailnail/pkg/smailnaild/accounts/service.go
       Note: |-
         Existing hosted account and mailbox preview flow reviewed for integration boundaries
@@ -56,7 +62,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T20:55:00-04:00
+LastUpdated: 2026-04-01T15:05:00-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -783,3 +789,123 @@ Mirror HTML smoke 2026-04-01T20:50Z|Plain html smoke body|1|1
   - `pkg/mirror/parser.go`
   - `pkg/mirror/parser_test.go`
   - `pkg/mirror/service.go`
+
+## Step 6: Require SQLite FTS5 At Build Time
+
+This step tightened the mirror from "FTS preferred when present" to "FTS required for supported builds". The main change is a deliberate compile-time failure for untagged `smailnail` builds that reach `pkg/mirror`, so operators and CI fail immediately instead of discovering a missing FTS feature after the binary is already built.
+
+The second half of the step was operational cleanup. Once the build became intentionally strict, every supported entry point needed to agree with that decision. I updated the Makefile, CI workflows, and Docker IMAP smoke path so the required `sqlite_fts5` tag is always present in the normal build and validation flows, then reran the compose-backed smoke against the maintained Dovecot fixture.
+
+### Prompt Context
+
+**User prompt (verbatim):** "good, add that.
+
+then, i don't understand the raw RFC 822 improvement"
+
+**Assistant interpretation:** Enforce the FTS5 requirement in the build itself, then clarify the value of the raw-message parsing improvement.
+
+**Inferred user intent:** The user wants the mirror to depend on FTS5 explicitly instead of pretending it is optional, and they want the design rationale explained in plain language.
+
+**Commit (code):** `d2bed23557ada03540fbf4fc4e1f393df9fdfcbb` — `build(mirror): require sqlite fts5 tags`
+
+### What I did
+
+- Added `pkg/mirror/require_fts5_build_tag.go` with a negative build tag that references an undefined symbol unless `sqlite_fts5` or `fts5` is set.
+- Updated `Makefile` so the default `build`, `test`, `lint`, `install`, and `build-embed` paths pass `sqlite_fts5`.
+- Updated `.github/workflows/push.yml` and `.github/workflows/lint.yml` to run tagged tests and lint in CI.
+- Updated `scripts/docker-imap-smoke.sh` to pass the required build tag for all `smailnail` invocations, with `SMAILNAIL_GO_TAGS` as an override.
+- Validated both failure and success paths:
+  - `go build ./cmd/smailnail`
+  - `go build -tags sqlite_fts5 ./cmd/smailnail`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - `DOCKER_IMAP_FIXTURE_ROOT=/home/manuel/code/others/docker-test-dovecot ./scripts/docker-imap-smoke.sh`
+
+### Why
+
+- The mirror feature depends on SQLite FTS5 for its intended search behavior, so the build should say that directly.
+- Compile-time failure is clearer than shipping a binary that only discovers missing FTS support when opening the database.
+- Once the build contract changed, the repo needed one consistent operator story for local runs, CI, and Docker-based smoke validation.
+
+### What worked
+
+- Untagged `go build ./cmd/smailnail` now fails immediately in `pkg/mirror/require_fts5_build_tag.go`, which is the intended enforcement point.
+- Tagged builds and tests passed cleanly after the Makefile and CI changes.
+- The maintained Docker Dovecot smoke still passed after the script was updated to run `go run -tags "$SMAILNAIL_GO_TAGS" ./cmd/smailnail ...`.
+
+### What didn't work
+
+- The first smoke-script run failed before Docker startup because the script assumes a sibling checkout at `../docker-test-dovecot`, but this workspace did not have that layout. The exact output was:
+
+```text
+Docker IMAP fixture not found at '/home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/../docker-test-dovecot'.
+Set DOCKER_IMAP_FIXTURE_ROOT to the docker-test-dovecot checkout.
+```
+
+- I reran the smoke with `DOCKER_IMAP_FIXTURE_ROOT=/home/manuel/code/others/docker-test-dovecot`, which completed successfully.
+
+### What I learned
+
+- A compile-time guard is a better contract than a runtime "maybe" when the feature genuinely depends on a compiled SQLite option.
+- The repo already had enough central build surfaces that enforcing the tag mostly meant fixing documentation drift, not redesigning the build graph.
+- Keeping the smoke script configurable with `SMAILNAIL_GO_TAGS` and `DOCKER_IMAP_FIXTURE_ROOT` makes it easier to validate the same path across multiple local workspace layouts.
+
+### What was tricky to build
+
+- The delicate part was deciding where to enforce the build tag. Enforcing it inside `pkg/mirror` means any binary importing the mirror package fails early unless FTS5 is compiled in. That is stricter than a CLI-only guard, but it matches the architectural reality that the mirror package itself now assumes an FTS-capable SQLite build. I kept the guard minimal so the failure is obvious and does not add any compatibility shim or alternate code path.
+
+- The other tricky piece was avoiding partial enforcement. A build-tag guard is only useful if every routine validation path also adopts the same tag. That is why I updated the Makefile, CI workflows, and Docker smoke script together instead of treating the guard as an isolated code change.
+
+### What warrants a second pair of eyes
+
+- Whether `pkg/mirror` is the right enforcement boundary long term, or whether a future library consumer would want a narrower CLI-only restriction.
+- Whether the remaining runtime FTS-detection fallback in `pkg/mirror/schema.go` should now be removed as dead complexity.
+- Whether release automation such as Goreleaser should be updated in a follow-up to make the required tag explicit there too.
+
+### What should be done in the future
+
+- Decide whether to remove the remaining runtime FTS fallback code paths now that supported builds require FTS5.
+- Review release packaging and cross-compilation assumptions for `go-sqlite3` plus FTS5.
+- Keep the Docker smoke script path assumptions documented or make fixture discovery more flexible if workspace layouts continue to vary.
+
+### Code review instructions
+
+- Start with:
+  - `pkg/mirror/require_fts5_build_tag.go`
+  - `Makefile`
+  - `scripts/docker-imap-smoke.sh`
+- Then inspect:
+  - `.github/workflows/push.yml`
+  - `.github/workflows/lint.yml`
+- Validate with:
+  - `go build ./cmd/smailnail`
+  - `go build -tags sqlite_fts5 ./cmd/smailnail`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - `DOCKER_IMAP_FIXTURE_ROOT=/home/manuel/code/others/docker-test-dovecot ./scripts/docker-imap-smoke.sh`
+
+### Technical details
+
+- The compile-time guard file is intentionally tiny:
+
+```go
+//go:build !sqlite_fts5 && !fts5
+
+package mirror
+
+var _ = requires_sqlite_fts5_build_tag
+```
+
+- The untagged build now fails with:
+
+```text
+# github.com/go-go-golems/smailnail/pkg/mirror
+pkg/mirror/require_fts5_build_tag.go:5:9: undefined: requires_sqlite_fts5_build_tag
+```
+
+- Files changed in the code commit:
+  - `pkg/mirror/require_fts5_build_tag.go`
+  - `Makefile`
+  - `.github/workflows/push.yml`
+  - `.github/workflows/lint.yml`
+  - `scripts/docker-imap-smoke.sh`
