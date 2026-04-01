@@ -66,6 +66,23 @@ func main() {
 	}
 	rootCmd.AddCommand(cobraFetchMailCmd)
 
+	mirrorCmd, err := commands.NewMirrorCommand()
+	if err != nil {
+		fmt.Printf("Error creating mirror command: %v\n", err)
+		os.Exit(1)
+	}
+
+	cobraMirrorCmd, err := cli.BuildCobraCommandFromCommand(mirrorCmd,
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
+	)
+	if err != nil {
+		fmt.Printf("Error building Cobra command: %v\n", err)
+		os.Exit(1)
+	}
+	rootCmd.AddCommand(cobraMirrorCmd)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	// Setup context with cancellation
