@@ -92,3 +92,16 @@ Step 9: added opt-in full-mailbox reconciliation so mirror can tombstone rows as
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Mirror command now exposes `--reconcile-full-mailbox` and reports tombstone counters
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Full-mailbox reconcile and `remote_deleted` updates
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — New tombstone and restore reconcile coverage
+
+
+## 2026-04-01
+
+Step 10: wired embedded Glazed help pages into the CLI and added operator-facing mirror help entries for overview, first sync, and maintenance workflows (commit 00c5faeabd7aabca28a10c21fdf88082964a2b65)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/main.go — Root command now loads embedded help sections before registering the Glazed help system
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/embed.go — New embedded help loader for `cmd/smailnail/docs`
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-overview.md — General-topic help entry for mirror architecture and flags
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-first-sync-tutorial.md — Tutorial help entry for the first mirror run
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-maintenance.md — Maintenance and reconcile help entry for existing mirrors

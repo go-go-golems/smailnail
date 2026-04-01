@@ -78,5 +78,6 @@
 - [x] Add an end-to-end smoke test against the maintained Docker IMAP fixture
 - [x] Update CI, smoke scripts, and operator docs to build `smailnail` with `sqlite_fts5`
 - [x] Update `README.md` and `cmd/smailnail/README.md` with mirror usage examples
+- [x] Add embedded Glazed help entries for mirror overview, first sync, and maintenance workflows
 - [x] Update the diary after each meaningful implementation slice
 - [x] Commit focused slices separately with clear messages

@@ -24,7 +24,19 @@ RelatedFiles:
         Removed the dead runtime search-mode split in commit 215920ddf1ec71cbee377ff6624615e861a1acf8
         Added full-mailbox reconcile and tombstone reporting in commit f0aa4292d39d1da6240f2ec66ef068e28a7ae534
     - Path: smailnail/cmd/smailnail/main.go
-      Note: Registered the new mirror command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+      Note: |-
+        Registered the new mirror command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
+        Loaded embedded Glazed help docs in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
+    - Path: smailnail/cmd/smailnail/docs/embed.go
+      Note: Added the embedded Glazed help loader in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
+    - Path: smailnail/cmd/smailnail/docs/mail-app-rules.md
+      Note: Converted the existing IMAP usage page into frontmatter-backed Glazed help in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
+    - Path: smailnail/cmd/smailnail/docs/mirror-overview.md
+      Note: Added the mirror overview help entry in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
+    - Path: smailnail/cmd/smailnail/docs/mirror-first-sync-tutorial.md
+      Note: Added the first-sync tutorial help entry in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
+    - Path: smailnail/cmd/smailnail/docs/mirror-maintenance.md
+      Note: Added the maintenance and reconcile help entry in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
     - Path: smailnail/docker-compose.local.yml
       Note: Local Docker Dovecot fixture used for the real mirror smoke validation
     - Path: smailnail/pkg/mailruntime/imap_client.go
@@ -77,7 +89,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T16:37:00-04:00
+LastUpdated: 2026-04-01T17:00:34-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -804,6 +816,119 @@ Mirror HTML smoke 2026-04-01T20:50Z|Plain html smoke body|1|1
   - `pkg/mirror/parser.go`
   - `pkg/mirror/parser_test.go`
   - `pkg/mirror/service.go`
+
+## Step 10: Add Embedded Glazed Help Entries For Mirror Operations
+
+This step made the new mirror functionality discoverable from the CLI itself. The repository already had Glazed help wiring on the root command, but `cmd/smailnail/docs` was not being loaded into the help system, so markdown files on disk were invisible to users running `smailnail help`.
+
+I closed that gap by adding an embedded help loader, wiring it into `cmd/smailnail/main.go`, and writing mirror-specific help pages for the three operator workflows that matter most right now: understanding the mirror model, running the first sync safely, and maintaining an existing mirror with reconcile/reset operations.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, now write glazed documentation help entries (see skill) on how to use the new functionality."
+
+**Assistant interpretation:** Use the Glazed help authoring workflow, wire the docs into the binary if necessary, and add practical help pages that teach users how to use `smailnail mirror`.
+
+**Inferred user intent:** The new mirror feature should be self-documenting from within the CLI, not only described in the ticket docs and README files.
+
+**Commit (code):** `00c5faeabd7aabca28a10c21fdf88082964a2b65` — `docs(help): add glazed mirror help pages`
+
+### What I did
+
+- Read the `glazed-help-page-authoring` skill and Glazed’s own help guidance:
+  - `glaze help writing-help-entries`
+  - `glaze help how-to-write-good-documentation-pages`
+- Confirmed that `cmd/smailnail/main.go` created a Glazed help system but did not load any sections from `cmd/smailnail/docs`.
+- Added `cmd/smailnail/docs/embed.go` with `go:embed` and `AddDocToHelpSystem`.
+- Updated `cmd/smailnail/main.go` to load embedded help sections before calling `help_cmd.SetupCobraRootCommand`.
+- Converted `cmd/smailnail/docs/mail-app-rules.md` into a proper frontmatter-backed Glazed help page so it can coexist with the new mirror pages.
+- Added three new help entries:
+  - `cmd/smailnail/docs/mirror-overview.md`
+  - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
+  - `cmd/smailnail/docs/mirror-maintenance.md`
+- Verified that the root help output now lists the top-level mirror topic and that the new slugs resolve through the real CLI.
+
+### Why
+
+- Command-level `--help` text is not enough once the feature has distinct first-run, maintenance, and architecture concepts.
+- The CLI was already using Glazed help, so leaving mirror docs outside that system would have forced users to know the repository layout instead of discovering the feature through the binary.
+- Embedding the docs into the binary makes the help pages travel with the CLI instead of depending on local markdown files existing next to the executable.
+
+### What worked
+
+- The root command only needed one missing step: loading the embedded docs before registering the help command.
+- Glazed rendered the new sections cleanly once the frontmatter and slugs were present.
+- The split into three pages worked well:
+  - `GeneralTopic` for mirror architecture and flags
+  - `Tutorial` for the first sync flow
+  - `Application` for reconcile and reset workflows
+
+### What didn't work
+
+- I first tried `smailnail help topics`, expecting a topic-list command, but in this CLI shape that is not a valid built-in query:
+
+```text
+Unknown help topic [`topics`]
+```
+
+- The reliable discoverability checks were:
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-overview`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-first-sync`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-maintenance`
+
+### What I learned
+
+- The repository already had the right content directory for Glazed help, but the CLI was not consuming it.
+- The mirror workflow is better taught as multiple focused pages instead of a single long article.
+- Marking only the overview page as top-level keeps `smailnail help` discoverable without flooding the root output with every subpage.
+
+### What was tricky to build
+
+- The main sharp edge was that help pages are only “real” if the root command loads them. Without the embedded-doc integration, the markdown work would have looked finished in the repository but remained invisible to users.
+
+### What warrants a second pair of eyes
+
+- Whether the long `smailnail-mail-app-rules` page should eventually be split into smaller Glazed sections too.
+- Whether a later mirror-focused help page should cover direct SQLite inspection workflows once those operator patterns stabilize.
+
+### What should be done in the future
+
+- Keep the help pages aligned with any future mirror flags or output-field renames.
+- Consider adding one more help page once local query and inspection workflows are stable.
+
+### Code review instructions
+
+- Start with:
+  - `cmd/smailnail/docs/embed.go`
+  - `cmd/smailnail/main.go`
+- Then review:
+  - `cmd/smailnail/docs/mirror-overview.md`
+  - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
+  - `cmd/smailnail/docs/mirror-maintenance.md`
+- Validate with:
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-overview`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-first-sync`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-maintenance`
+
+### Technical details
+
+- Validation commands used in this step:
+  - `gofmt -w ./cmd/smailnail/main.go ./cmd/smailnail/docs/embed.go`
+  - `go test -tags sqlite_fts5 ./cmd/smailnail ./pkg/mirror`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-overview`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-first-sync`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-maintenance`
+
+- Files changed in the code commit:
+  - `cmd/smailnail/main.go`
+  - `cmd/smailnail/docs/embed.go`
+  - `cmd/smailnail/docs/mail-app-rules.md`
+  - `cmd/smailnail/docs/mirror-overview.md`
+  - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
+  - `cmd/smailnail/docs/mirror-maintenance.md`
 
 ## Step 9: Add Full-Mailbox Reconciliation And Tombstoning
 
