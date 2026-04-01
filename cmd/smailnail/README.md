@@ -126,6 +126,20 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --output json
 ```
 
+Run a full reconcile after sync and tombstone messages that disappeared remotely:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --reconcile-full-mailbox \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
 ## Examples
 
 - Quick start: `examples/smailnail/QUICK-START.md`

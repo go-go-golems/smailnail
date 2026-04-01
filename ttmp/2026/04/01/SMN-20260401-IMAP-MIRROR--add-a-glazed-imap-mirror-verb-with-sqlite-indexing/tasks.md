@@ -67,8 +67,8 @@
 - [x] Report mirrored mailbox count, fetched message count, written files, and DB path
 - [x] Add `--print-plan` dry-run behavior
 - [x] Add `--reset-mailbox-state` behavior
-- [ ] Add optional tombstoning for missing remote messages after full scans
-- [ ] Add a full-mailbox reconciliation mode that marks locally mirrored rows as remotely deleted when the server no longer reports them
+- [x] Add optional tombstoning for missing remote messages after full scans
+- [x] Add a full-mailbox reconciliation mode that marks locally mirrored rows as remotely deleted when the server no longer reports them
 
 ## Phase 7: Validation And Documentation
 

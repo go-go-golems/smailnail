@@ -639,7 +639,7 @@ Recommended v1 flags:
 - `--import-sqlite`: default `true`
 - `--print-plan`: show what would happen without downloading
 - `--reset-mailbox-state`: clear stored state for the selected mailbox before syncing
-- `--tombstone-missing`: mark remotely missing messages as deleted in the local DB after a full mailbox scan
+- `--reconcile-full-mailbox`: run a full mailbox UID scan after sync and mark remotely missing messages as `remote_deleted`
 
 ### Optional future flags
 
@@ -946,7 +946,7 @@ Files:
 Work:
 
 1. Add optional FTS5 bootstrap.
-2. Add tombstoning for missing remote messages during full reconcile.
+2. Keep extending reconciliation behavior now that tombstoning during full reconcile exists.
 3. Add CLI output that summarizes index stats and deltas.
 
 ### Phase 5: tests and docs
@@ -1000,7 +1000,7 @@ The mirror database should store mirrored mail data and sync state, not password
 2. Should the canonical local artifact be a raw `.eml` file plus SQLite metadata, or should SQLite BLOB mode also be supported behind a flag?
 3. Should release packaging and cross-compilation be tightened further now that FTS5 is a required build-time capability?
 4. Do you want the first implementation to support hosted stored accounts via `--account-id`, or should it stay credential-flag-based in v1?
-5. Should deleted remote messages be tombstoned by default or only when `--tombstone-missing` is set?
+5. Should deleted remote messages be tombstoned by default or only when `--reconcile-full-mailbox` is set?
 
 ## References
 

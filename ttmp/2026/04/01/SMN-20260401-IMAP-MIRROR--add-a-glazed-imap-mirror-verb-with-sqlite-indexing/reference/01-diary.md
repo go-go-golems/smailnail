@@ -22,6 +22,7 @@ RelatedFiles:
         Implemented the mirror Glazed command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
         Extended the mirror command to run sync and report aggregate counts in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
         Removed the dead runtime search-mode split in commit 215920ddf1ec71cbee377ff6624615e861a1acf8
+        Added full-mailbox reconcile and tombstone reporting in commit f0aa4292d39d1da6240f2ec66ef068e28a7ae534
     - Path: smailnail/cmd/smailnail/main.go
       Note: Registered the new mirror command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
     - Path: smailnail/docker-compose.local.yml
@@ -51,8 +52,11 @@ RelatedFiles:
       Note: |-
         Added incremental IMAP sync orchestration in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
         Switched mirrored rows to prefer normalized parsed headers in commit bb97160ae5d9bd89af0233f2bf9bda6ba46fc2af
+        Added full-mailbox reconcile and `remote_deleted` updates in commit f0aa4292d39d1da6240f2ec66ef068e28a7ae534
     - Path: smailnail/pkg/mirror/service_test.go
-      Note: Added incremental sync and UIDVALIDITY regression tests in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
+      Note: |-
+        Added incremental sync and UIDVALIDITY regression tests in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
+        Added reconcile tombstone and restore tests in commit f0aa4292d39d1da6240f2ec66ef068e28a7ae534
     - Path: smailnail/pkg/mirror/store.go
       Note: |-
         Added local mirror store bootstrap in commit 1d9578a08372607e77e4de17bb95a1b75522568d
@@ -73,7 +77,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T16:20:00-04:00
+LastUpdated: 2026-04-01T16:37:00-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -800,6 +804,142 @@ Mirror HTML smoke 2026-04-01T20:50Z|Plain html smoke body|1|1
   - `pkg/mirror/parser.go`
   - `pkg/mirror/parser_test.go`
   - `pkg/mirror/service.go`
+
+## Step 9: Add Full-Mailbox Reconciliation And Tombstoning
+
+This step implemented the remaining mirror-side deletion story. The mirror was already durable for new and updated messages, but `remote_deleted` was just a stored column with no behavior behind it. The new reconcile path makes that column meaningful by comparing the local mailbox snapshot to a full server UID scan and updating rows that disappeared remotely.
+
+The implementation is deliberately opt-in. Normal incremental sync still only fetches new UIDs, but `--reconcile-full-mailbox` now triggers an additional full mailbox UID search after sync and marks locally mirrored rows as `remote_deleted` when the server no longer reports them. That keeps the default path fast while giving operators a conservative mirror mode when they explicitly want remote deletion tracking.
+
+### Prompt Context
+
+**User prompt (verbatim):** "go ahead."
+
+**Assistant interpretation:** Continue with the next remaining mirror implementation task instead of stopping after the previous slice.
+
+**Inferred user intent:** The user wants the remaining major mirror gaps closed with the same pattern of implementation, validation, commits, and diary updates.
+
+**Commit (code):** `f0aa4292d39d1da6240f2ec66ef068e28a7ae534` — `feat(mirror): add full-mailbox reconciliation`
+
+### What I did
+
+- Added `ReconcileFull` to mirror settings and sync options.
+- Added the `--reconcile-full-mailbox` flag to `cmd/smailnail/commands/mirror.go`.
+- Extended the mirror report types with:
+  - `tombstonedMessages`
+  - `restoredMessages`
+  - `reconcileApplied`
+- Updated `pkg/mirror/service.go`:
+  - mailbox sync now can run a full post-sync UID search
+  - local message rows for the current mailbox snapshot are compared to the remote UID set
+  - rows missing on the server are marked `remote_deleted = true`
+  - previously tombstoned rows still present on the server are restored to `remote_deleted = false`
+  - reconcile runs even when there are no new UIDs, which is necessary for delete-only mailbox changes
+- Added unit coverage in `pkg/mirror/service_test.go` for:
+  - tombstoning a missing remote message
+  - restoring a previously tombstoned message that is still present remotely
+- Verified with:
+  - `go test -tags sqlite_fts5 ./pkg/mirror -run 'TestServiceSync(ReconcileTombstonesMissingMessages|ReconcileRestoresPresentMessages)|TestServiceSyncPersistsIncrementalMessages|TestServiceSyncResetsOnUIDValidityChange'`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - Docker compose reconcile smoke using:
+    - two seeded messages
+    - a temporary `mail-rules` delete action against one subject
+    - a second mirror run with `--reconcile-full-mailbox`
+    - a SQLite check of `remote_deleted`
+
+### Why
+
+- The mirror needed a way to represent remote deletes without deleting local raw `.eml` files or rows by default.
+- Reconciliation had to be explicit because a full mailbox UID scan is more expensive than the normal incremental sync path.
+- The `remote_deleted` column only becomes useful once there is a concrete rule for setting and clearing it.
+
+### What worked
+
+- Both new reconcile unit tests passed.
+- Full tagged repo tests and lint passed after the reconcile path was added.
+- The repo-local compose-backed smoke produced the expected SQLite result after deleting one message remotely and rerunning the mirror with reconciliation:
+
+```text
+Mirror Reconcile Delete 1775075189|1
+Mirror Reconcile Keep 1775075189|0
+```
+
+- That proves the deleted message was tombstoned while the surviving message remained active.
+
+### What didn't work
+
+- The first reconcile smoke attempt failed because the temporary delete rule used an invalid DSL `output` block with no fields:
+
+```text
+Error: error parsing rule file: invalid output config: at least one output field is required
+exit status 1
+```
+
+- I corrected the rule to include a minimal `uid` field and reran the smoke successfully.
+
+### What I learned
+
+- Reconciliation must run even when there are no new UIDs, otherwise a mailbox that only lost messages never updates local tombstones.
+- A conservative mirror mode works well as an explicit opt-in feature: it captures remote deletes without making local raw-message retention lossy by default.
+
+### What was tricky to build
+
+- The key subtlety was control flow, not SQL. The earlier sync logic returned early when `UIDNEXT` showed there were no new messages. That is correct for incremental fetches but wrong for delete-only mailbox changes. I had to refactor the “finalize mailbox sync” path so it can still reconcile and then persist sync-state timestamps even when no fetch batch runs.
+
+- The other tricky point was restore semantics. A row can already be tombstoned from an earlier reconcile, and the next full scan should clear `remote_deleted` if that UID is still present remotely. Without that second branch, the column would only ever move in one direction and become stale.
+
+### What warrants a second pair of eyes
+
+- Whether the `--reconcile-full-mailbox` name is the best long-term operator-facing flag or whether a shorter alias such as `--tombstone-missing` is still worth adding later.
+- Whether future large-mailbox optimization is needed for reconcile updates if mailbox UID sets get significantly larger.
+
+### What should be done in the future
+
+- Decide whether reconcile should eventually become a scheduled/default maintenance mode rather than a fully manual flag.
+- Consider adding stricter mirror cleanup modes that physically remove rows and raw files after tombstoning, but only as an explicit separate mode.
+
+### Code review instructions
+
+- Start with:
+  - `cmd/smailnail/commands/mirror.go`
+  - `pkg/mirror/service.go`
+  - `pkg/mirror/service_test.go`
+- Validate with:
+  - `go test -tags sqlite_fts5 ./pkg/mirror`
+  - `go test -tags sqlite_fts5 ./...`
+  - `golangci-lint run -v --build-tags sqlite_fts5`
+  - reproduce the compose-backed delete + reconcile smoke and inspect `remote_deleted` in SQLite
+
+### Technical details
+
+- The reconcile smoke used a temporary delete rule with:
+
+```yaml
+name: reconcile delete smoke
+description: delete one known fixture message
+search:
+  subject_contains: "<delete subject>"
+output:
+  format: json
+  fields:
+    - uid
+actions:
+  delete: true
+```
+
+- After deleting one message remotely and rerunning the mirror with `--reconcile-full-mailbox`, SQLite returned:
+
+```text
+Mirror Reconcile Delete 1775075189|1
+Mirror Reconcile Keep 1775075189|0
+```
+
+- Files changed in the code commit:
+  - `cmd/smailnail/commands/mirror.go`
+  - `pkg/mirror/service.go`
+  - `pkg/mirror/service_test.go`
+  - `pkg/mirror/types.go`
 
 ## Step 6: Require SQLite FTS5 At Build Time
 

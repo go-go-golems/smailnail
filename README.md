@@ -83,6 +83,20 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --output json
 ```
 
+Reconcile the full mailbox and mark locally mirrored rows as `remote_deleted` when the server no longer reports them:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --reconcile-full-mailbox \
+  --output json
+```
+
 ### `mailgen`
 
 ```bash
