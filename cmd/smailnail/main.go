@@ -10,6 +10,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/go-go-golems/smailnail/cmd/smailnail/commands"
+	smailnaildocs "github.com/go-go-golems/smailnail/cmd/smailnail/docs"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -26,6 +27,10 @@ func main() {
 	}
 
 	helpSystem := help.NewHelpSystem()
+	if err := smailnaildocs.AddDocToHelpSystem(helpSystem); err != nil {
+		fmt.Printf("Error loading help docs: %v\n", err)
+		os.Exit(1)
+	}
 	help_cmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
 	log.Debug().Msg("Starting smailnail")
