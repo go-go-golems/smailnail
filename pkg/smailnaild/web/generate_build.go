@@ -32,6 +32,14 @@ func buildAndCopy() error {
 		return err
 	}
 
+	if _, err := os.Stat(distDir); err != nil {
+		if os.IsNotExist(err) && hasGeneratedEmbedAssets(embedDir) {
+			fmt.Printf("Skipping embed refresh: %s is missing; keeping committed embed/public assets.\n", distDir)
+			return nil
+		}
+		return fmt.Errorf("stat dist dir: %w", err)
+	}
+
 	if err := os.RemoveAll(embedDir); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove embed dir: %w", err)
 	}
