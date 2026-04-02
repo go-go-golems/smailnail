@@ -19,4 +19,4 @@
 - [x] Add `smailnail annotate group` verbs for create, list, add-target, and list-members
 - [x] Add `smailnail annotate log` verbs for add, list, link-target, and list-links
 - [x] Verify the SQLite+CLI workflow end to end on a real mirror DB
-- [ ] Update the detailed diary and changelog with implementation steps and commit history
+- [x] Update the detailed diary and changelog with implementation steps and commit history

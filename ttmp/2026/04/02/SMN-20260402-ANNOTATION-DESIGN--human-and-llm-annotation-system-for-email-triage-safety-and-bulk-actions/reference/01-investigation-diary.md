@@ -439,3 +439,7 @@ Fix:
 - removed the unused helper
 - reran `gofmt`
 - reran the focused package tests
+
+Commit:
+
+- `6d849cf` `Add annotate CLI verbs for annotations groups and logs`
