@@ -49,6 +49,14 @@ func buildAndCopy() error {
 }
 
 func runFrontendBuild(frontendDir, embedDir string) error {
+	if !hasFrontendDependencies(frontendDir) {
+		if hasGeneratedEmbedAssets(embedDir) {
+			fmt.Println("Skipping frontend rebuild: ui/node_modules is missing; reusing committed embed/public assets.")
+			return nil
+		}
+		return fmt.Errorf("frontend dependencies are missing in %s/ui/node_modules", frontendDir)
+	}
+
 	buildTool, toolArgs, err := frontendBuildCommand()
 	if err != nil {
 		if hasGeneratedEmbedAssets(embedDir) {
@@ -84,6 +92,14 @@ func hasGeneratedEmbedAssets(embedDir string) bool {
 		return false
 	}
 	return true
+}
+
+func hasFrontendDependencies(frontendDir string) bool {
+	info, err := os.Stat(filepath.Join(frontendDir, "node_modules"))
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
 }
 
 func findRepoRoot() (string, error) {
