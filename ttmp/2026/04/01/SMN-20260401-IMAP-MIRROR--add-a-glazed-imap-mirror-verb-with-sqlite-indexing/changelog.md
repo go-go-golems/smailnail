@@ -174,3 +174,25 @@ Step 16: added `--stop-on-error` and partial-run reporting so multi-mailbox sync
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Continued multi-mailbox syncs after per-mailbox errors when requested and recorded failed mailbox names
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added partial-run reporting fields such as mailbox error counts and failed mailbox names
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for fail-fast versus continue-on-error behavior
+
+
+## 2026-04-02
+
+Step 17: added explicit `--since-date` and `--before-date` bounds so mirror runs can target fixed calendar windows instead of only rolling `--since-days` searches (commit c6047196ab4c6dbff5a8ccfdfeb6a9de2e53fce9)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Added the new date-range flags and surfaced them in the CLI report row
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Parsed and validated explicit date bounds, then threaded them into IMAP search criteria
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added explicit date-range fields to mirror reports
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added coverage for explicit date-range filtering and bound validation
+
+
+## 2026-04-02
+
+Step 18: added ticket-local scripts to launch and monitor six month-sharded parallel mirror workers for backfill benchmarking (commit PENDING)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/ttmp/2026/04/01/SMN-20260401-IMAP-MIRROR--add-a-glazed-imap-mirror-verb-with-sqlite-indexing/scripts/run-last-6-months-parallel.sh — Launches one tmux-backed mirror worker per month for the current month plus the previous five months
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/ttmp/2026/04/01/SMN-20260401-IMAP-MIRROR--add-a-glazed-imap-mirror-verb-with-sqlite-indexing/scripts/check-last-6-months-parallel.sh — Reports shard progress, row counts, and recent logs for the month-sharded benchmark

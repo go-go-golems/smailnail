@@ -75,6 +75,7 @@
 
 - [x] Add `--max-messages` so first syncs can stop after a bounded number of fetched messages
 - [x] Add `--since-days` so first syncs can limit IMAP search to recent mail only
+- [x] Add explicit `--since-date` and `--before-date` bounds so mirror runs can target calendar shards such as one month at a time
 - [x] Add `--mailbox-pattern` so `--all-mailboxes` can be narrowed to matching mailbox names
 - [x] Add `--exclude-mailbox-pattern` so `--all-mailboxes` can skip noisy mailboxes like Trash or Spam
 - [x] Add `--stop-on-error` so multi-mailbox syncs can continue after one mailbox fails when desired
@@ -91,5 +92,6 @@
 - [x] Update `README.md` and `cmd/smailnail/README.md` with mirror usage examples
 - [x] Add embedded Glazed help entries for mirror overview, first sync, and maintenance workflows
 - [x] Update the embedded mirror help pages and README examples for the new sync-scope and partial-failure flags
+- [x] Add ticket-local runner and checker scripts for month-sharded parallel mirror benchmarks
 - [x] Update the diary after each meaningful implementation slice
 - [x] Commit focused slices separately with clear messages

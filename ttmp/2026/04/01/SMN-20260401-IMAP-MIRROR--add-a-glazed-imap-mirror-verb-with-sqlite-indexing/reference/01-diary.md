@@ -823,6 +823,115 @@ Mirror HTML smoke 2026-04-01T20:50Z|Plain html smoke body|1|1
   - `pkg/mirror/parser_test.go`
   - `pkg/mirror/service.go`
 
+## Step 18: Add Explicit Date Bounds For Calendar-Sharded Mirror Runs
+
+This step closed a real operational gap that showed up during backfill planning. The mirror already had `--since-days`, which works for rolling windows like “last 30 days,” but it could not express a bounded calendar slice such as “March 2026 only.” That made month-sharded parallel backfills impossible without changing the command contract.
+
+The fix was to add explicit `--since-date` and `--before-date` flags and thread them through the existing IMAP search path. The resulting interface is simple: `since-date` is inclusive, `before-date` is exclusive, and both use `YYYY-MM-DD` values. That is enough to express one-month shards cleanly with ranges like `[2026-03-01, 2026-04-01)`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, do a parallel run, one worker per month, for the last 6 months. Write a script to do that."
+
+**Assistant interpretation:** The requested script needs explicit calendar date bounds, so add the missing mirror capability first and then build the runner on top of it.
+
+**Inferred user intent:** The user wants a practical backfill tool, not just a theoretical script sketch.
+
+**Commit (code):** `c6047196ab4c6dbff5a8ccfdfeb6a9de2e53fce9` — `feat(mirror): add explicit date range filters`
+
+### What I did
+
+- Added `--since-date` and `--before-date` to `cmd/smailnail/commands/mirror.go`.
+- Extended the mirror reports so the chosen date bounds are visible in the CLI output row.
+- Updated `pkg/mirror/service.go` to:
+  - parse `YYYY-MM-DD` date bounds
+  - reject `--since-days` together with `--since-date`
+  - reject `before-date <= since-date`
+  - thread the resolved bounds into IMAP search criteria
+- Updated the fake IMAP session in `pkg/mirror/service_test.go` so it respects both `Since` and `Before`.
+- Added focused tests for:
+  - bounded UID criteria carrying date bounds
+  - explicit date-range resolution and validation
+  - a mailbox sync that includes only messages inside a fixed March window
+
+### Why
+
+- Monthly parallel backfill workers need fixed ranges, not rolling windows.
+- Adding an upper bound in the search layer is strictly better than trying to post-filter already-fetched messages.
+- The existing `mailruntime.SearchCriteria` already supported `Before`, so this was the right level to expose the missing flag instead of inventing a separate sharding tool.
+
+### What worked
+
+- `go build -tags sqlite_fts5 ./cmd/smailnail` succeeded.
+- `go test -vet=off -tags sqlite_fts5 ./pkg/mirror` passed.
+- `smailnail mirror --help` now shows:
+  - `--since-date`
+  - `--before-date`
+- The month-sharded benchmark launcher was able to start six live workers immediately on top of the new flags.
+
+### What didn't work
+
+- My first focused `go test` call hit a repo-level `go vet` import-resolution problem in `pkg/enrich`, even though the mirror package itself was fine. I validated the actual mirror changes with `go build`, `go test -vet=off`, and the real month-sharded launcher rather than chasing that unrelated vet noise.
+
+### What I learned
+
+- The mirror architecture was already one small abstraction away from supporting clean calendar sharding because `mailruntime.SearchCriteria` already carried `Before`.
+- For backfill tooling, inclusive lower bounds plus exclusive upper bounds are the least ambiguous contract.
+
+### What should be done in the future
+
+- Update the embedded help pages so the new date-range flags are documented alongside `--since-days`.
+- Consider a future `--month YYYY-MM` convenience flag if month-sharded backfills become common enough to justify sugar over the explicit date-range form.
+
+## Step 19: Add And Launch A Six-Month Parallel Backfill Script
+
+This step turned the new date-range capability into an operator-ready benchmark workflow. The user did not want six manual commands typed by hand; they wanted a repeatable script that launches one worker per month for the last six months and makes it easy to inspect progress.
+
+I implemented the runner and checker under the ticket’s `scripts/` directory and then launched them in `tmux`. The runner uses one session per month, one SQLite file per shard, and one raw-message root per shard. By default it covers the current month plus the previous five months, which matches the “last 6 months” request as a rolling window.
+
+### What I did
+
+- Added:
+  - `scripts/run-last-6-months-parallel.sh`
+  - `scripts/check-last-6-months-parallel.sh`
+- The runner script:
+  - sources `.envrc` to pick up `MAIL_PASSWORD`
+  - computes month windows using UTC first-of-month boundaries
+  - launches one tmux session per shard
+  - stores shard artifacts under `/tmp/smailnail-last-6-months-parallel`
+- The checker script:
+  - lists the shard tmux sessions
+  - prints current SQLite row counts
+  - shows final JSON when a shard completes
+  - tails the recent log lines for each shard
+- Launched six workers for:
+  - `2025-11`
+  - `2025-12`
+  - `2026-01`
+  - `2026-02`
+  - `2026-03`
+  - `2026-04`
+
+### Why
+
+- The whole point of the date-range slice was to make this exact workflow possible.
+- Using one SQLite database per month avoids contention inside a single local store and makes shard-level timing easier to measure.
+- `tmux` is the right control plane here because these are long-running CLI jobs and the repo guidance already prefers tmux for that shape of work.
+
+### What worked
+
+- The launcher started all six shard sessions successfully.
+- The initial status check showed the correct date windows in the logs and confirmed that each worker was talking to the server with its intended month range.
+- Early shard counts looked plausible:
+  - `2026-04` found `170` messages
+  - `2026-02` found `2372`
+  - `2025-11` found `2646`
+  - `2026-03` found `3138`
+
+### What should be done in the future
+
+- Once the six-worker benchmark finishes, capture the total wall-clock times in the ticket so the 2-year backfill estimate can be based on month-sharded reality instead of extrapolation.
+
 ## Step 16: Add `--stop-on-error` And Partial Mailbox Failure Reporting
 
 This step completed the last missing sync-scope control from Phase 6B: `--stop-on-error`. The earlier slices already let the operator bound mailbox scope and message volume, but multi-mailbox runs still had a binary failure model. A single mailbox error aborted the whole run even when the user explicitly wanted “best effort” behavior.
