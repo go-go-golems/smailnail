@@ -823,6 +823,115 @@ Mirror HTML smoke 2026-04-01T20:50Z|Plain html smoke body|1|1
   - `pkg/mirror/parser_test.go`
   - `pkg/mirror/service.go`
 
+## Step 16: Add `--stop-on-error` And Partial Mailbox Failure Reporting
+
+This step completed the last missing sync-scope control from Phase 6B: `--stop-on-error`. The earlier slices already let the operator bound mailbox scope and message volume, but multi-mailbox runs still had a binary failure model. A single mailbox error aborted the whole run even when the user explicitly wanted “best effort” behavior.
+
+The new flag keeps the default conservative behavior intact by remaining `true` unless the operator opts out. When the user runs `--stop-on-error=false`, the mirror logs the mailbox error, records it in the result row, and continues with the remaining mailboxes instead of throwing away the whole run.
+
+### Prompt Context
+
+**User prompt (verbatim):** "go ahead"
+
+**Assistant interpretation:** Resume from the already-committed code slice, finish the remaining implementation work for the requested sync-control flags, and keep the ticket in sync with the code.
+
+**Inferred user intent:** The user wants the final Phase 6B behavior landed cleanly, not just discussed.
+
+**Commit (code):** `7713074ac37cc0badc8d11227915fd5f9cf8722a` — `feat(mirror): support partial mailbox failures`
+
+### What I did
+
+- Added `--stop-on-error` to `cmd/smailnail/commands/mirror.go`, with a default of `true`.
+- Threaded `StopOnError` through `pkg/mirror/service.go` and the mirror report types.
+- Updated the sync result row so it can report:
+  - `status=partial`
+  - `mailbox_errors`
+  - `failed_mailboxes`
+  - `stop_on_error`
+- Preserved fail-fast behavior when `--stop-on-error` is left enabled.
+- Added focused unit coverage in `pkg/mirror/service_test.go` for:
+  - fail-fast behavior
+  - continue-on-error behavior
+
+### Why
+
+- The user explicitly asked for a continuation mode during multi-mailbox syncs.
+- The earlier mailbox-pattern flags made broader account runs more practical, so the lack of partial-failure handling became more noticeable.
+- Partial success needs explicit reporting, otherwise operators cannot tell the difference between “fully synced” and “continued after errors.”
+
+### What worked
+
+- The targeted stop-on-error tests passed once the service report fields were wired end to end.
+- The full tagged repo test and lint passes succeeded in the commit hook, which meant the behavior change did not break the broader mirror code path.
+- The final result shape now cleanly distinguishes:
+  - `status=synced`
+  - `status=partial`
+  - `status=plan`
+
+### What didn't work
+
+- The first commit attempt failed because `golangci-lint` reported a `gofmt` issue in `pkg/mirror/service_test.go`.
+- I stopped when that happened rather than keep hacking past the repo’s debugging rule, then resumed and completed the slice cleanly afterward.
+
+### What I learned
+
+- Partial-failure support is not just a control-flow switch. The reporting contract has to change at the same time or the CLI becomes misleading.
+- Defaulting `--stop-on-error` to `true` is the right operator model because it preserves the safer existing behavior while still allowing broader best-effort maintenance runs.
+
+### What should be done in the future
+
+- Document the new scope and partial-failure flags in the embedded help pages so the operator can discover them without reading source or ticket docs.
+- Consider adding a later summary mode that groups failed mailboxes by error class if operators end up using best-effort full-account syncs frequently.
+
+## Step 17: Document The New Scope And Partial-Failure Flags In Help Pages
+
+This step updated the operator-facing documentation so the new Phase 6B controls are actually discoverable. The code already supported the new flags, but the help pages and READMEs still described the older mirror usage model. That would leave new operators blind to the recent-mail, message-cap, mailbox-filter, and partial-failure workflows.
+
+### Prompt Context
+
+**User prompt (verbatim):** "go ahead"
+
+**Assistant interpretation:** Finish the remaining documentation work that corresponds to the completed code slices, validate it, and keep the ticket diary current.
+
+**Inferred user intent:** The user wants the task closed out in the same disciplined way as the prior slices: code/documentation alignment, validation, and ticket updates.
+
+### What I did
+
+- Updated the embedded Glazed help pages:
+  - `cmd/smailnail/docs/mirror-overview.md`
+  - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
+  - `cmd/smailnail/docs/mirror-maintenance.md`
+- Added the new flags to the help frontmatter so they show up in page metadata:
+  - `max-messages`
+  - `since-days`
+  - `mailbox-pattern`
+  - `exclude-mailbox-pattern`
+  - `stop-on-error`
+- Reworked the tutorial examples to recommend:
+  - bounded first syncs with `--since-days` and `--max-messages`
+  - filtered `--all-mailboxes` runs
+  - `--stop-on-error=false` only when best-effort multi-mailbox continuation is desired
+- Updated both README files with practical examples for:
+  - cautious first syncs
+  - wider filtered account syncs
+  - partial-failure continuation
+- Updated `tasks.md` and `changelog.md` so the Phase 6B checklist matches the implemented code.
+
+### Why
+
+- Help output and README examples are the operator’s primary entry points for this CLI.
+- The sync-control work is only complete once a new user can discover the intended safe usage patterns without reading the ticket diary.
+- The first-sync tutorial was the best place to encode the recommendation to start narrow and bounded before widening scope.
+
+### What worked
+
+- The help-page structure already existed, so this was mostly a matter of updating metadata and examples rather than inventing a new documentation format.
+- The tutorial became much clearer once the first recommended real sync used both time-based and count-based bounds.
+
+### What should be done in the future
+
+- Add a local search help page once the mirror-search CLI exists, so the mirror docs can cover the full “sync then search” flow end to end.
+
 ## Step 10: Add Embedded Glazed Help Entries For Mirror Operations
 
 This step made the new mirror functionality discoverable from the CLI itself. The repository already had Glazed help wiring on the root command, but `cmd/smailnail/docs` was not being loaded into the help system, so markdown files on disk were invisible to users running `smailnail help`.

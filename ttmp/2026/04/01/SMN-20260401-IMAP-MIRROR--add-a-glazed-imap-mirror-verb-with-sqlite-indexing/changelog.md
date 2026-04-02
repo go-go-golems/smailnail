@@ -162,3 +162,15 @@ Step 15: added mailbox include and exclude glob filters so `--all-mailboxes` can
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Filtered mailbox enumeration through include and exclude glob matching before any mailbox sync begins
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added mailbox-pattern reporting fields
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for mailbox include/exclude filtering behavior
+
+
+## 2026-04-01
+
+Step 16: added `--stop-on-error` and partial-run reporting so multi-mailbox syncs can continue after a mailbox failure when requested (commit 7713074ac37cc0badc8d11227915fd5f9cf8722a)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Added `--stop-on-error`, surfaced it in the CLI row output, and marked partial runs with `status=partial`
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Continued multi-mailbox syncs after per-mailbox errors when requested and recorded failed mailbox names
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added partial-run reporting fields such as mailbox error counts and failed mailbox names
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for fail-fast versus continue-on-error behavior

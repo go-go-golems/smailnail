@@ -77,9 +77,9 @@
 - [x] Add `--since-days` so first syncs can limit IMAP search to recent mail only
 - [x] Add `--mailbox-pattern` so `--all-mailboxes` can be narrowed to matching mailbox names
 - [x] Add `--exclude-mailbox-pattern` so `--all-mailboxes` can skip noisy mailboxes like Trash or Spam
-- [ ] Add `--stop-on-error` so multi-mailbox syncs can continue after one mailbox fails when desired
-- [ ] Extend sync reporting rows to surface the new scope-control settings and partial-error behavior
-- [ ] Add targeted unit coverage for new message-limit, date-limit, mailbox-filter, and stop-on-error behavior
+- [x] Add `--stop-on-error` so multi-mailbox syncs can continue after one mailbox fails when desired
+- [x] Extend sync reporting rows to surface the new scope-control settings and partial-error behavior
+- [x] Add targeted unit coverage for new message-limit, date-limit, mailbox-filter, and stop-on-error behavior
 
 ## Phase 7: Validation And Documentation
 
@@ -90,5 +90,6 @@
 - [x] Update CI, smoke scripts, and operator docs to build `smailnail` with `sqlite_fts5`
 - [x] Update `README.md` and `cmd/smailnail/README.md` with mirror usage examples
 - [x] Add embedded Glazed help entries for mirror overview, first sync, and maintenance workflows
+- [x] Update the embedded mirror help pages and README examples for the new sync-scope and partial-failure flags
 - [x] Update the diary after each meaningful implementation slice
 - [x] Commit focused slices separately with clear messages
