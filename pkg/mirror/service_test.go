@@ -294,6 +294,31 @@ func TestSinceDaysCutoff(t *testing.T) {
 	}
 }
 
+func TestResolveMailboxesAppliesIncludeAndExcludePatterns(t *testing.T) {
+	service := NewService(openTestStore(t))
+	session := newFakeIMAPSession()
+	session.mailboxes = []mailruntime.MailboxInfo{
+		{Name: "INBOX"},
+		{Name: "Archive/2026"},
+		{Name: "Archive/2025"},
+		{Name: "Spam"},
+		{Name: "Archive/Hidden", Flags: []string{"\\Noselect"}},
+	}
+
+	mailboxes, err := service.resolveMailboxes(session, SyncOptions{
+		AllMailboxes:          true,
+		MailboxPattern:        "Archive/*",
+		ExcludeMailboxPattern: "*/2025",
+	})
+	if err != nil {
+		t.Fatalf("resolveMailboxes() error = %v", err)
+	}
+	expected := []string{"Archive/2026"}
+	if fmt.Sprintf("%v", mailboxes) != fmt.Sprintf("%v", expected) {
+		t.Fatalf("expected filtered mailboxes %v, got %v", expected, mailboxes)
+	}
+}
+
 func TestServiceSyncReconcileTombstonesMissingMessages(t *testing.T) {
 	store := openTestStore(t)
 	root := t.TempDir()

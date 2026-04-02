@@ -20,15 +20,17 @@ type MirrorCommand struct {
 }
 
 type MirrorSettings struct {
-	SQLitePath        string `glazed:"sqlite-path"`
-	MirrorRoot        string `glazed:"mirror-root"`
-	BatchSize         int    `glazed:"batch-size"`
-	MaxMessages       int    `glazed:"max-messages"`
-	SinceDays         int    `glazed:"since-days"`
-	AllMailboxes      bool   `glazed:"all-mailboxes"`
-	PrintPlan         bool   `glazed:"print-plan"`
-	ReconcileFull     bool   `glazed:"reconcile-full-mailbox"`
-	ResetMailboxState bool   `glazed:"reset-mailbox-state"`
+	SQLitePath            string `glazed:"sqlite-path"`
+	MirrorRoot            string `glazed:"mirror-root"`
+	BatchSize             int    `glazed:"batch-size"`
+	MaxMessages           int    `glazed:"max-messages"`
+	SinceDays             int    `glazed:"since-days"`
+	AllMailboxes          bool   `glazed:"all-mailboxes"`
+	MailboxPattern        string `glazed:"mailbox-pattern"`
+	ExcludeMailboxPattern string `glazed:"exclude-mailbox-pattern"`
+	PrintPlan             bool   `glazed:"print-plan"`
+	ReconcileFull         bool   `glazed:"reconcile-full-mailbox"`
+	ResetMailboxState     bool   `glazed:"reset-mailbox-state"`
 
 	imap.IMAPSettings
 }
@@ -85,6 +87,16 @@ func NewMirrorCommand() (*MirrorCommand, error) {
 				fields.WithDefault(false),
 			),
 			fields.New(
+				"mailbox-pattern",
+				fields.TypeString,
+				fields.WithHelp("Only mirror mailboxes whose names match this glob pattern when --all-mailboxes is enabled"),
+			),
+			fields.New(
+				"exclude-mailbox-pattern",
+				fields.TypeString,
+				fields.WithHelp("Skip mailboxes whose names match this glob pattern when --all-mailboxes is enabled"),
+			),
+			fields.New(
 				"print-plan",
 				fields.TypeBool,
 				fields.WithHelp("Print the mirror plan without mutating local storage"),
@@ -121,6 +133,7 @@ Examples:
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --max-messages 100
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --since-days 30
+  smailnail mirror --all-mailboxes --mailbox-pattern 'Archive/*'
   smailnail mirror --all-mailboxes --sqlite-path ./mail.db --mirror-root ./mail-mirror
   smailnail mirror --mailbox Archive --reconcile-full-mailbox
   smailnail mirror --print-plan`),
@@ -147,16 +160,18 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 			Driver: "sqlite3",
 			Path:   settings.SQLitePath,
 		},
-		MirrorRoot:      settings.MirrorRoot,
-		SearchMode:      mirror.SearchModeFTS5,
-		PrintPlan:       settings.PrintPlan,
-		SelectedMailbox: settings.Mailbox,
-		AllMailboxes:    settings.AllMailboxes,
-		BatchSize:       settings.BatchSize,
-		MaxMessages:     settings.MaxMessages,
-		SinceDays:       settings.SinceDays,
-		ReconcileFull:   settings.ReconcileFull,
-		ResetState:      settings.ResetMailboxState,
+		MirrorRoot:            settings.MirrorRoot,
+		SearchMode:            mirror.SearchModeFTS5,
+		PrintPlan:             settings.PrintPlan,
+		SelectedMailbox:       settings.Mailbox,
+		AllMailboxes:          settings.AllMailboxes,
+		MailboxPattern:        settings.MailboxPattern,
+		ExcludeMailboxPattern: settings.ExcludeMailboxPattern,
+		BatchSize:             settings.BatchSize,
+		MaxMessages:           settings.MaxMessages,
+		SinceDays:             settings.SinceDays,
+		ReconcileFull:         settings.ReconcileFull,
+		ResetState:            settings.ResetMailboxState,
 	}
 
 	var syncReport *mirror.SyncReport
@@ -177,6 +192,8 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		report.PrintPlan = settings.PrintPlan
 		report.SelectedMailbox = settings.Mailbox
 		report.AllMailboxes = settings.AllMailboxes
+		report.MailboxPattern = settings.MailboxPattern
+		report.ExcludeMailboxPattern = settings.ExcludeMailboxPattern
 		report.BatchSize = settings.BatchSize
 		report.MaxMessages = settings.MaxMessages
 		report.SinceDays = settings.SinceDays
@@ -184,19 +201,21 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 
 		service := mirror.NewService(store)
 		syncReport, err = service.Sync(ctx, mirror.SyncOptions{
-			Server:            settings.Server,
-			Port:              settings.Port,
-			Username:          settings.Username,
-			Password:          settings.Password,
-			Insecure:          settings.Insecure,
-			Mailbox:           settings.Mailbox,
-			AllMailboxes:      settings.AllMailboxes,
-			MirrorRoot:        settings.MirrorRoot,
-			BatchSize:         settings.BatchSize,
-			MaxMessages:       settings.MaxMessages,
-			SinceDays:         settings.SinceDays,
-			ReconcileFull:     settings.ReconcileFull,
-			ResetMailboxState: settings.ResetMailboxState,
+			Server:                settings.Server,
+			Port:                  settings.Port,
+			Username:              settings.Username,
+			Password:              settings.Password,
+			Insecure:              settings.Insecure,
+			Mailbox:               settings.Mailbox,
+			AllMailboxes:          settings.AllMailboxes,
+			MailboxPattern:        settings.MailboxPattern,
+			ExcludeMailboxPattern: settings.ExcludeMailboxPattern,
+			MirrorRoot:            settings.MirrorRoot,
+			BatchSize:             settings.BatchSize,
+			MaxMessages:           settings.MaxMessages,
+			SinceDays:             settings.SinceDays,
+			ReconcileFull:         settings.ReconcileFull,
+			ResetMailboxState:     settings.ResetMailboxState,
 		})
 		if err != nil {
 			return err
@@ -214,6 +233,8 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	row.Set("schema_version", report.SchemaVersion)
 	row.Set("selected_mailbox", report.SelectedMailbox)
 	row.Set("all_mailboxes", report.AllMailboxes)
+	row.Set("mailbox_pattern", report.MailboxPattern)
+	row.Set("exclude_mailbox_pattern", report.ExcludeMailboxPattern)
 	row.Set("batch_size", report.BatchSize)
 	row.Set("max_messages", report.MaxMessages)
 	row.Set("since_days", report.SinceDays)

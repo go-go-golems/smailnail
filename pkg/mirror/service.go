@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -18,19 +19,21 @@ import (
 )
 
 type SyncOptions struct {
-	Server            string
-	Port              int
-	Username          string
-	Password          string
-	Insecure          bool
-	Mailbox           string
-	AllMailboxes      bool
-	MirrorRoot        string
-	BatchSize         int
-	MaxMessages       int
-	SinceDays         int
-	ResetMailboxState bool
-	ReconcileFull     bool
+	Server                string
+	Port                  int
+	Username              string
+	Password              string
+	Insecure              bool
+	Mailbox               string
+	AllMailboxes          bool
+	MailboxPattern        string
+	ExcludeMailboxPattern string
+	MirrorRoot            string
+	BatchSize             int
+	MaxMessages           int
+	SinceDays             int
+	ResetMailboxState     bool
+	ReconcileFull         bool
 }
 
 type imapSession interface {
@@ -77,6 +80,8 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		Str("username", normalized.Username).
 		Str("mailbox", normalized.Mailbox).
 		Bool("all_mailboxes", normalized.AllMailboxes).
+		Str("mailbox_pattern", normalized.MailboxPattern).
+		Str("exclude_mailbox_pattern", normalized.ExcludeMailboxPattern).
 		Int("batch_size", normalized.BatchSize).
 		Int("max_messages", normalized.MaxMessages).
 		Int("since_days", normalized.SinceDays).
@@ -111,10 +116,12 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		Msg("Resolved mailboxes for mirror sync")
 
 	report := &SyncReport{
-		AccountKey:       accountKey,
-		MailboxesPlanned: len(mailboxes),
-		MaxMessages:      normalized.MaxMessages,
-		SinceDays:        normalized.SinceDays,
+		AccountKey:            accountKey,
+		MailboxesPlanned:      len(mailboxes),
+		MailboxPattern:        normalized.MailboxPattern,
+		ExcludeMailboxPattern: normalized.ExcludeMailboxPattern,
+		MaxMessages:           normalized.MaxMessages,
+		SinceDays:             normalized.SinceDays,
 	}
 	for _, mailboxName := range mailboxes {
 		if normalized.MaxMessages > 0 && report.MessagesFetched >= normalized.MaxMessages {
@@ -187,6 +194,16 @@ func validateSyncOptions(opts SyncOptions) error {
 	if strings.TrimSpace(opts.Password) == "" {
 		return fmt.Errorf("password is required")
 	}
+	if strings.TrimSpace(opts.MailboxPattern) != "" {
+		if _, err := path.Match(opts.MailboxPattern, "INBOX"); err != nil {
+			return fmt.Errorf("invalid mailbox-pattern: %w", err)
+		}
+	}
+	if strings.TrimSpace(opts.ExcludeMailboxPattern) != "" {
+		if _, err := path.Match(opts.ExcludeMailboxPattern, "INBOX"); err != nil {
+			return fmt.Errorf("invalid exclude-mailbox-pattern: %w", err)
+		}
+	}
 	if opts.SinceDays < 0 {
 		return fmt.Errorf("since-days must be >= 0")
 	}
@@ -211,6 +228,13 @@ func (s *Service) resolveMailboxes(session imapSession, opts SyncOptions) ([]str
 		if mailbox.Name == "" || mailboxHasNoSelect(mailbox.Flags) {
 			continue
 		}
+		matches, err := mailboxSelectedByPatterns(mailbox.Name, opts.MailboxPattern, opts.ExcludeMailboxPattern)
+		if err != nil {
+			return nil, err
+		}
+		if !matches {
+			continue
+		}
 		ret = append(ret, mailbox.Name)
 	}
 
@@ -220,6 +244,28 @@ func (s *Service) resolveMailboxes(session imapSession, opts SyncOptions) ([]str
 		Int("mailboxes_selected", len(ret)).
 		Msg("Enumerated selectable mailboxes")
 	return ret, nil
+}
+
+func mailboxSelectedByPatterns(mailboxName, includePattern, excludePattern string) (bool, error) {
+	if includePattern != "" {
+		matched, err := path.Match(includePattern, mailboxName)
+		if err != nil {
+			return false, errors.Wrap(err, "match mailbox-pattern")
+		}
+		if !matched {
+			return false, nil
+		}
+	}
+	if excludePattern != "" {
+		matched, err := path.Match(excludePattern, mailboxName)
+		if err != nil {
+			return false, errors.Wrap(err, "match exclude-mailbox-pattern")
+		}
+		if matched {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func mailboxHasNoSelect(flags []string) bool {

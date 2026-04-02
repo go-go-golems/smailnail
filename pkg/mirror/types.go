@@ -55,20 +55,22 @@ type MessageRecord struct {
 }
 
 type BootstrapReport struct {
-	Database        DatabaseInfo `json:"database"`
-	MirrorRoot      string       `json:"mirrorRoot"`
-	SearchMode      string       `json:"searchMode"`
-	FTSAvailable    bool         `json:"ftsAvailable"`
-	FTSStatus       string       `json:"ftsStatus"`
-	SchemaVersion   int          `json:"schemaVersion"`
-	PrintPlan       bool         `json:"printPlan"`
-	SelectedMailbox string       `json:"selectedMailbox"`
-	AllMailboxes    bool         `json:"allMailboxes"`
-	BatchSize       int          `json:"batchSize"`
-	MaxMessages     int          `json:"maxMessages"`
-	SinceDays       int          `json:"sinceDays"`
-	ResetState      bool         `json:"resetState"`
-	ReconcileFull   bool         `json:"reconcileFull"`
+	Database              DatabaseInfo `json:"database"`
+	MirrorRoot            string       `json:"mirrorRoot"`
+	SearchMode            string       `json:"searchMode"`
+	FTSAvailable          bool         `json:"ftsAvailable"`
+	FTSStatus             string       `json:"ftsStatus"`
+	SchemaVersion         int          `json:"schemaVersion"`
+	PrintPlan             bool         `json:"printPlan"`
+	SelectedMailbox       string       `json:"selectedMailbox"`
+	AllMailboxes          bool         `json:"allMailboxes"`
+	MailboxPattern        string       `json:"mailboxPattern"`
+	ExcludeMailboxPattern string       `json:"excludeMailboxPattern"`
+	BatchSize             int          `json:"batchSize"`
+	MaxMessages           int          `json:"maxMessages"`
+	SinceDays             int          `json:"sinceDays"`
+	ResetState            bool         `json:"resetState"`
+	ReconcileFull         bool         `json:"reconcileFull"`
 }
 
 type RawMessageResult struct {
@@ -96,17 +98,19 @@ type MailboxSyncResult struct {
 }
 
 type SyncReport struct {
-	AccountKey         string              `json:"accountKey"`
-	MailboxesPlanned   int                 `json:"mailboxesPlanned"`
-	MailboxesSynced    int                 `json:"mailboxesSynced"`
-	MaxMessages        int                 `json:"maxMessages"`
-	MaxMessagesReached bool                `json:"maxMessagesReached"`
-	SinceDays          int                 `json:"sinceDays"`
-	MessagesFetched    int                 `json:"messagesFetched"`
-	MessagesStored     int                 `json:"messagesStored"`
-	RawFilesWritten    int                 `json:"rawFilesWritten"`
-	ReusedFileWrites   int                 `json:"reusedFileWrites"`
-	TombstonedMessages int                 `json:"tombstonedMessages"`
-	RestoredMessages   int                 `json:"restoredMessages"`
-	Mailboxes          []MailboxSyncResult `json:"mailboxes"`
+	AccountKey            string              `json:"accountKey"`
+	MailboxesPlanned      int                 `json:"mailboxesPlanned"`
+	MailboxesSynced       int                 `json:"mailboxesSynced"`
+	MailboxPattern        string              `json:"mailboxPattern"`
+	ExcludeMailboxPattern string              `json:"excludeMailboxPattern"`
+	MaxMessages           int                 `json:"maxMessages"`
+	MaxMessagesReached    bool                `json:"maxMessagesReached"`
+	SinceDays             int                 `json:"sinceDays"`
+	MessagesFetched       int                 `json:"messagesFetched"`
+	MessagesStored        int                 `json:"messagesStored"`
+	RawFilesWritten       int                 `json:"rawFilesWritten"`
+	ReusedFileWrites      int                 `json:"reusedFileWrites"`
+	TombstonedMessages    int                 `json:"tombstonedMessages"`
+	RestoredMessages      int                 `json:"restoredMessages"`
+	Mailboxes             []MailboxSyncResult `json:"mailboxes"`
 }
