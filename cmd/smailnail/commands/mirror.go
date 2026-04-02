@@ -11,8 +11,10 @@ import (
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
+	enrichpkg "github.com/go-go-golems/smailnail/pkg/enrich"
 	"github.com/go-go-golems/smailnail/pkg/imap"
 	"github.com/go-go-golems/smailnail/pkg/mirror"
+	"github.com/rs/zerolog/log"
 )
 
 type MirrorCommand struct {
@@ -34,6 +36,7 @@ type MirrorSettings struct {
 	PrintPlan             bool   `glazed:"print-plan"`
 	ReconcileFull         bool   `glazed:"reconcile-full-mailbox"`
 	ResetMailboxState     bool   `glazed:"reset-mailbox-state"`
+	EnrichAfter           bool   `glazed:"enrich-after"`
 
 	imap.IMAPSettings
 }
@@ -133,6 +136,12 @@ func NewMirrorCommand() (*MirrorCommand, error) {
 				fields.WithHelp("Reset stored local mailbox sync state before syncing"),
 				fields.WithDefault(false),
 			),
+			fields.New(
+				"enrich-after",
+				fields.TypeBool,
+				fields.WithHelp("Run sender, thread, and unsubscribe enrichment after a successful sync"),
+				fields.WithDefault(false),
+			),
 		),
 	)
 	if err != nil {
@@ -153,6 +162,7 @@ Examples:
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --max-messages 100
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --since-days 30
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --since-date 2026-03-01 --before-date 2026-04-01
+  smailnail mirror --sqlite-path ./mail.db --enrich-after
   smailnail mirror --all-mailboxes --mailbox-pattern 'Archive/*'
   smailnail mirror --all-mailboxes --sqlite-path ./mail.db --mirror-root ./mail-mirror
   smailnail mirror --mailbox Archive --reconcile-full-mailbox
@@ -198,6 +208,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	}
 
 	var syncReport *mirror.SyncReport
+	var enrichReport *enrichpkg.AllReport
 	if !settings.PrintPlan {
 		store, err := mirror.OpenStore(settings.SQLitePath)
 		if err != nil {
@@ -249,6 +260,22 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		if err != nil {
 			return err
 		}
+
+		if settings.EnrichAfter {
+			mailboxScope := settings.Mailbox
+			if settings.AllMailboxes {
+				mailboxScope = ""
+			}
+			enrichment, err := enrichpkg.RunAll(ctx, settings.SQLitePath, enrichpkg.Options{
+				AccountKey: syncReport.AccountKey,
+				Mailbox:    mailboxScope,
+			})
+			if err != nil {
+				log.Warn().Err(err).Str("sqlite_path", settings.SQLitePath).Msg("post-sync enrichment failed")
+			} else {
+				enrichReport = &enrichment
+			}
+		}
 	}
 
 	row := types.NewRow()
@@ -272,6 +299,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	row.Set("stop_on_error", report.StopOnError)
 	row.Set("reconcile_full_mailbox", report.ReconcileFull)
 	row.Set("reset_mailbox_state", report.ResetState)
+	row.Set("enrich_after", settings.EnrichAfter)
 	if syncReport != nil {
 		row.Set("account_key", syncReport.AccountKey)
 		row.Set("mailboxes_planned", syncReport.MailboxesPlanned)
@@ -285,6 +313,18 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		row.Set("reused_file_writes", syncReport.ReusedFileWrites)
 		row.Set("messages_tombstoned", syncReport.TombstonedMessages)
 		row.Set("messages_restored", syncReport.RestoredMessages)
+	}
+	if enrichReport != nil {
+		row.Set("enrich_senders_created", enrichReport.Senders.SendersCreated)
+		row.Set("enrich_senders_updated", enrichReport.Senders.SendersUpdated)
+		row.Set("enrich_messages_tagged", enrichReport.Senders.MessagesTagged)
+		row.Set("enrich_threads_processed", enrichReport.Threads.MessagesProcessed)
+		row.Set("enrich_threads_created", enrichReport.Threads.ThreadsCreated)
+		row.Set("enrich_threads_updated", enrichReport.Threads.ThreadsUpdated)
+		row.Set("enrich_senders_with_unsubscribe", enrichReport.Unsubscribe.SendersWithUnsubscribe)
+		row.Set("enrich_mailto_links", enrichReport.Unsubscribe.MailtoLinks)
+		row.Set("enrich_http_links", enrichReport.Unsubscribe.HTTPLinks)
+		row.Set("enrich_one_click_links", enrichReport.Unsubscribe.OneClickLinks)
 	}
 
 	return gp.AddRow(ctx, row)
