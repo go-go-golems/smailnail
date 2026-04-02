@@ -90,6 +90,23 @@ func main() {
 	}
 	rootCmd.AddCommand(cobraMirrorCmd)
 
+	mergeMirrorCmd, err := commands.NewMergeMirrorShardsCommand()
+	if err != nil {
+		fmt.Printf("Error creating merge mirror shards command: %v\n", err)
+		os.Exit(1)
+	}
+
+	cobraMergeMirrorCmd, err := cli.BuildCobraCommandFromCommand(mergeMirrorCmd,
+		cli.WithParserConfig(cli.CobraParserConfig{
+			AppName: "smailnail",
+		}),
+	)
+	if err != nil {
+		fmt.Printf("Error building merge mirror shards Cobra command: %v\n", err)
+		os.Exit(1)
+	}
+	rootCmd.AddCommand(cobraMergeMirrorCmd)
+
 	enrichCmd, err := enrichcommands.NewEnrichCommand()
 	if err != nil {
 		fmt.Printf("Error creating enrich command group: %v\n", err)
