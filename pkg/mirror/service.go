@@ -27,6 +27,7 @@ type SyncOptions struct {
 	AllMailboxes      bool
 	MirrorRoot        string
 	BatchSize         int
+	MaxMessages       int
 	ResetMailboxState bool
 	ReconcileFull     bool
 }
@@ -76,6 +77,7 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		Str("mailbox", normalized.Mailbox).
 		Bool("all_mailboxes", normalized.AllMailboxes).
 		Int("batch_size", normalized.BatchSize).
+		Int("max_messages", normalized.MaxMessages).
 		Bool("reconcile_full_mailbox", normalized.ReconcileFull).
 		Bool("reset_mailbox_state", normalized.ResetMailboxState).
 		Msg("Starting IMAP mirror sync")
@@ -109,13 +111,22 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 	report := &SyncReport{
 		AccountKey:       accountKey,
 		MailboxesPlanned: len(mailboxes),
+		MaxMessages:      normalized.MaxMessages,
 	}
 	for _, mailboxName := range mailboxes {
+		if normalized.MaxMessages > 0 && report.MessagesFetched >= normalized.MaxMessages {
+			report.MaxMessagesReached = true
+			log.Info().
+				Str("account_key", accountKey).
+				Int("max_messages", normalized.MaxMessages).
+				Msg("Stopping mirror sync because max message limit was reached")
+			break
+		}
 		log.Info().
 			Str("account_key", accountKey).
 			Str("mailbox", mailboxName).
 			Msg("Syncing mailbox")
-		mailboxReport, err := s.syncMailbox(ctx, session, accountKey, mailboxName, normalized)
+		mailboxReport, err := s.syncMailbox(ctx, session, accountKey, mailboxName, normalized, report.MessagesFetched)
 		if err != nil {
 			return nil, errors.Wrapf(err, "sync mailbox %s", mailboxName)
 		}
@@ -127,11 +138,16 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		report.ReusedFileWrites += mailboxReport.ReusedFileWrites
 		report.TombstonedMessages += mailboxReport.TombstonedMessages
 		report.RestoredMessages += mailboxReport.RestoredMessages
+		if mailboxReport.MaxMessagesReached {
+			report.MaxMessagesReached = true
+		}
 	}
 
 	log.Info().
 		Str("account_key", report.AccountKey).
 		Int("mailboxes_synced", report.MailboxesSynced).
+		Int("max_messages", report.MaxMessages).
+		Bool("max_messages_reached", report.MaxMessagesReached).
 		Int("messages_fetched", report.MessagesFetched).
 		Int("messages_stored", report.MessagesStored).
 		Int("raw_files_written", report.RawFilesWritten).
@@ -214,6 +230,7 @@ func (s *Service) syncMailbox(
 	session imapSession,
 	accountKey, mailboxName string,
 	opts SyncOptions,
+	fetchedSoFar int,
 ) (*MailboxSyncResult, error) {
 	log.Debug().
 		Str("account_key", accountKey).
@@ -319,6 +336,33 @@ func (s *Service) syncMailbox(
 			return nil, err
 		}
 		return report, nil
+	}
+
+	if opts.MaxMessages > 0 {
+		remaining := opts.MaxMessages - fetchedSoFar
+		if remaining <= 0 {
+			report.MaxMessagesReached = true
+			log.Info().
+				Str("account_key", accountKey).
+				Str("mailbox", mailboxName).
+				Int("max_messages", opts.MaxMessages).
+				Msg("Skipping mailbox because max message limit was already reached")
+			if err := s.finalizeMailboxSync(ctx, session, accountKey, mailboxName, status, report, opts.ReconcileFull); err != nil {
+				return nil, err
+			}
+			return report, nil
+		}
+		if len(uids) > remaining {
+			report.MaxMessagesReached = true
+			log.Info().
+				Str("account_key", accountKey).
+				Str("mailbox", mailboxName).
+				Int("uids_found", len(uids)).
+				Int("uids_selected", remaining).
+				Int("max_messages", opts.MaxMessages).
+				Msg("Truncating mailbox UID list to respect max message limit")
+			uids = uids[:remaining]
+		}
 	}
 
 	log.Info().

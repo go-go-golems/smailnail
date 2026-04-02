@@ -65,6 +65,7 @@ type BootstrapReport struct {
 	SelectedMailbox string       `json:"selectedMailbox"`
 	AllMailboxes    bool         `json:"allMailboxes"`
 	BatchSize       int          `json:"batchSize"`
+	MaxMessages     int          `json:"maxMessages"`
 	ResetState      bool         `json:"resetState"`
 	ReconcileFull   bool         `json:"reconcileFull"`
 }
@@ -88,6 +89,7 @@ type MailboxSyncResult struct {
 	ReusedFileWrites   int    `json:"reusedFileWrites"`
 	TombstonedMessages int    `json:"tombstonedMessages"`
 	RestoredMessages   int    `json:"restoredMessages"`
+	MaxMessagesReached bool   `json:"maxMessagesReached"`
 	ReconcileApplied   bool   `json:"reconcileApplied"`
 	ResetApplied       bool   `json:"resetApplied"`
 }
@@ -96,6 +98,8 @@ type SyncReport struct {
 	AccountKey         string              `json:"accountKey"`
 	MailboxesPlanned   int                 `json:"mailboxesPlanned"`
 	MailboxesSynced    int                 `json:"mailboxesSynced"`
+	MaxMessages        int                 `json:"maxMessages"`
+	MaxMessagesReached bool                `json:"maxMessagesReached"`
 	MessagesFetched    int                 `json:"messagesFetched"`
 	MessagesStored     int                 `json:"messagesStored"`
 	RawFilesWritten    int                 `json:"rawFilesWritten"`

@@ -23,6 +23,7 @@ type MirrorSettings struct {
 	SQLitePath        string `glazed:"sqlite-path"`
 	MirrorRoot        string `glazed:"mirror-root"`
 	BatchSize         int    `glazed:"batch-size"`
+	MaxMessages       int    `glazed:"max-messages"`
 	AllMailboxes      bool   `glazed:"all-mailboxes"`
 	PrintPlan         bool   `glazed:"print-plan"`
 	ReconcileFull     bool   `glazed:"reconcile-full-mailbox"`
@@ -65,6 +66,12 @@ func NewMirrorCommand() (*MirrorCommand, error) {
 				fields.WithDefault(100),
 			),
 			fields.New(
+				"max-messages",
+				fields.TypeInteger,
+				fields.WithHelp("Maximum number of messages to fetch across the whole sync run (0 means no limit)"),
+				fields.WithDefault(0),
+			),
+			fields.New(
 				"all-mailboxes",
 				fields.TypeBool,
 				fields.WithHelp("Mirror all listed mailboxes instead of only the selected mailbox"),
@@ -105,6 +112,7 @@ later sync phases use for durable mailbox downloads.
 
 Examples:
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX
+  smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --max-messages 100
   smailnail mirror --all-mailboxes --sqlite-path ./mail.db --mirror-root ./mail-mirror
   smailnail mirror --mailbox Archive --reconcile-full-mailbox
   smailnail mirror --print-plan`),
@@ -137,6 +145,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		SelectedMailbox: settings.Mailbox,
 		AllMailboxes:    settings.AllMailboxes,
 		BatchSize:       settings.BatchSize,
+		MaxMessages:     settings.MaxMessages,
 		ReconcileFull:   settings.ReconcileFull,
 		ResetState:      settings.ResetMailboxState,
 	}
@@ -160,6 +169,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		report.SelectedMailbox = settings.Mailbox
 		report.AllMailboxes = settings.AllMailboxes
 		report.BatchSize = settings.BatchSize
+		report.MaxMessages = settings.MaxMessages
 		report.ResetState = settings.ResetMailboxState
 
 		service := mirror.NewService(store)
@@ -173,6 +183,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 			AllMailboxes:      settings.AllMailboxes,
 			MirrorRoot:        settings.MirrorRoot,
 			BatchSize:         settings.BatchSize,
+			MaxMessages:       settings.MaxMessages,
 			ReconcileFull:     settings.ReconcileFull,
 			ResetMailboxState: settings.ResetMailboxState,
 		})
@@ -193,12 +204,14 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	row.Set("selected_mailbox", report.SelectedMailbox)
 	row.Set("all_mailboxes", report.AllMailboxes)
 	row.Set("batch_size", report.BatchSize)
+	row.Set("max_messages", report.MaxMessages)
 	row.Set("reconcile_full_mailbox", report.ReconcileFull)
 	row.Set("reset_mailbox_state", report.ResetState)
 	if syncReport != nil {
 		row.Set("account_key", syncReport.AccountKey)
 		row.Set("mailboxes_planned", syncReport.MailboxesPlanned)
 		row.Set("mailboxes_synced", syncReport.MailboxesSynced)
+		row.Set("max_messages_reached", syncReport.MaxMessagesReached)
 		row.Set("messages_fetched", syncReport.MessagesFetched)
 		row.Set("messages_stored", syncReport.MessagesStored)
 		row.Set("raw_files_written", syncReport.RawFilesWritten)

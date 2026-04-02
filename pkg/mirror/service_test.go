@@ -93,6 +93,61 @@ func TestServiceSyncPersistsIncrementalMessages(t *testing.T) {
 	assertFileExists(t, rawPath)
 }
 
+func TestServiceSyncHonorsMaxMessages(t *testing.T) {
+	store := openTestStore(t)
+	root := t.TempDir()
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	session := newFakeIMAPSession()
+	session.mailboxes = []mailruntime.MailboxInfo{{Name: "INBOX"}}
+	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 4}
+	session.messages["INBOX"] = map[uint32]*mailruntime.FetchedMessage{
+		1: newFetchedMessage(1, "Alpha"),
+		2: newFetchedMessage(2, "Beta"),
+		3: newFetchedMessage(3, "Gamma"),
+	}
+
+	service := NewService(store)
+	service.dial = func(_ context.Context, _ mailruntime.IMAPOptions) (imapSession, error) {
+		return session, nil
+	}
+	service.now = func() time.Time { return time.Date(2026, 4, 1, 19, 50, 0, 0, time.UTC) }
+
+	report, err := service.Sync(t.Context(), SyncOptions{
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   10,
+		MaxMessages: 2,
+	})
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if report.MessagesFetched != 2 || report.MessagesStored != 2 {
+		t.Fatalf("expected max-limited sync to fetch/store 2 messages, got %+v", report)
+	}
+	if !report.MaxMessagesReached {
+		t.Fatalf("expected sync report to record max message limit, got %+v", report)
+	}
+	if got := countMessages(t, store.db, "INBOX"); got != 2 {
+		t.Fatalf("expected 2 mirrored messages after limited sync, got %d", got)
+	}
+
+	state, err := loadMailboxSyncState(t.Context(), store.db, AccountKey("localhost", 993, "a"), "INBOX")
+	if err != nil {
+		t.Fatalf("loadMailboxSyncState() error = %v", err)
+	}
+	if state == nil || state.HighestUID != 2 {
+		t.Fatalf("expected max-limited sync to checkpoint at UID 2, got %+v", state)
+	}
+}
+
 func TestServiceSyncResetsOnUIDValidityChange(t *testing.T) {
 	store := openTestStore(t)
 	root := t.TempDir()
