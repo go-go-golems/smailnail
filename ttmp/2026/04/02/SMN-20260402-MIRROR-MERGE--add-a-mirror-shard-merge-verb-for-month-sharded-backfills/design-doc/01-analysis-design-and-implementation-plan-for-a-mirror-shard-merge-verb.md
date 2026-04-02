@@ -12,12 +12,18 @@ Intent: long-term
 Owners:
     - manuel
 RelatedFiles:
+    - Path: cmd/smailnail/commands/merge_mirror_shards.go
+      Note: Initial Glazed command implementation for merge-mirror-shards
     - Path: cmd/smailnail/commands/mirror.go
       Note: Reference command shape and Glazed field/output patterns for the future merge verb
     - Path: cmd/smailnail/main.go
       Note: Register the new merge verb alongside mirror and enrich commands
     - Path: pkg/mirror/files.go
       Note: Relative raw-path contract and raw message write semantics
+    - Path: pkg/mirror/merge.go
+      Note: Dry-run merge service
+    - Path: pkg/mirror/merge_test.go
+      Note: Initial tests for shard discovery
     - Path: pkg/mirror/schema.go
       Note: Mirror schema
     - Path: pkg/mirror/service.go
@@ -32,6 +38,7 @@ LastUpdated: 2026-04-02T16:14:59.716157724-04:00
 WhatFor: Explain how to add a first-class smailnail command that merges month-sharded mirror databases and raw-message trees into one local mirror.
 WhenToUse: Use when implementing, reviewing, or extending a merge verb for parallel mirror backfills.
 ---
+
 
 
 # Analysis, design, and implementation plan for a mirror shard merge verb

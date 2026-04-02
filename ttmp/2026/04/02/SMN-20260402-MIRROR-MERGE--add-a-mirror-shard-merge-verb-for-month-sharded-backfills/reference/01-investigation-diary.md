@@ -12,10 +12,16 @@ Intent: long-term
 Owners:
     - manuel
 RelatedFiles:
+    - Path: cmd/smailnail/commands/merge_mirror_shards.go
+      Note: Diary record for the initial merge command surface
     - Path: cmd/smailnail/commands/mirror.go
       Note: Diary evidence for current mirror command behavior and operator contract
     - Path: pkg/mirror/files.go
       Note: Diary evidence for raw file naming and SHA semantics
+    - Path: pkg/mirror/merge.go
+      Note: Diary record for the first merge service slice
+    - Path: pkg/mirror/merge_test.go
+      Note: Diary record for the first merge tests
     - Path: pkg/mirror/schema.go
       Note: Diary evidence for schema versioning and derived-state tables
     - Path: pkg/mirror/service.go
@@ -28,6 +34,7 @@ LastUpdated: 2026-04-02T16:14:59.780360632-04:00
 WhatFor: Chronological record of the analysis work used to design the mirror shard merge verb.
 WhenToUse: Use when continuing the merge-verb design or reviewing why the proposed architecture was chosen.
 ---
+
 
 
 # Investigation diary
@@ -280,3 +287,101 @@ I don't understand the last point"
 
 ### Technical details
 - The current normal download command already exposes `enrich-after` in `cmd/smailnail/commands/mirror.go`.
+
+## Step 4: Add the merge command shell and a dry-run inspection path
+
+The first implementation slice was deliberately narrow. I added a real `merge-mirror-shards` command to the CLI, but only with discovery and inspection behavior. That means the command can now scan an input root, identify shard directories, inspect their SQLite metadata, detect simple UIDVALIDITY conflicts, and return a dry-run report. It does not yet copy rows or files, which keeps the first code slice safe and easy to validate.
+
+This was the right place to start because the merge feature has two very different responsibilities: preflight and execution. Preflight needs to be correct before execution can be trusted. By committing that slice first, we now have a stable command surface and a tested representation of shard inputs, and the next slice can focus entirely on merge semantics.
+
+### Prompt Context
+
+**User prompt (verbatim):** "option 1 .
+
+Now create tasks in the ticket and implement them one by one, committing at appropriate intervals, and keeping a detailed diary as you go."
+
+**Assistant interpretation:** Turn the merge ticket into an execution plan, then implement the feature incrementally with small commits and contemporaneous diary updates.
+
+**Inferred user intent:** Drive the merge feature from design into actual code while preserving traceability and reviewability.
+
+**Commit (code):** `a6a9099` — "feat(mirror): add shard merge dry-run command"
+
+### What I did
+- Added a new CLI command in `cmd/smailnail/commands/merge_mirror_shards.go`.
+- Registered the command in `cmd/smailnail/main.go`.
+- Added `pkg/mirror/merge.go` with:
+  - `MergeOptions`,
+  - `MergeShardInfo`,
+  - `MergeReport`,
+  - `MergeService`,
+  - root-based shard discovery,
+  - shard inspection,
+  - UIDVALIDITY conflict validation,
+  - dry-run reporting.
+- Added `pkg/mirror/merge_test.go` with tests for:
+  - shard discovery,
+  - shard glob filtering,
+  - missing raw-root warnings,
+  - UIDVALIDITY conflict rejection.
+- Ran targeted tests and a full CLI build, then fixed one `staticcheck` lint issue before committing.
+
+### Why
+- The merge command needed a stable contract before implementing destructive behavior.
+- Dry-run inspection gives operators a safe way to confirm what the merge sees.
+- The merge service types and shard model are the foundation for the later row/file merge logic.
+
+### What worked
+- The Glazed command pattern from `mirror.go` translated cleanly to a new merge command.
+- The existing mirror schema and raw-root conventions were enough to inspect shards without any special migration work.
+- The temp-dir fixture pattern from existing mirror tests made it easy to create realistic shard databases in tests.
+
+### What didn't work
+- The first commit attempt failed pre-commit linting because `staticcheck` flagged one struct literal conversion in `pkg/mirror/merge.go`:
+
+```text
+pkg/mirror/merge.go:258:41: S1016: should convert row (type mailboxUIDValidityRow) to MergeShardMailboxInfo instead of using struct literal (staticcheck)
+```
+
+- Command used:
+```bash
+git add cmd/smailnail/main.go cmd/smailnail/commands/merge_mirror_shards.go pkg/mirror/merge.go pkg/mirror/merge_test.go
+git commit -m "feat(mirror): add shard merge dry-run command"
+```
+
+- I fixed the lint issue, reran `gofmt`, and retried the commit successfully.
+
+### What I learned
+- The shard inspection code needs a precise `(account_key, mailbox_name, uidvalidity)` model. A looser per-mailbox-only representation would have produced misleading conflict checks.
+- Test shard creation must use a real shard-local SQLite path. Reusing the generic in-memory-style helper would have hidden path assumptions that the merge command depends on.
+
+### What was tricky to build
+- The subtle bug in the first draft was the shard test fixture path. The existing `openTestStore()` helper uses an internal temp DB path that is fine for service tests, but the merge tests need an actual on-disk `mirror.sqlite` exactly where shard discovery expects it. That made the shard fixture builder slightly different from the normal service test setup.
+
+### What warrants a second pair of eyes
+- The current dry-run validator only checks schema compatibility and UIDVALIDITY conflicts. The next slice will need deeper destination and raw-path conflict handling, so reviewers should look at whether the current types cleanly support that extension.
+- The command currently returns a “not implemented yet” error for non-dry-run mode. That is intentional for this slice, but it means the next slice must replace that error path cleanly.
+
+### What should be done in the future
+- Implement actual row and raw-file merge execution.
+- Add destination bootstrap and conflict handling.
+- Extend tests from dry-run coverage into end-to-end merge coverage.
+
+### Code review instructions
+- Start with:
+  - `cmd/smailnail/commands/merge_mirror_shards.go`
+  - `pkg/mirror/merge.go`
+  - `pkg/mirror/merge_test.go`
+  - `cmd/smailnail/main.go`
+- Validate with:
+```bash
+go test -tags sqlite_fts5 ./pkg/mirror -run 'TestMergeService|TestDiscoverMergeShards'
+go build -tags sqlite_fts5 ./cmd/smailnail
+```
+
+### Technical details
+- The dry-run command reports shard metadata and warnings but intentionally refuses non-dry-run execution until the merge path is implemented.
+- Pre-commit validation for the successful commit ran:
+```bash
+golangci-lint run -v --build-tags sqlite_fts5
+go test -tags "sqlite_fts5" ./...
+```

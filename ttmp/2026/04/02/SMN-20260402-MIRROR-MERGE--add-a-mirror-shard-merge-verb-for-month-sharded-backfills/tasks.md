@@ -13,8 +13,8 @@
 ## Implementation
 
 - [x] Lock the v1 product decisions in the design docs: `--enrich-after` on merge, missing raw files warn by default, root-based shard discovery only.
-- [ ] Add the `merge-mirror-shards` Glazed command and wire it into `cmd/smailnail/main.go`.
-- [ ] Implement shard discovery and dry-run inspection reporting in `pkg/mirror`.
+- [x] Add the `merge-mirror-shards` Glazed command and wire it into `cmd/smailnail/main.go`.
+- [x] Implement shard discovery and dry-run inspection reporting in `pkg/mirror`.
 - [ ] Implement canonical message-row merge and destination upsert behavior.
 - [ ] Implement raw-file copy/reuse logic with warning-by-default handling for missing source files.
 - [ ] Rebuild `mailbox_sync_state` from merged destination rows.
