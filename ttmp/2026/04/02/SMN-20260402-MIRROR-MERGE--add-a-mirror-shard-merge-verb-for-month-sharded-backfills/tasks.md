@@ -15,11 +15,11 @@
 - [x] Lock the v1 product decisions in the design docs: `--enrich-after` on merge, missing raw files warn by default, root-based shard discovery only.
 - [x] Add the `merge-mirror-shards` Glazed command and wire it into `cmd/smailnail/main.go`.
 - [x] Implement shard discovery and dry-run inspection reporting in `pkg/mirror`.
-- [ ] Implement canonical message-row merge and destination upsert behavior.
-- [ ] Implement raw-file copy/reuse logic with warning-by-default handling for missing source files.
-- [ ] Rebuild `mailbox_sync_state` from merged destination rows.
-- [ ] Rebuild `messages_fts` from the merged `messages` table.
-- [ ] Add optional `--enrich-after` support for the merge verb.
-- [ ] Add focused unit tests for discovery, conflicts, raw warnings, state rebuild, FTS rebuild, and enrich-after behavior.
-- [ ] Validate with targeted `go test` runs and at least one end-to-end local shard merge smoke.
-- [ ] Update the ticket diary, changelog, and implementation docs after each completed slice.
+- [x] Implement canonical message-row merge and destination upsert behavior.
+- [x] Implement raw-file copy/reuse logic with warning-by-default handling for missing source files.
+- [x] Rebuild `mailbox_sync_state` from merged destination rows.
+- [x] Rebuild `messages_fts` from the merged `messages` table.
+- [x] Add optional `--enrich-after` support for the merge verb.
+- [x] Add focused unit tests for discovery, conflicts, raw warnings, state rebuild, FTS rebuild, and enrich-after behavior.
+- [x] Validate with targeted `go test` runs and at least one end-to-end local shard merge smoke.
+- [x] Update the ticket diary, changelog, and implementation docs after each completed slice.

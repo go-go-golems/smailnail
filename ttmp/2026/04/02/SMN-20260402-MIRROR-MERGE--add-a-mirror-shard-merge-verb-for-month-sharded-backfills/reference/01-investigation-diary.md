@@ -385,3 +385,141 @@ go build -tags sqlite_fts5 ./cmd/smailnail
 golangci-lint run -v --build-tags sqlite_fts5
 go test -tags "sqlite_fts5" ./...
 ```
+
+## Step 5: Implement real shard merge execution, rebuild derived state, and smoke it against real shard output
+
+The second code slice replaced the dry-run placeholder with the actual merge execution path. The merge service now bootstraps a destination mirror, iterates shard message rows, copies raw `.eml` files into the destination mirror root, upserts `messages`, rebuilds `mailbox_sync_state`, rebuilds `messages_fts`, and then lets the command optionally run enrichment afterward. This is the first point where the feature became genuinely usable rather than just inspectable.
+
+I also validated the finished path two ways. First with focused package tests covering real merges, raw-file warnings, and strict missing-raw failure. Then with real CLI smokes against the month-sharded backfill root at `/tmp/smailnail-last-24-months-backfill`, including one run with `--enrich-after`. That matters because the command’s input contract comes from those real shard directories, not only from synthetic fixtures.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 4)
+
+**Assistant interpretation:** Continue the task-by-task implementation from the dry-run slice into the real merge execution path, keeping the ticket updated as code lands.
+
+**Inferred user intent:** Finish the feature rather than stopping at planning or command scaffolding.
+
+**Commit (code):** `4acad07` — "feat(mirror): implement shard merge execution"
+
+### What I did
+- Implemented destination bootstrap in `pkg/mirror/merge.go` using `OpenStore(...).Bootstrap(...)`.
+- Implemented per-shard transactional message loading and destination upsert behavior.
+- Implemented raw-file handling with these semantics:
+  - copy when missing in destination,
+  - reuse when destination SHA matches,
+  - hard-fail on destination content conflicts,
+  - warn by default when the source raw file is missing,
+  - hard-fail on missing source raw when `--fail-on-missing-raw` is set.
+- Implemented `mailbox_sync_state` rebuild from merged `messages`.
+- Implemented `messages_fts` rebuild from merged `messages`.
+- Left post-merge enrichment in the command layer, where `--enrich-after` now runs `enrich.RunAll(...)` after a successful merge.
+- Expanded `pkg/mirror/merge_test.go` with tests for:
+  - successful multi-shard merge,
+  - rebuilt mailbox checkpoint values,
+  - rebuilt FTS row counts,
+  - warning-by-default missing raw handling,
+  - strict missing raw failures.
+- Ran a real merge smoke and a real merge-plus-enrichment smoke against `/tmp/smailnail-last-24-months-backfill`.
+
+### Why
+- The merge feature is only useful if it produces one destination mirror that can immediately be searched, resumed, and optionally enriched.
+- Rebuilding checkpoint and FTS state after canonical row merge keeps the implementation simpler and more reliable than trying to maintain derived state incrementally while rows are streaming in.
+- Keeping `--enrich-after` in the command layer matches the existing `mirror` command pattern and avoids coupling the merge service to enrichment internals.
+
+### What worked
+- The per-shard transaction model fit the current schema well.
+- Raw-file reuse and conflict handling worked cleanly once destination path semantics matched the existing `raw_path` contract.
+- The real shard smoke succeeded:
+  - one run merged `2026-03` into `/tmp/smailnail-merge-smoke.sqlite` with `400` messages, `400` copied raw files, `1` rebuilt mailbox state, and `400` rebuilt FTS rows.
+- The enrich-after smoke also succeeded:
+  - one run merged `2026-03` into `/tmp/smailnail-merge-enrich.sqlite` and then reported sender/thread/unsubscribe enrichment counters.
+
+### What didn't work
+- The first execution test run failed because the grouped `MAX(last_synced_at)` query returned a SQLite timestamp string, not a native `time.Time`:
+
+```text
+Merge() error = query rebuilt mailbox sync states: sql: Scan error on column index 4, name "last_sync_at": unsupported Scan, storing driver.Value type string into type *time.Time
+```
+
+- The same run also showed that the shard test fixture was writing raw files under the wrong root for script-shaped shard layouts:
+
+```text
+remove .../2026-03/raw/raw/.../1.eml: no such file or directory
+```
+
+- I fixed both by:
+  - parsing `last_sync_at` from `sql.NullString` with multiple accepted layouts,
+  - changing the test shard builder to write raw files under `<shard>/raw`, matching the actual month-sharded script layout.
+
+- A follow-up rerun then failed once more because I had introduced `sql.NullString` without re-adding the `database/sql` import:
+
+```text
+pkg/mirror/merge.go:537:15: undefined: sql
+```
+
+- After that import fix, the remaining timestamp parse issue was:
+
+```text
+parse rebuilt last_sync_at "2026-04-02 12:00:00+00:00": parsing time "2026-04-02 12:00:00+00:00" as "2006-01-02T15:04:05Z07:00": cannot parse " 12:00:00+00:00" as "T"
+```
+
+- I fixed that by expanding the accepted layouts to include SQLite’s space-separated timestamp form.
+
+### What I learned
+- The shard layout contract from the actual backfill script matters even in unit tests. A synthetic fixture that hides that layout difference can let raw-path bugs slip through.
+- Rebuilding checkpoint state from grouped query results is straightforward, but SQLite timestamp coercion needs defensive parsing.
+- The existing enrichment API is already good enough for the merge command to reuse directly without further abstractions.
+
+### What was tricky to build
+- The trickiest implementation detail was the interaction between `raw_path` and the configured mirror root. The system stores `raw_path` as a relative path that already begins with `raw/...`, while the script-shaped shard root uses `<shard>/raw` as the merge-time mirror root. That means file operations must join against the configured mirror root, not the shard directory itself, and tests have to mirror that exact convention or they will validate the wrong behavior.
+
+### What warrants a second pair of eyes
+- The current merge loads all shard messages into memory per shard. That is fine for the first implementation, but a reviewer should decide whether very large shard merges need row streaming later.
+- The missing-raw warning list currently records warnings verbosely. If operators start merging shards with many gaps, the report shape may need aggregation or truncation.
+- `AllowOverwriteDestination` currently means “allow merge into an existing destination” rather than “clear and replace destination.” That distinction is intentional but should be reviewed for operator clarity.
+
+### What should be done in the future
+- Add help pages and README/operator docs for the new verb.
+- Consider a future streaming row reader for very large shard databases.
+- Decide whether warning aggregation should be capped or summarized.
+
+### Code review instructions
+- Read:
+  - `pkg/mirror/merge.go`
+  - `pkg/mirror/merge_test.go`
+  - `cmd/smailnail/commands/merge_mirror_shards.go`
+- Validate with:
+```bash
+go test -tags sqlite_fts5 ./pkg/mirror ./cmd/smailnail
+golangci-lint run -v --build-tags sqlite_fts5 ./pkg/mirror ./cmd/smailnail/...
+```
+- Real CLI smoke used during implementation:
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info merge-mirror-shards \
+  --input-root /tmp/smailnail-last-24-months-backfill \
+  --shard-glob '2026-0[34]' \
+  --output-sqlite /tmp/smailnail-merge-smoke.sqlite \
+  --output-mirror-root /tmp/smailnail-merge-smoke-root \
+  --output json
+
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info merge-mirror-shards \
+  --input-root /tmp/smailnail-last-24-months-backfill \
+  --shard-glob '2026-03' \
+  --output-sqlite /tmp/smailnail-merge-enrich.sqlite \
+  --output-mirror-root /tmp/smailnail-merge-enrich-root \
+  --enrich-after \
+  --output json
+```
+
+### Technical details
+- Smoke verification after merge:
+```bash
+sqlite3 /tmp/smailnail-merge-smoke.sqlite \
+  'select count(*) from messages; select count(*) from messages_fts; select highest_uid,last_uidnext from mailbox_sync_state;'
+```
+
+- The observed smoke values were:
+  - `messages = 400`
+  - `messages_fts = 400`
+  - `mailbox_sync_state = 857575|857576`
