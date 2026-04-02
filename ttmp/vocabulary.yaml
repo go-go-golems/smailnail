@@ -21,6 +21,12 @@ topics:
       description: Work involving the Glazed command and output framework
     - slug: sqlite
       description: Work involving SQLite storage, schema, or querying
+    - slug: ai
+      description: Artificial intelligence and model-assisted workflows
+    - slug: mirror
+      description: Local mirror storage, synchronization, and related tooling
+    - slug: backfill
+      description: Bulk historical import or reconstruction of prior data ranges
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
