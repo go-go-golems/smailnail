@@ -443,3 +443,31 @@ Fix:
 Commit:
 
 - `6d849cf` `Add annotate CLI verbs for annotations groups and logs`
+
+### 2026-04-02 20:xx Eastern: finalized the ticket bundle
+
+After the code commits, I staged and committed the remaining ticket files so the work is reviewable in git rather than only present in the worktree.
+
+Files tracked in this final ticket-only pass:
+
+- `README.md`
+- `index.md`
+- both design docs
+- all `scripts/` files
+- updated `tasks.md`
+- updated `changelog.md`
+- updated `reference/01-investigation-diary.md`
+
+Validation command for the final ticket state:
+
+```bash
+docmgr doctor --ticket SMN-20260402-ANNOTATION-DESIGN --stale-after 30
+```
+
+Result:
+
+- all checks passed
+
+Commit:
+
+- `9484adb` `Track annotation ticket docs and investigation bundle`

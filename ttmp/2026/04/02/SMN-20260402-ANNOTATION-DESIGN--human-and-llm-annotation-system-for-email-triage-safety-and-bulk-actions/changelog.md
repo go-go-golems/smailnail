@@ -11,3 +11,4 @@
 - Implemented mirror schema v3 and `pkg/annotate` repository support for annotations, groups, and logs
 - Added `smailnail annotate` CLI verbs for annotations, groups, and logs
 - Verified the CLI workflow on a copied enriched mirror database
+- Tracked the full ticket bundle in git and revalidated the workspace with `docmgr doctor`
