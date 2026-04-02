@@ -150,3 +150,15 @@ Step 14: added `--since-days` so first syncs can restrict IMAP search to recent 
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Added recent-mail cutoff handling to the IMAP search criteria path
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added `since_days` reporting fields
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for recent-only sync behavior and cutoff calculations
+
+
+## 2026-04-01
+
+Step 15: added mailbox include and exclude glob filters so `--all-mailboxes` can target only the desired mailbox set (commit 07883ea5ce19c8c24a2ef1207ca1586b097abc3f)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Added `--mailbox-pattern` and `--exclude-mailbox-pattern` and surfaced them in the CLI report row
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Filtered mailbox enumeration through include and exclude glob matching before any mailbox sync begins
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added mailbox-pattern reporting fields
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for mailbox include/exclude filtering behavior

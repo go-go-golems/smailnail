@@ -95,7 +95,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T21:36:32-04:00
+LastUpdated: 2026-04-01T21:39:11-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -1227,6 +1227,55 @@ This step implemented the second sync-scope control: `--since-days`. The goal is
 
 - Implement mailbox include and exclude patterns next, since they belong in the same “restrict the sync scope before doing work” category.
 - Fold the new safety flags into the operator help pages once the rest of the sync-scope controls are finished.
+
+## Step 15: Add Mailbox Include And Exclude Patterns
+
+This step implemented the mailbox-scope controls: `--mailbox-pattern` and `--exclude-mailbox-pattern`. Both belong in the same code path because they operate on the mailbox list returned by IMAP `LIST` before any mailbox is selected or searched.
+
+### Prompt Context
+
+**User prompt (verbatim):** "do all 5, add tasks to the ticket and th etask by task, comitting at appropriate intervals, keep a diary"
+
+**Assistant interpretation:** Continue with the next sync-scope controls, keeping them in focused reviewable slices and updating the ticket as each one lands.
+
+**Inferred user intent:** Multi-mailbox runs should be constrainable at the mailbox-name level so broad accounts can be mirrored selectively.
+
+**Commit (code):** `07883ea5ce19c8c24a2ef1207ca1586b097abc3f` — `feat(mirror): add mailbox pattern filters`
+
+### What I did
+
+- Added `--mailbox-pattern` and `--exclude-mailbox-pattern` to `cmd/smailnail/commands/mirror.go`.
+- Added mailbox-pattern fields to the mirror bootstrap and sync reports.
+- Extended `validateSyncOptions` so invalid glob patterns fail fast.
+- Added `mailboxSelectedByPatterns` in `pkg/mirror/service.go`.
+- Applied include/exclude matching inside `resolveMailboxes` before any mailbox sync work starts.
+- Added `TestResolveMailboxesAppliesIncludeAndExcludePatterns` in `pkg/mirror/service_test.go`.
+
+### Why
+
+- Mailbox scoping belongs as early as possible in the sync flow. Filtering after mailbox enumeration avoids unnecessary selects, searches, and fetches.
+- Include and exclude patterns are a pair: the operator often wants “everything under `Archive/*` except a specific subtree.”
+
+### What worked
+
+- The pattern-filter test proves that `Archive/*` can be combined with `*/2025` exclusion to leave only `Archive/2026`.
+- `smailnail mirror --help` now shows both mailbox-pattern flags.
+- Full pre-commit validation passed after formatting the touched files.
+
+### What didn't work
+
+- The first commit attempt failed only because the touched Go files had not been re-run through `gofmt`.
+- I formatted `mirror.go`, `service.go`, and `types.go`, then retried successfully with no behavior change.
+
+### What I learned
+
+- The cleanest user-facing semantics are glob-style patterns rather than substring matching or regexes. They are expressive enough for mailbox paths and easy to explain.
+- The include and exclude controls are genuinely one implementation slice, because they share validation, selection, and reporting logic.
+
+### What should be done in the future
+
+- Implement `--stop-on-error` next so multi-mailbox runs can continue after one mailbox fails.
+- Update the help pages once all remaining sync-scope flags have landed.
 
 ## Step 9: Add Full-Mailbox Reconciliation And Tombstoning
 
