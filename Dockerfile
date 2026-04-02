@@ -8,7 +8,7 @@ RUN corepack enable && pnpm install --frozen-lockfile
 COPY ui/ ./
 RUN pnpm run build
 
-FROM golang:1.25.8-bookworm AS builder
+FROM golang:1.26.1-bookworm AS builder
 
 WORKDIR /src
 
