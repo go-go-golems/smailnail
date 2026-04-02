@@ -4,14 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
+	"github.com/go-go-golems/smailnail/pkg/enrich"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 )
 
 const (
 	metadataTable        = "mirror_metadata"
-	currentSchemaVersion = 1
+	currentSchemaVersion = 2
 )
 
 type schemaMigration struct {
@@ -70,6 +72,10 @@ func schemaMigrations() []schemaMigration {
 					ON messages(internal_date, sent_date)`,
 			},
 		},
+		{
+			version:    2,
+			statements: enrich.SchemaMigrationV2Statements(),
+		},
 	}
 }
 
@@ -102,6 +108,9 @@ func bootstrapSchema(ctx context.Context, db *sqlx.DB) (BootstrapReport, error) 
 		}
 		for _, statement := range migration.statements {
 			if _, err := db.ExecContext(ctx, statement); err != nil {
+				if isIgnorableMigrationError(err) {
+					continue
+				}
 				return BootstrapReport{}, fmt.Errorf("apply mirror schema version %d: %w", migration.version, err)
 			}
 		}
@@ -160,6 +169,8 @@ func schemaVersion(ctx context.Context, db *sqlx.DB) (int, error) {
 		return 0, nil
 	case "1":
 		return 1, nil
+	case "2":
+		return 2, nil
 	default:
 		return 0, fmt.Errorf("unsupported mirror schema version %q", raw)
 	}
@@ -179,4 +190,12 @@ func setMetadataValue(ctx context.Context, db *sqlx.DB, key, value string) error
 		return errors.Wrapf(err, "set mirror metadata %s", key)
 	}
 	return nil
+}
+
+func isIgnorableMigrationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(err.Error()), "duplicate column name")
 }
