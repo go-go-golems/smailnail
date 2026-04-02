@@ -71,6 +71,37 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --output json
 ```
 
+Run a cautious first sync against a real account:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --since-days 30 \
+  --max-messages 200 \
+  --output json
+```
+
+Run a wider account sync with mailbox filters and partial-failure continuation:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --mailbox-pattern 'Archive/*' \
+  --exclude-mailbox-pattern 'Archive/Spam*' \
+  --stop-on-error=false \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
 Print the mirror plan without creating local files:
 
 ```bash

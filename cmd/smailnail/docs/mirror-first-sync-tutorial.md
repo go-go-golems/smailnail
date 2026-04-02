@@ -14,6 +14,12 @@ Flags:
 - sqlite-path
 - mirror-root
 - mailbox
+- max-messages
+- since-days
+- all-mailboxes
+- mailbox-pattern
+- exclude-mailbox-pattern
+- stop-on-error
 - server
 - username
 - password
@@ -73,9 +79,9 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
 
 Review the output row carefully. The important fields are `sqlite_path`, `mirror_root`, `selected_mailbox`, `all_mailboxes`, and `batch_size`.
 
-## Step 3: Run The First Real Sync
+## Step 3: Run A Bounded First Sync
 
-Once the plan looks correct, remove `--print-plan` and run the real sync:
+Once the plan looks correct, remove `--print-plan` and run the first real sync with explicit safety bounds:
 
 ```bash
 go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
@@ -84,18 +90,27 @@ go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
   --password secret \
   --mailbox INBOX \
   --sqlite-path /tmp/smailnail-demo/mirror.sqlite \
-  --mirror-root /tmp/smailnail-demo/raw
+  --mirror-root /tmp/smailnail-demo/raw \
+  --since-days 30 \
+  --max-messages 200
 ```
 
-On the first run, expect the command to bootstrap the schema and fetch all mail that falls beyond the initial local checkpoint. On later runs, it should only fetch newly seen UIDs unless you reset state.
+On the first run, expect the command to bootstrap the schema and fetch only recent mail until one of those two bounds is hit. On later runs, it should only fetch newly seen UIDs unless you reset state.
 
 The `--log-level info` flag is optional but recommended for first runs. It shows live progress on stderr while the final Glazed output row is still being assembled on stdout.
+
+These two controls solve different problems:
+
+- `--since-days` limits the IMAP search scope before any messages are fetched.
+- `--max-messages` caps the total number of imported messages even if the recent-mail search is still large.
 
 ## Step 4: Inspect The Result
 
 The command emits one summary row. For a first run, the most useful fields are:
 
 - `status`
+- `max_messages`
+- `since_days`
 - `mailboxes_synced`
 - `messages_fetched`
 - `messages_stored`
@@ -111,7 +126,7 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
 
 ## Step 5: Rerun Incrementally
 
-Run the same command again with the same local paths. If nothing changed on the server, the next run should report zero or very few newly fetched messages. That is the expected incremental behavior.
+Run the same command again with the same local paths. You can keep the first-sync bounds while you are still proving the workflow, or remove them once you trust the mirror layout. If nothing changed on the server, the next run should report zero or very few newly fetched messages. That is the expected incremental behavior.
 
 ```bash
 go run -tags sqlite_fts5 ./cmd/smailnail mirror \
@@ -128,16 +143,25 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
 Only after one mailbox works cleanly should you expand to the full account:
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
   --all-mailboxes \
+  --mailbox-pattern 'Archive/*' \
+  --exclude-mailbox-pattern 'Archive/Spam*' \
+  --stop-on-error=false \
   --sqlite-path /tmp/smailnail-demo/mirror.sqlite \
   --mirror-root /tmp/smailnail-demo/raw
 ```
 
 `--all-mailboxes` is useful, but it increases run time and storage footprint. Start narrow, then widen scope once the storage layout and credentials are proven.
+
+The extra controls matter:
+
+- `--mailbox-pattern` keeps the first broad run intentionally scoped.
+- `--exclude-mailbox-pattern` removes obvious noise such as spam or trash trees.
+- `--stop-on-error=false` lets the run finish the rest of the mailbox set even if one mailbox fails. When that happens, the output row reports `status=partial` plus the failed mailbox list.
 
 ## Troubleshooting
 

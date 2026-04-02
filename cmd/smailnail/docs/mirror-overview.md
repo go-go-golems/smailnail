@@ -14,7 +14,12 @@ Flags:
 - sqlite-path
 - mirror-root
 - batch-size
+- max-messages
+- since-days
 - all-mailboxes
+- mailbox-pattern
+- exclude-mailbox-pattern
+- stop-on-error
 - print-plan
 - reconcile-full-mailbox
 - reset-mailbox-state
@@ -65,6 +70,16 @@ The command reports these results as a single Glazed output row, which means you
 
 `--all-mailboxes` changes the scope from one selected mailbox to every listed mailbox the account exposes.
 
+`--max-messages` caps the total number of imported messages across the whole run. Use it for the first real sync against a large account when you want proof that storage, parsing, and paths all look correct before you import the full mailbox history.
+
+`--since-days` limits IMAP search to messages newer than the computed cutoff. This is the safest way to start with “recent mail only” instead of mirroring years of history on the first attempt.
+
+`--mailbox-pattern` narrows `--all-mailboxes` to glob-matching mailbox names such as `Archive/*` or `Projects/*`.
+
+`--exclude-mailbox-pattern` removes matching mailbox names from the resolved mailbox list. This is useful for `Trash`, `Spam`, or archival trees you do not want in the first pass.
+
+`--stop-on-error` controls failure semantics during multi-mailbox runs. Leave it at the default `true` when you want the run to abort on the first mailbox failure. Set `--stop-on-error=false` when you want the mirror to keep syncing the remaining mailboxes and report partial completion.
+
 `--print-plan` shows the resolved local storage paths and sync scope without mutating the mirror. Use this before the first real run when you want to verify the target layout.
 
 `--reconcile-full-mailbox` performs a full UID search after incremental sync and marks locally mirrored rows as `remote_deleted` when the server no longer reports them.
@@ -84,6 +99,37 @@ go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
 ```
 
 `--log-level info` shows high-level progress such as mailbox selection, UID discovery, batch fetches, reconcile passes, and final totals. `--log-level debug` adds lower-level details that are more useful when debugging a specific sync problem.
+
+## Scope And Safety Recipes
+
+For a cautious first sync against a real account, combine a recent-mail cutoff with a hard message cap:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path /tmp/smailnail-demo/mirror.sqlite \
+  --mirror-root /tmp/smailnail-demo/raw \
+  --since-days 30 \
+  --max-messages 200
+```
+
+For a full-account run that skips noisy folders and keeps going when one mailbox fails:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --mailbox-pattern 'Archive/*' \
+  --exclude-mailbox-pattern 'Archive/Spam*' \
+  --stop-on-error=false \
+  --sqlite-path /tmp/smailnail-demo/mirror.sqlite \
+  --mirror-root /tmp/smailnail-demo/raw
+```
 
 ## Build Requirement
 
@@ -105,8 +151,15 @@ The command emits a row with operational fields such as:
 - `schema_version`
 - `selected_mailbox`
 - `all_mailboxes`
+- `mailbox_pattern`
+- `exclude_mailbox_pattern`
 - `batch_size`
+- `max_messages`
+- `since_days`
+- `stop_on_error`
 - `mailboxes_synced`
+- `mailbox_errors`
+- `failed_mailboxes`
 - `messages_fetched`
 - `messages_stored`
 - `raw_files_written`
@@ -132,6 +185,8 @@ Use `--reset-mailbox-state` when the local checkpoint is wrong, when a test run 
 | Build fails with an FTS5-related error | `sqlite_fts5` or `fts5` build tag was not enabled | Run the command with `-tags sqlite_fts5` |
 | Sync keeps skipping mail you expected | Local mailbox state is ahead of what you want to test | Rerun with `--reset-mailbox-state` |
 | Deleted remote mail still looks present locally | Reconcile was not requested | Rerun with `--reconcile-full-mailbox` |
+| Full-account runs are too broad | You mirrored every listed mailbox by default | Add `--mailbox-pattern` and `--exclude-mailbox-pattern` before rerunning |
+| The run ends with `status=partial` | `--stop-on-error=false` let the run continue after one or more mailbox failures | Inspect `mailbox_errors` and `failed_mailboxes`, then rerun the failed mailboxes directly |
 | TLS handshake fails against a local fixture | The test server uses a self-signed cert | Use `--insecure` for local fixture runs only |
 | Mirror data lands in the wrong directory | `--sqlite-path` or `--mirror-root` resolved differently than expected | Run once with `--print-plan` and check the reported paths |
 

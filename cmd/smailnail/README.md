@@ -100,6 +100,37 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
   --output json
 ```
 
+Run a bounded first sync against a real mailbox:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --since-days 30 \
+  --max-messages 200 \
+  --output json
+```
+
+Mirror many mailboxes but keep the scope tight and continue after one mailbox fails:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --mailbox-pattern 'Archive/*' \
+  --exclude-mailbox-pattern 'Archive/Spam*' \
+  --stop-on-error=false \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
 Print the plan without mutating local state:
 
 ```bash

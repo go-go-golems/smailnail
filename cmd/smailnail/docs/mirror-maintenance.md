@@ -14,6 +14,9 @@ Flags:
 - reconcile-full-mailbox
 - reset-mailbox-state
 - all-mailboxes
+- mailbox-pattern
+- exclude-mailbox-pattern
+- stop-on-error
 - mailbox
 - batch-size
 IsTopLevel: false
@@ -101,6 +104,24 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
 ```
 
 Only move to `--all-mailboxes` once one mailbox behaves the way you expect. Full-account maintenance can be expensive on large accounts and makes it harder to spot which mailbox caused a surprising result.
+
+When you do widen maintenance to the full account, keep it selective:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --mailbox-pattern 'Archive/*' \
+  --exclude-mailbox-pattern 'Archive/Trash*' \
+  --stop-on-error=false \
+  --reconcile-full-mailbox \
+  --sqlite-path /tmp/smailnail-demo/mirror.sqlite \
+  --mirror-root /tmp/smailnail-demo/raw
+```
+
+This keeps maintenance focused and lets the run finish other mailboxes even if one mailbox returns an IMAP error. Review `mailbox_errors` and `failed_mailboxes` in the output row afterward.
 
 ## Troubleshooting
 
