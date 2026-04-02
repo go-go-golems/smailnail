@@ -11,6 +11,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/go-go-golems/smailnail/cmd/smailnail/commands"
+	enrichcommands "github.com/go-go-golems/smailnail/cmd/smailnail/commands/enrich"
 	smailnaildocs "github.com/go-go-golems/smailnail/cmd/smailnail/docs"
 	"github.com/spf13/cobra"
 )
@@ -87,6 +88,13 @@ func main() {
 		os.Exit(1)
 	}
 	rootCmd.AddCommand(cobraMirrorCmd)
+
+	enrichCmd, err := enrichcommands.NewEnrichCommand()
+	if err != nil {
+		fmt.Printf("Error creating enrich command group: %v\n", err)
+		os.Exit(1)
+	}
+	rootCmd.AddCommand(enrichCmd)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
