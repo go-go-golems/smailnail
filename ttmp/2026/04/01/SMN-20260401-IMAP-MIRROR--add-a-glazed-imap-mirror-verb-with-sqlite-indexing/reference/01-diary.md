@@ -95,7 +95,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T21:30:43-04:00
+LastUpdated: 2026-04-01T21:33:41-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -1118,6 +1118,60 @@ This step prepared the next implementation round by turning the requested follow
   - mailbox include/exclude filters
   - stop-on-error behavior
   - final doc/report updates
+
+## Step 13: Add A Global `--max-messages` Cap For First Sync Safety
+
+This step implemented the first of the new sync-scope controls: a global `--max-messages` cap. The goal is to make first-time runs against real accounts safer by allowing the operator to stop after importing only the first N messages, rather than mirroring everything the search would otherwise return.
+
+### Prompt Context
+
+**User prompt (verbatim):** "do all 5, add tasks to the ticket and th etask by task, comitting at appropriate intervals, keep a diary"
+
+**Assistant interpretation:** Start implementing the new sync-scope flags one at a time, each in a focused slice with its own commit and diary update.
+
+**Inferred user intent:** The first new flag should immediately reduce risk on real-account syncs and remain observable through reporting.
+
+**Commit (code):** `2aeabb581418793a6f0f0a986f70dbbbf9fe9ee5` — `feat(mirror): add max message limit`
+
+### What I did
+
+- Added `--max-messages` to `cmd/smailnail/commands/mirror.go`.
+- Extended the mirror report row so it now exposes:
+  - `max_messages`
+  - `max_messages_reached`
+- Added `MaxMessages` to `mirror.SyncOptions` and `mirror.BootstrapReport`.
+- Added `MaxMessages` and `MaxMessagesReached` to `mirror.SyncReport`.
+- Enforced the cap globally inside `pkg/mirror/service.go`:
+  - stop starting new mailboxes once the cap is reached
+  - truncate a mailbox’s UID list when the remaining budget is smaller than the discovered UID set
+- Added `TestServiceSyncHonorsMaxMessages` in `pkg/mirror/service_test.go`.
+
+### Why
+
+- The user specifically asked for more control on test and first sync runs.
+- A global cap is safer than a per-mailbox cap for the initial operator experience because it bounds the whole run rather than letting multiple mailboxes each consume the same limit.
+- Reporting `max_messages_reached` is important so truncated runs are explicit rather than looking like naturally small syncs.
+
+### What worked
+
+- The new unit test proves that a first sync truncates at the requested count and checkpoints the mailbox at the last imported UID.
+- `smailnail mirror --help` now shows `--max-messages`.
+- Full pre-commit validation passed, including `go test -tags sqlite_fts5 ./...` and `golangci-lint run -v --build-tags sqlite_fts5`.
+
+### What didn't work
+
+- My first implementation truncated the UID list correctly but failed to mark the sync report as `max_messages_reached = true`.
+- The failing test exposed that mistake immediately, and I fixed it by carrying explicit “limit reached” state out of the mailbox sync result into the aggregate sync report.
+
+### What I learned
+
+- The useful operator contract is not just “cap the work.” It is “cap the work and make the reason visible in the output row.”
+- Checkpointing at the last imported UID means a later run without the cap can continue incrementally instead of starting over.
+
+### What should be done in the future
+
+- Implement `--since-days` next so the first sync can be limited by recency as well as raw count.
+- Update the operator help pages once the rest of the new controls are in place.
 
 ## Step 9: Add Full-Mailbox Reconciliation And Tombstoning
 

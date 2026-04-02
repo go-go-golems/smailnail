@@ -126,3 +126,15 @@ Step 12: expanded the ticket task list for the next mirror-scope control slice c
 ### Related Files
 
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/ttmp/2026/04/01/SMN-20260401-IMAP-MIRROR--add-a-glazed-imap-mirror-verb-with-sqlite-indexing/tasks.md — Added a dedicated Phase 6B checklist for the new sync-scope and safety flags
+
+
+## 2026-04-01
+
+Step 13: added `--max-messages` to cap a mirror run globally and report when the sync stopped because the cap was reached (commit 2aeabb581418793a6f0f0a986f70dbbbf9fe9ee5)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Added the `--max-messages` flag and exposed the new report fields in the CLI row output
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Enforced the global max-message cap and recorded when the cap truncated a run
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added max-message reporting fields for bootstrap and sync reports
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for max-limited sync behavior and checkpoint updates
