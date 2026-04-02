@@ -148,6 +148,55 @@ func TestServiceSyncHonorsMaxMessages(t *testing.T) {
 	}
 }
 
+func TestServiceSyncHonorsSinceDays(t *testing.T) {
+	store := openTestStore(t)
+	root := t.TempDir()
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	baseNow := time.Date(2026, 4, 1, 20, 0, 0, 0, time.UTC)
+	session := newFakeIMAPSession()
+	session.mailboxes = []mailruntime.MailboxInfo{{Name: "INBOX"}}
+	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 4}
+	session.messages["INBOX"] = map[uint32]*mailruntime.FetchedMessage{
+		1: newFetchedMessageAt(1, "Recent", baseNow.Add(-24*time.Hour)),
+		2: newFetchedMessageAt(2, "Still Recent", baseNow.Add(-48*time.Hour)),
+		3: newFetchedMessageAt(3, "Old", baseNow.Add(-10*24*time.Hour)),
+	}
+
+	service := NewService(store)
+	service.dial = func(_ context.Context, _ mailruntime.IMAPOptions) (imapSession, error) {
+		return session, nil
+	}
+	service.now = func() time.Time { return baseNow }
+
+	report, err := service.Sync(t.Context(), SyncOptions{
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   10,
+		SinceDays:   3,
+		MaxMessages: 0,
+	})
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if report.MessagesFetched != 2 || report.MessagesStored != 2 {
+		t.Fatalf("expected recent-only sync to fetch/store 2 messages, got %+v", report)
+	}
+	if got := countMessages(t, store.db, "INBOX"); got != 2 {
+		t.Fatalf("expected 2 mirrored messages after since-days sync, got %d", got)
+	}
+	if hasMessage(t, store.db, "INBOX", 3) {
+		t.Fatalf("expected old message UID 3 to be excluded by since-days")
+	}
+}
+
 func TestServiceSyncResetsOnUIDValidityChange(t *testing.T) {
 	store := openTestStore(t)
 	root := t.TempDir()
@@ -217,17 +266,31 @@ func TestServiceSyncResetsOnUIDValidityChange(t *testing.T) {
 }
 
 func TestNewUIDSearchCriteriaUsesUIDNextBoundary(t *testing.T) {
-	criteria, ok := newUIDSearchCriteria(2, 3)
+	criteria, ok := newUIDSearchCriteria(2, 3, nil)
 	if ok {
 		t.Fatalf("expected no search when highest UID already reaches UIDNEXT, got %+v", criteria)
 	}
 
-	criteria, ok = newUIDSearchCriteria(2, 5)
+	criteria, ok = newUIDSearchCriteria(2, 5, nil)
 	if !ok || criteria == nil || criteria.UID == nil {
 		t.Fatalf("expected bounded UID search criteria, got %+v", criteria)
 	}
 	if got := criteria.UID.String(); got != "3:4" {
 		t.Fatalf("expected UID range 3:4, got %q", got)
+	}
+}
+
+func TestSinceDaysCutoff(t *testing.T) {
+	baseNow := time.Date(2026, 4, 1, 20, 0, 0, 0, time.UTC)
+	cutoff := sinceDaysCutoff(baseNow, 3)
+	if cutoff == nil {
+		t.Fatalf("expected cutoff for positive since-days")
+	}
+	if got := cutoff.Format(time.RFC3339); got != "2026-03-29T20:00:00Z" {
+		t.Fatalf("unexpected cutoff %q", got)
+	}
+	if cutoff := sinceDaysCutoff(baseNow, 0); cutoff != nil {
+		t.Fatalf("expected nil cutoff when since-days is zero")
 	}
 }
 
@@ -385,6 +448,16 @@ func countMessages(t *testing.T, db *sqlx.DB, mailboxName string) int {
 	return count
 }
 
+func hasMessage(t *testing.T, db *sqlx.DB, mailboxName string, uid uint32) bool {
+	t.Helper()
+
+	var count int
+	if err := db.Get(&count, `SELECT COUNT(*) FROM messages WHERE mailbox_name = ? AND uid = ?`, mailboxName, uid); err != nil {
+		t.Fatalf("count message error = %v", err)
+	}
+	return count > 0
+}
+
 func messageRemoteDeleted(t *testing.T, db *sqlx.DB, mailboxName string, uid uint32) bool {
 	t.Helper()
 
@@ -447,9 +520,19 @@ func (f *fakeIMAPSession) Search(criteria *mailruntime.SearchCriteria) ([]imap.U
 	msgs := f.messages[f.selected]
 	ret := make([]imap.UID, 0, len(msgs))
 	for uid := range msgs {
+		msg := msgs[uid]
 		imapUID := imap.UID(uid)
 		if criteria != nil && criteria.UID != nil && !criteria.UID.Contains(imapUID) {
 			continue
+		}
+		if criteria != nil && criteria.Since != nil {
+			msgTime, err := time.Parse(time.RFC3339, msg.InternalDate)
+			if err != nil {
+				return nil, err
+			}
+			if msgTime.Before(*criteria.Since) {
+				continue
+			}
 		}
 		ret = append(ret, imapUID)
 	}
@@ -476,14 +559,18 @@ func (f *fakeIMAPSession) Logout() error {
 }
 
 func newFetchedMessage(uid uint32, subject string) *mailruntime.FetchedMessage {
+	return newFetchedMessageAt(uid, subject, time.Date(2026, 4, 1, 20, 0, 0, 0, time.UTC))
+}
+
+func newFetchedMessageAt(uid uint32, subject string, msgTime time.Time) *mailruntime.FetchedMessage {
 	raw := []byte("From: Tester <test@example.com>\r\nTo: User <user@example.com>\r\nSubject: " + subject + "\r\n\r\nBody for " + subject + "\r\n")
 	return &mailruntime.FetchedMessage{
 		UID:          uid,
 		Flags:        []string{"\\Seen"},
 		Size:         int64(len(raw)),
-		InternalDate: time.Date(2026, 4, 1, 20, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		InternalDate: msgTime.Format(time.RFC3339),
 		Envelope: &mailruntime.MessageEnvelope{
-			Date:      time.Date(2026, 4, 1, 20, 0, 0, 0, time.UTC).Format(time.RFC3339),
+			Date:      msgTime.Format(time.RFC3339),
 			Subject:   subject,
 			From:      []string{"Tester <test@example.com>"},
 			To:        []string{"User <user@example.com>"},

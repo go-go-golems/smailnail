@@ -66,6 +66,7 @@ type BootstrapReport struct {
 	AllMailboxes    bool         `json:"allMailboxes"`
 	BatchSize       int          `json:"batchSize"`
 	MaxMessages     int          `json:"maxMessages"`
+	SinceDays       int          `json:"sinceDays"`
 	ResetState      bool         `json:"resetState"`
 	ReconcileFull   bool         `json:"reconcileFull"`
 }
@@ -100,6 +101,7 @@ type SyncReport struct {
 	MailboxesSynced    int                 `json:"mailboxesSynced"`
 	MaxMessages        int                 `json:"maxMessages"`
 	MaxMessagesReached bool                `json:"maxMessagesReached"`
+	SinceDays          int                 `json:"sinceDays"`
 	MessagesFetched    int                 `json:"messagesFetched"`
 	MessagesStored     int                 `json:"messagesStored"`
 	RawFilesWritten    int                 `json:"rawFilesWritten"`

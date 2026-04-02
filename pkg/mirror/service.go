@@ -28,6 +28,7 @@ type SyncOptions struct {
 	MirrorRoot        string
 	BatchSize         int
 	MaxMessages       int
+	SinceDays         int
 	ResetMailboxState bool
 	ReconcileFull     bool
 }
@@ -78,6 +79,7 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		Bool("all_mailboxes", normalized.AllMailboxes).
 		Int("batch_size", normalized.BatchSize).
 		Int("max_messages", normalized.MaxMessages).
+		Int("since_days", normalized.SinceDays).
 		Bool("reconcile_full_mailbox", normalized.ReconcileFull).
 		Bool("reset_mailbox_state", normalized.ResetMailboxState).
 		Msg("Starting IMAP mirror sync")
@@ -112,6 +114,7 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		AccountKey:       accountKey,
 		MailboxesPlanned: len(mailboxes),
 		MaxMessages:      normalized.MaxMessages,
+		SinceDays:        normalized.SinceDays,
 	}
 	for _, mailboxName := range mailboxes {
 		if normalized.MaxMessages > 0 && report.MessagesFetched >= normalized.MaxMessages {
@@ -183,6 +186,9 @@ func validateSyncOptions(opts SyncOptions) error {
 	}
 	if strings.TrimSpace(opts.Password) == "" {
 		return fmt.Errorf("password is required")
+	}
+	if opts.SinceDays < 0 {
+		return fmt.Errorf("since-days must be >= 0")
 	}
 	return nil
 }
@@ -305,7 +311,7 @@ func (s *Service) syncMailbox(
 		Uint32("previous_high_uid", previousHighUID).
 		Msg("Selected mailbox for mirror sync")
 
-	searchCriteria, shouldSearch := newUIDSearchCriteria(previousHighUID, status.UIDNext)
+	searchCriteria, shouldSearch := newUIDSearchCriteria(previousHighUID, status.UIDNext, sinceDaysCutoff(s.now(), opts.SinceDays))
 	if !shouldSearch {
 		log.Info().
 			Str("account_key", accountKey).
@@ -470,9 +476,9 @@ func (s *Service) finalizeMailboxSync(
 	return nil
 }
 
-func newUIDSearchCriteria(previousHighUID, uidNext uint32) (*mailruntime.SearchCriteria, bool) {
+func newUIDSearchCriteria(previousHighUID, uidNext uint32, since *time.Time) (*mailruntime.SearchCriteria, bool) {
 	if previousHighUID == 0 {
-		return &mailruntime.SearchCriteria{All: true}, true
+		return &mailruntime.SearchCriteria{All: true, Since: since}, true
 	}
 	if uidNext != 0 && previousHighUID+1 >= uidNext {
 		return nil, false
@@ -482,9 +488,18 @@ func newUIDSearchCriteria(previousHighUID, uidNext uint32) (*mailruntime.SearchC
 	stop := imap.UID(uidNext - 1)
 	uidSet.AddRange(imap.UID(previousHighUID+1), stop)
 	return &mailruntime.SearchCriteria{
-		All: true,
-		UID: &uidSet,
+		All:   true,
+		UID:   &uidSet,
+		Since: since,
 	}, true
+}
+
+func sinceDaysCutoff(now time.Time, sinceDays int) *time.Time {
+	if sinceDays <= 0 {
+		return nil
+	}
+	cutoff := now.UTC().Add(-time.Duration(sinceDays) * 24 * time.Hour)
+	return &cutoff
 }
 
 func batchUIDs(uids []imap.UID, batchSize int) [][]imap.UID {
