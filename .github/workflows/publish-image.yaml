@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   release:
-    uses: wesen/corporate-headquarters/infra-tooling/.github/workflows/publish-ghcr-image.yml@main
+    uses: go-go-golems/infra-tooling/.github/workflows/publish-ghcr-image.yml@main
     secrets: inherit
     with:
       dockerfile: ./Dockerfile
@@ -31,5 +31,5 @@ jobs:
       gitops_target_config: deploy/gitops-targets.json
       push_image: ${{ github.event_name != 'pull_request' }}
       open_gitops_pr: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-      tooling_repository: wesen/corporate-headquarters/infra-tooling
+      tooling_repository: go-go-golems/infra-tooling
       tooling_ref: main
