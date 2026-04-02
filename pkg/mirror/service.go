@@ -32,6 +32,8 @@ type SyncOptions struct {
 	BatchSize             int
 	MaxMessages           int
 	SinceDays             int
+	SinceDate             string
+	BeforeDate            string
 	StopOnError           bool
 	ResetMailboxState     bool
 	ReconcileFull         bool
@@ -86,10 +88,17 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		Int("batch_size", normalized.BatchSize).
 		Int("max_messages", normalized.MaxMessages).
 		Int("since_days", normalized.SinceDays).
+		Str("since_date", normalized.SinceDate).
+		Str("before_date", normalized.BeforeDate).
 		Bool("stop_on_error", normalized.StopOnError).
 		Bool("reconcile_full_mailbox", normalized.ReconcileFull).
 		Bool("reset_mailbox_state", normalized.ResetMailboxState).
 		Msg("Starting IMAP mirror sync")
+
+	sinceBound, beforeBound, err := resolveSyncDateBounds(s.now(), normalized)
+	if err != nil {
+		return nil, err
+	}
 
 	session, err := s.dial(ctx, mailruntime.IMAPOptions{
 		Host:     normalized.Server,
@@ -124,6 +133,8 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		ExcludeMailboxPattern: normalized.ExcludeMailboxPattern,
 		MaxMessages:           normalized.MaxMessages,
 		SinceDays:             normalized.SinceDays,
+		SinceDate:             normalized.SinceDate,
+		BeforeDate:            normalized.BeforeDate,
 		StopOnError:           normalized.StopOnError,
 	}
 	for _, mailboxName := range mailboxes {
@@ -139,7 +150,7 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 			Str("account_key", accountKey).
 			Str("mailbox", mailboxName).
 			Msg("Syncing mailbox")
-		mailboxReport, err := s.syncMailbox(ctx, session, accountKey, mailboxName, normalized, report.MessagesFetched)
+		mailboxReport, err := s.syncMailbox(ctx, session, accountKey, mailboxName, normalized, report.MessagesFetched, sinceBound, beforeBound)
 		if err != nil {
 			if normalized.StopOnError {
 				return nil, errors.Wrapf(err, "sync mailbox %s", mailboxName)
@@ -225,6 +236,9 @@ func validateSyncOptions(opts SyncOptions) error {
 	if opts.SinceDays < 0 {
 		return fmt.Errorf("since-days must be >= 0")
 	}
+	if strings.TrimSpace(opts.SinceDate) != "" && opts.SinceDays > 0 {
+		return fmt.Errorf("since-date and since-days cannot be used together")
+	}
 	return nil
 }
 
@@ -301,6 +315,7 @@ func (s *Service) syncMailbox(
 	accountKey, mailboxName string,
 	opts SyncOptions,
 	fetchedSoFar int,
+	sinceBound, beforeBound *time.Time,
 ) (*MailboxSyncResult, error) {
 	log.Debug().
 		Str("account_key", accountKey).
@@ -375,7 +390,7 @@ func (s *Service) syncMailbox(
 		Uint32("previous_high_uid", previousHighUID).
 		Msg("Selected mailbox for mirror sync")
 
-	searchCriteria, shouldSearch := newUIDSearchCriteria(previousHighUID, status.UIDNext, sinceDaysCutoff(s.now(), opts.SinceDays))
+	searchCriteria, shouldSearch := newUIDSearchCriteria(previousHighUID, status.UIDNext, sinceBound, beforeBound)
 	if !shouldSearch {
 		log.Info().
 			Str("account_key", accountKey).
@@ -540,9 +555,9 @@ func (s *Service) finalizeMailboxSync(
 	return nil
 }
 
-func newUIDSearchCriteria(previousHighUID, uidNext uint32, since *time.Time) (*mailruntime.SearchCriteria, bool) {
+func newUIDSearchCriteria(previousHighUID, uidNext uint32, since, before *time.Time) (*mailruntime.SearchCriteria, bool) {
 	if previousHighUID == 0 {
-		return &mailruntime.SearchCriteria{All: true, Since: since}, true
+		return &mailruntime.SearchCriteria{All: true, Since: since, Before: before}, true
 	}
 	if uidNext != 0 && previousHighUID+1 >= uidNext {
 		return nil, false
@@ -552,9 +567,10 @@ func newUIDSearchCriteria(previousHighUID, uidNext uint32, since *time.Time) (*m
 	stop := imap.UID(uidNext - 1)
 	uidSet.AddRange(imap.UID(previousHighUID+1), stop)
 	return &mailruntime.SearchCriteria{
-		All:   true,
-		UID:   &uidSet,
-		Since: since,
+		All:    true,
+		UID:    &uidSet,
+		Since:  since,
+		Before: before,
 	}, true
 }
 
@@ -564,6 +580,47 @@ func sinceDaysCutoff(now time.Time, sinceDays int) *time.Time {
 	}
 	cutoff := now.UTC().Add(-time.Duration(sinceDays) * 24 * time.Hour)
 	return &cutoff
+}
+
+func resolveSyncDateBounds(now time.Time, opts SyncOptions) (*time.Time, *time.Time, error) {
+	var since *time.Time
+	if strings.TrimSpace(opts.SinceDate) != "" {
+		parsed, err := parseDateOnly(opts.SinceDate)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "parse since-date")
+		}
+		since = parsed
+	} else {
+		since = sinceDaysCutoff(now, opts.SinceDays)
+	}
+
+	var before *time.Time
+	if strings.TrimSpace(opts.BeforeDate) != "" {
+		parsed, err := parseDateOnly(opts.BeforeDate)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "parse before-date")
+		}
+		before = parsed
+	}
+
+	if since != nil && before != nil && !since.Before(*before) {
+		return nil, nil, fmt.Errorf("before-date must be after since-date")
+	}
+
+	return since, before, nil
+}
+
+func parseDateOnly(value string) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, err
+	}
+	utc := parsed.UTC()
+	return &utc, nil
 }
 
 func batchUIDs(uids []imap.UID, batchSize int) [][]imap.UID {

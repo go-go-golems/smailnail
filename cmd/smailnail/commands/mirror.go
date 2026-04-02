@@ -25,6 +25,8 @@ type MirrorSettings struct {
 	BatchSize             int    `glazed:"batch-size"`
 	MaxMessages           int    `glazed:"max-messages"`
 	SinceDays             int    `glazed:"since-days"`
+	SinceDate             string `glazed:"since-date"`
+	BeforeDate            string `glazed:"before-date"`
 	AllMailboxes          bool   `glazed:"all-mailboxes"`
 	MailboxPattern        string `glazed:"mailbox-pattern"`
 	ExcludeMailboxPattern string `glazed:"exclude-mailbox-pattern"`
@@ -80,6 +82,16 @@ func NewMirrorCommand() (*MirrorCommand, error) {
 				fields.TypeInteger,
 				fields.WithHelp("Only fetch messages whose IMAP date is within the last N days (0 means no date limit)"),
 				fields.WithDefault(0),
+			),
+			fields.New(
+				"since-date",
+				fields.TypeString,
+				fields.WithHelp("Only fetch messages whose IMAP date is on or after this YYYY-MM-DD date"),
+			),
+			fields.New(
+				"before-date",
+				fields.TypeString,
+				fields.WithHelp("Only fetch messages whose IMAP date is before this YYYY-MM-DD date"),
 			),
 			fields.New(
 				"all-mailboxes",
@@ -140,6 +152,7 @@ Examples:
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --max-messages 100
   smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --since-days 30
+  smailnail mirror --server imap.example.com --username user --password secret --mailbox INBOX --since-date 2026-03-01 --before-date 2026-04-01
   smailnail mirror --all-mailboxes --mailbox-pattern 'Archive/*'
   smailnail mirror --all-mailboxes --sqlite-path ./mail.db --mirror-root ./mail-mirror
   smailnail mirror --mailbox Archive --reconcile-full-mailbox
@@ -177,6 +190,8 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		BatchSize:             settings.BatchSize,
 		MaxMessages:           settings.MaxMessages,
 		SinceDays:             settings.SinceDays,
+		SinceDate:             settings.SinceDate,
+		BeforeDate:            settings.BeforeDate,
 		StopOnError:           settings.StopOnError,
 		ReconcileFull:         settings.ReconcileFull,
 		ResetState:            settings.ResetMailboxState,
@@ -205,6 +220,8 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		report.BatchSize = settings.BatchSize
 		report.MaxMessages = settings.MaxMessages
 		report.SinceDays = settings.SinceDays
+		report.SinceDate = settings.SinceDate
+		report.BeforeDate = settings.BeforeDate
 		report.StopOnError = settings.StopOnError
 		report.ResetState = settings.ResetMailboxState
 
@@ -223,6 +240,8 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 			BatchSize:             settings.BatchSize,
 			MaxMessages:           settings.MaxMessages,
 			SinceDays:             settings.SinceDays,
+			SinceDate:             settings.SinceDate,
+			BeforeDate:            settings.BeforeDate,
 			StopOnError:           settings.StopOnError,
 			ReconcileFull:         settings.ReconcileFull,
 			ResetMailboxState:     settings.ResetMailboxState,
@@ -248,6 +267,8 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	row.Set("batch_size", report.BatchSize)
 	row.Set("max_messages", report.MaxMessages)
 	row.Set("since_days", report.SinceDays)
+	row.Set("since_date", report.SinceDate)
+	row.Set("before_date", report.BeforeDate)
 	row.Set("stop_on_error", report.StopOnError)
 	row.Set("reconcile_full_mailbox", report.ReconcileFull)
 	row.Set("reset_mailbox_state", report.ResetState)

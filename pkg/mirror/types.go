@@ -69,6 +69,8 @@ type BootstrapReport struct {
 	BatchSize             int          `json:"batchSize"`
 	MaxMessages           int          `json:"maxMessages"`
 	SinceDays             int          `json:"sinceDays"`
+	SinceDate             string       `json:"sinceDate"`
+	BeforeDate            string       `json:"beforeDate"`
 	StopOnError           bool         `json:"stopOnError"`
 	ResetState            bool         `json:"resetState"`
 	ReconcileFull         bool         `json:"reconcileFull"`
@@ -110,6 +112,8 @@ type SyncReport struct {
 	MaxMessages           int                 `json:"maxMessages"`
 	MaxMessagesReached    bool                `json:"maxMessagesReached"`
 	SinceDays             int                 `json:"sinceDays"`
+	SinceDate             string              `json:"sinceDate"`
+	BeforeDate            string              `json:"beforeDate"`
 	StopOnError           bool                `json:"stopOnError"`
 	MessagesFetched       int                 `json:"messagesFetched"`
 	MessagesStored        int                 `json:"messagesStored"`
