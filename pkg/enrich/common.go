@@ -11,6 +11,7 @@ import (
 const (
 	metadataKeyEnrichThreadsAt = "enrich_threads_at"
 	metadataKeyEnrichSendersAt = "enrich_senders_at"
+	metadataKeyEnrichUnsubAt   = "enrich_unsubscribe_at"
 )
 
 func normalizeOptions(opts Options) Options {

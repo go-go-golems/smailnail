@@ -149,6 +149,21 @@ func openEnrichTestDB(t *testing.T) *sqlx.DB {
 	t.Helper()
 
 	db := sqlx.MustOpen("sqlite3", ":memory:")
+	bootstrapEnrichTestDB(t, db)
+	return db
+}
+
+func openEnrichTestFileDB(t *testing.T, path string) *sqlx.DB {
+	t.Helper()
+
+	db := sqlx.MustOpen("sqlite3", path)
+	bootstrapEnrichTestDB(t, db)
+	return db
+}
+
+func bootstrapEnrichTestDB(t *testing.T, db *sqlx.DB) {
+	t.Helper()
+
 	statements := []string{
 		`CREATE TABLE mirror_metadata (
 			key TEXT PRIMARY KEY,
@@ -194,8 +209,6 @@ func openEnrichTestDB(t *testing.T) *sqlx.DB {
 			t.Fatalf("exec enrich schema: %v", err)
 		}
 	}
-
-	return db
 }
 
 func insertTestMessage(t *testing.T, db *sqlx.DB, row testMessageRow) {
