@@ -1,0 +1,34 @@
+name: publish-image
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    uses: wesen/corporate-headquarters/infra-tooling/.github/workflows/publish-ghcr-image.yml@main
+    secrets: inherit
+    with:
+      dockerfile: ./Dockerfile
+      build_context: .
+      test_command: |
+        go generate ./...
+        go test ./...
+      go_version_file: go.mod
+      push_image: ${{ github.event_name != 'pull_request' }}
+      # Enable once the smailnail GitOps package and deploy/gitops-targets.json exist.
+      open_gitops_pr: false
+      tooling_repository: wesen/corporate-headquarters/infra-tooling
+      tooling_ref: main
