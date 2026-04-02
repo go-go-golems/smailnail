@@ -74,7 +74,7 @@
 ## Phase 6B: Sync Scope And Safety Controls
 
 - [x] Add `--max-messages` so first syncs can stop after a bounded number of fetched messages
-- [ ] Add `--since-days` so first syncs can limit IMAP search to recent mail only
+- [x] Add `--since-days` so first syncs can limit IMAP search to recent mail only
 - [ ] Add `--mailbox-pattern` so `--all-mailboxes` can be narrowed to matching mailbox names
 - [ ] Add `--exclude-mailbox-pattern` so `--all-mailboxes` can skip noisy mailboxes like Trash or Spam
 - [ ] Add `--stop-on-error` so multi-mailbox syncs can continue after one mailbox fails when desired

@@ -95,7 +95,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T21:33:41-04:00
+LastUpdated: 2026-04-01T21:36:32-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -1172,6 +1172,61 @@ This step implemented the first of the new sync-scope controls: a global `--max-
 
 - Implement `--since-days` next so the first sync can be limited by recency as well as raw count.
 - Update the operator help pages once the rest of the new controls are in place.
+
+## Step 14: Add A `--since-days` Filter For Recent-Only First Syncs
+
+This step implemented the second sync-scope control: `--since-days`. The goal is to let operators restrict first syncs to recent mail at the IMAP search layer, rather than fetching a full mailbox and filtering after the fact.
+
+### Prompt Context
+
+**User prompt (verbatim):** "do all 5, add tasks to the ticket and th etask by task, comitting at appropriate intervals, keep a diary"
+
+**Assistant interpretation:** Continue with the next requested sync-scope flag, again as a focused slice with its own commit and ticket update.
+
+**Inferred user intent:** The first sync should be constrainable by recency as well as by raw count.
+
+**Commit (code):** `3f622c68459de79a4195bd36afbf5ab7d61b4edd` — `feat(mirror): add recent-mail sync filter`
+
+### What I did
+
+- Added `--since-days` to `cmd/smailnail/commands/mirror.go`.
+- Added `SinceDays` to the mirror bootstrap and sync report structs.
+- Added validation so negative `since-days` values are rejected.
+- Added a `sinceDaysCutoff` helper in `pkg/mirror/service.go`.
+- Extended `newUIDSearchCriteria` so it can combine a recent-mail cutoff with either:
+  - a first-sync `ALL` search, or
+  - an incremental UID-bounded search.
+- Updated the fake IMAP session in `pkg/mirror/service_test.go` so its `Search` method respects `criteria.Since`.
+- Added tests for:
+  - recent-only sync behavior
+  - cutoff calculation
+  - the updated search-criteria builder
+
+### Why
+
+- A recent-mail filter is safer and more practical than a full historical sync when someone is testing against a live mailbox.
+- Applying the cutoff in the IMAP search criteria avoids wasting fetch, parse, and write work on older mail that the operator never wanted in the first place.
+
+### What worked
+
+- The recent-only sync test shows that only messages newer than the cutoff are mirrored into SQLite.
+- `smailnail mirror --help` now shows both `--max-messages` and `--since-days`, which makes the first-sync safety controls discoverable together.
+- The pre-commit suite passed once the service file was reformatted.
+
+### What didn't work
+
+- The first commit attempt failed because `pkg/mirror/service.go` had not been re-run through `gofmt` after the new helper and criteria changes.
+- I ran `gofmt -w ./pkg/mirror/service.go` and retried the commit with no logic changes.
+
+### What I learned
+
+- The right place for the recency filter is the search-criteria builder, not the post-fetch persistence path.
+- The fake IMAP session needed to grow along with the real feature or the tests would have only proved CLI plumbing rather than actual search behavior.
+
+### What should be done in the future
+
+- Implement mailbox include and exclude patterns next, since they belong in the same “restrict the sync scope before doing work” category.
+- Fold the new safety flags into the operator help pages once the rest of the sync-scope controls are finished.
 
 ## Step 9: Add Full-Mailbox Reconciliation And Tombstoning
 

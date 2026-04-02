@@ -138,3 +138,15 @@ Step 13: added `--max-messages` to cap a mirror run globally and report when the
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Enforced the global max-message cap and recorded when the cap truncated a run
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added max-message reporting fields for bootstrap and sync reports
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for max-limited sync behavior and checkpoint updates
+
+
+## 2026-04-01
+
+Step 14: added `--since-days` so first syncs can restrict IMAP search to recent mail before any message fetches happen (commit 3f622c68459de79a4195bd36afbf5ab7d61b4edd)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/commands/mirror.go — Added the `--since-days` flag and surfaced it in the CLI report row
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Added recent-mail cutoff handling to the IMAP search criteria path
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/types.go — Added `since_days` reporting fields
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service_test.go — Added regression coverage for recent-only sync behavior and cutoff calculations
