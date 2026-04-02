@@ -9,3 +9,5 @@
 - Wrote the investigation diary capturing evidence, commands, and design rationale
 - Added an MVP fast-path design doc focused on generic target annotations, groups, and linkable logs
 - Implemented mirror schema v3 and `pkg/annotate` repository support for annotations, groups, and logs
+- Added `smailnail annotate` CLI verbs for annotations, groups, and logs
+- Verified the CLI workflow on a copied enriched mirror database

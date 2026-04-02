@@ -15,8 +15,8 @@
 - [ ] Add mirror schema v3 for MVP annotation, group, and log tables
 - [x] Add mirror schema v3 for MVP annotation, group, and log tables
 - [x] Implement `pkg/annotate` storage types and repository methods with tests
-- [ ] Add `smailnail annotate annotation` verbs for add, list, and review-state updates
-- [ ] Add `smailnail annotate group` verbs for create, list, add-target, and list-members
-- [ ] Add `smailnail annotate log` verbs for add, list, link-target, and list-links
-- [ ] Verify the SQLite+CLI workflow end to end on a real mirror DB
+- [x] Add `smailnail annotate annotation` verbs for add, list, and review-state updates
+- [x] Add `smailnail annotate group` verbs for create, list, add-target, and list-members
+- [x] Add `smailnail annotate log` verbs for add, list, link-target, and list-links
+- [x] Verify the SQLite+CLI workflow end to end on a real mirror DB
 - [ ] Update the detailed diary and changelog with implementation steps and commit history

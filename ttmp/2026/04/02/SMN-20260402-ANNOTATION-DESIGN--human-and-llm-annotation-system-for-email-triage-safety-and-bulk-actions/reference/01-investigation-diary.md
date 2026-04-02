@@ -315,3 +315,127 @@ Fix:
 
 - switched the test file to `package annotate_test`
 - reran the package tests with the required `sqlite_fts5` build tag
+
+Commit:
+
+- `b18fbb0` `Add annotation schema and repository MVP`
+
+### 2026-04-02 20:xx Eastern: added SQLite-only CLI verbs
+
+I implemented the CLI layer under `cmd/smailnail/commands/annotate` and wired it into `cmd/smailnail/main.go`.
+
+Command tree added:
+
+- `smailnail annotate annotation add`
+- `smailnail annotate annotation list`
+- `smailnail annotate annotation review`
+- `smailnail annotate group create`
+- `smailnail annotate group list`
+- `smailnail annotate group add-target`
+- `smailnail annotate group members`
+- `smailnail annotate log add`
+- `smailnail annotate log list`
+- `smailnail annotate log link-target`
+- `smailnail annotate log targets`
+
+Files added in this slice:
+
+- `cmd/smailnail/commands/annotate/common.go`
+- `cmd/smailnail/commands/annotate/root.go`
+- `cmd/smailnail/commands/annotate/annotation_root.go`
+- `cmd/smailnail/commands/annotate/annotation_add.go`
+- `cmd/smailnail/commands/annotate/annotation_list.go`
+- `cmd/smailnail/commands/annotate/annotation_review.go`
+- `cmd/smailnail/commands/annotate/group_root.go`
+- `cmd/smailnail/commands/annotate/group_create.go`
+- `cmd/smailnail/commands/annotate/group_list.go`
+- `cmd/smailnail/commands/annotate/group_add_target.go`
+- `cmd/smailnail/commands/annotate/group_members.go`
+- `cmd/smailnail/commands/annotate/log_root.go`
+- `cmd/smailnail/commands/annotate/log_add.go`
+- `cmd/smailnail/commands/annotate/log_list.go`
+- `cmd/smailnail/commands/annotate/log_link_target.go`
+- `cmd/smailnail/commands/annotate/log_targets.go`
+
+Focused verification command for this slice:
+
+```bash
+go test -tags sqlite_fts5 ./cmd/smailnail ./cmd/smailnail/commands/annotate ./pkg/annotate ./pkg/mirror
+```
+
+Smoke-test DB:
+
+```bash
+cp /tmp/smailnail-parallel-a.sqlite /tmp/smailnail-parallel-a.annotate-smoke.sqlite
+```
+
+Smoke-test commands that succeeded:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation add \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --target-type sender \
+  --target-id notifications@github.com \
+  --tag important \
+  --note 'Still important despite high volume' \
+  --source-kind human \
+  --created-by manuel
+
+go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation review \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --id 4cc62d7e-e52c-4f49-95b8-bdea24d6af19 \
+  --review-state dismissed
+
+go run -tags sqlite_fts5 ./cmd/smailnail annotate group create \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --name 'Possible newsletters' \
+  --description 'Smoke test group' \
+  --source-kind agent \
+  --agent-run-id smoke-run-1
+
+go run -tags sqlite_fts5 ./cmd/smailnail annotate group add-target \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --group-id cf87e5b4-2dca-4a27-a381-f946529883c2 \
+  --target-type sender \
+  --target-id hello@readwise.io
+
+go run -tags sqlite_fts5 ./cmd/smailnail annotate log add \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --title 'Smoke test pass' \
+  --body 'Testing annotation CLI against copied mirror DB.' \
+  --source-kind agent \
+  --agent-run-id smoke-run-1
+
+go run -tags sqlite_fts5 ./cmd/smailnail annotate log link-target \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --log-id 01228f9d-e717-4665-809c-23e25f011742 \
+  --target-type sender \
+  --target-id hello@readwise.io
+```
+
+Lookup commands that succeeded:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation list \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --target-type sender \
+  --target-id notifications@github.com
+
+go run -tags sqlite_fts5 ./cmd/smailnail annotate group members \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --group-id cf87e5b4-2dca-4a27-a381-f946529883c2
+
+go run -tags sqlite_fts5 ./cmd/smailnail annotate log targets \
+  --sqlite-path /tmp/smailnail-parallel-a.annotate-smoke.sqlite \
+  --log-id 01228f9d-e717-4665-809c-23e25f011742
+```
+
+Issue encountered:
+
+- the first compile pass failed because `common.go` still contained a dead helper using a `types.Row` API shape that did not exist in that context
+
+Fix:
+
+- removed the unused helper
+- reran `gofmt`
+- reran the focused package tests
