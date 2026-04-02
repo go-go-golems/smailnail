@@ -12,6 +12,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 
 	"github.com/go-go-golems/smailnail/pkg/mailruntime"
 )
@@ -68,6 +69,17 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		return nil, err
 	}
 
+	log.Info().
+		Str("server", normalized.Server).
+		Int("port", normalized.Port).
+		Str("username", normalized.Username).
+		Str("mailbox", normalized.Mailbox).
+		Bool("all_mailboxes", normalized.AllMailboxes).
+		Int("batch_size", normalized.BatchSize).
+		Bool("reconcile_full_mailbox", normalized.ReconcileFull).
+		Bool("reset_mailbox_state", normalized.ResetMailboxState).
+		Msg("Starting IMAP mirror sync")
+
 	session, err := s.dial(ctx, mailruntime.IMAPOptions{
 		Host:     normalized.Server,
 		Port:     normalized.Port,
@@ -89,11 +101,20 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		return nil, err
 	}
 
+	log.Info().
+		Str("account_key", accountKey).
+		Int("mailboxes_planned", len(mailboxes)).
+		Msg("Resolved mailboxes for mirror sync")
+
 	report := &SyncReport{
 		AccountKey:       accountKey,
 		MailboxesPlanned: len(mailboxes),
 	}
 	for _, mailboxName := range mailboxes {
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Msg("Syncing mailbox")
 		mailboxReport, err := s.syncMailbox(ctx, session, accountKey, mailboxName, normalized)
 		if err != nil {
 			return nil, errors.Wrapf(err, "sync mailbox %s", mailboxName)
@@ -107,6 +128,16 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		report.TombstonedMessages += mailboxReport.TombstonedMessages
 		report.RestoredMessages += mailboxReport.RestoredMessages
 	}
+
+	log.Info().
+		Str("account_key", report.AccountKey).
+		Int("mailboxes_synced", report.MailboxesSynced).
+		Int("messages_fetched", report.MessagesFetched).
+		Int("messages_stored", report.MessagesStored).
+		Int("raw_files_written", report.RawFilesWritten).
+		Int("messages_tombstoned", report.TombstonedMessages).
+		Int("messages_restored", report.RestoredMessages).
+		Msg("Completed IMAP mirror sync")
 
 	return report, nil
 }
@@ -142,6 +173,9 @@ func validateSyncOptions(opts SyncOptions) error {
 
 func (s *Service) resolveMailboxes(session imapSession, opts SyncOptions) ([]string, error) {
 	if !opts.AllMailboxes {
+		log.Debug().
+			Str("mailbox", opts.Mailbox).
+			Msg("Using selected mailbox only")
 		return []string{opts.Mailbox}, nil
 	}
 
@@ -159,6 +193,10 @@ func (s *Service) resolveMailboxes(session imapSession, opts SyncOptions) ([]str
 	}
 
 	sort.Strings(ret)
+	log.Debug().
+		Int("mailboxes_listed", len(mailboxes)).
+		Int("mailboxes_selected", len(ret)).
+		Msg("Enumerated selectable mailboxes")
 	return ret, nil
 }
 
@@ -177,6 +215,10 @@ func (s *Service) syncMailbox(
 	accountKey, mailboxName string,
 	opts SyncOptions,
 ) (*MailboxSyncResult, error) {
+	log.Debug().
+		Str("account_key", accountKey).
+		Str("mailbox", mailboxName).
+		Msg("Loading mailbox status")
 	status, err := session.Status(mailboxName)
 	if err != nil {
 		return nil, errors.Wrap(err, "read mailbox status")
@@ -192,6 +234,10 @@ func (s *Service) syncMailbox(
 
 	resetApplied := false
 	if opts.ResetMailboxState {
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Msg("Resetting stored mailbox state before sync")
 		if err := resetMailboxState(ctx, s.store.db, accountKey, mailboxName); err != nil {
 			return nil, err
 		}
@@ -199,6 +245,12 @@ func (s *Service) syncMailbox(
 		resetApplied = true
 	}
 	if state != nil && state.UIDValidity != 0 && status.UIDValidity != 0 && state.UIDValidity != status.UIDValidity {
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Uint32("previous_uidvalidity", state.UIDValidity).
+			Uint32("current_uidvalidity", status.UIDValidity).
+			Msg("Resetting mailbox state because UIDVALIDITY changed")
 		if err := resetMailboxState(ctx, s.store.db, accountKey, mailboxName); err != nil {
 			return nil, err
 		}
@@ -228,8 +280,22 @@ func (s *Service) syncMailbox(
 		ResetApplied:     resetApplied,
 	}
 
+	log.Info().
+		Str("account_key", accountKey).
+		Str("mailbox", mailboxName).
+		Uint32("uidvalidity", status.UIDValidity).
+		Uint32("uidnext", status.UIDNext).
+		Uint32("previous_high_uid", previousHighUID).
+		Msg("Selected mailbox for mirror sync")
+
 	searchCriteria, shouldSearch := newUIDSearchCriteria(previousHighUID, status.UIDNext)
 	if !shouldSearch {
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Uint32("previous_high_uid", previousHighUID).
+			Uint32("uidnext", status.UIDNext).
+			Msg("No new UIDs to fetch for mailbox")
 		if err := s.finalizeMailboxSync(ctx, session, accountKey, mailboxName, status, report, opts.ReconcileFull); err != nil {
 			return nil, err
 		}
@@ -245,11 +311,22 @@ func (s *Service) syncMailbox(
 	})
 
 	if len(uids) == 0 {
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Msg("Search returned no new messages for mailbox")
 		if err := s.finalizeMailboxSync(ctx, session, accountKey, mailboxName, status, report, opts.ReconcileFull); err != nil {
 			return nil, err
 		}
 		return report, nil
 	}
+
+	log.Info().
+		Str("account_key", accountKey).
+		Str("mailbox", mailboxName).
+		Int("uids_found", len(uids)).
+		Int("batch_size", opts.BatchSize).
+		Msg("Fetched UID list for mailbox")
 
 	fetchFields := []mailruntime.FetchField{
 		mailruntime.FetchUID,
@@ -263,7 +340,15 @@ func (s *Service) syncMailbox(
 		mailruntime.FetchAttachments,
 	}
 
-	for _, batch := range batchUIDs(uids, opts.BatchSize) {
+	for batchIndex, batch := range batchUIDs(uids, opts.BatchSize) {
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Int("batch_index", batchIndex+1).
+			Int("batch_count", len(batch)).
+			Uint32("batch_uid_start", uint32(batch[0])).
+			Uint32("batch_uid_end", uint32(batch[len(batch)-1])).
+			Msg("Fetching mirror batch")
 		msgs, err := session.Fetch(batch, fetchFields)
 		if err != nil {
 			return nil, errors.Wrap(err, "fetch message batch")
@@ -271,6 +356,14 @@ func (s *Service) syncMailbox(
 		if err := s.persistBatch(ctx, accountKey, mailboxName, status, report, msgs, opts.MirrorRoot); err != nil {
 			return nil, err
 		}
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Int("batch_index", batchIndex+1).
+			Int("messages_fetched_total", report.FetchedMessages).
+			Int("raw_files_written_total", report.RawFilesWritten).
+			Int("reused_file_writes_total", report.ReusedFileWrites).
+			Msg("Persisted mirror batch")
 	}
 
 	if err := s.finalizeMailboxSync(ctx, session, accountKey, mailboxName, status, report, opts.ReconcileFull); err != nil {
@@ -289,6 +382,10 @@ func (s *Service) finalizeMailboxSync(
 	reconcileFull bool,
 ) error {
 	if reconcileFull {
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Msg("Reconciling full mailbox snapshot")
 		remoteUIDs, err := session.Search(&mailruntime.SearchCriteria{All: true})
 		if err != nil {
 			return errors.Wrap(err, "search mailbox UIDs for reconcile")
@@ -299,6 +396,12 @@ func (s *Service) finalizeMailboxSync(
 		}
 		report.TombstonedMessages += tombstoned
 		report.RestoredMessages += restored
+		log.Info().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Int("messages_tombstoned", tombstoned).
+			Int("messages_restored", restored).
+			Msg("Reconciled full mailbox snapshot")
 	}
 
 	syncTime := s.now().UTC()
@@ -313,6 +416,12 @@ func (s *Service) finalizeMailboxSync(
 	}); err != nil {
 		return err
 	}
+
+	log.Info().
+		Str("account_key", accountKey).
+		Str("mailbox", mailboxName).
+		Uint32("highest_uid", report.HighestUID).
+		Msg("Updated mailbox sync state")
 
 	return nil
 }
@@ -359,6 +468,10 @@ func (s *Service) persistBatch(
 	mirrorRoot string,
 ) error {
 	if len(msgs) == 0 {
+		log.Debug().
+			Str("account_key", accountKey).
+			Str("mailbox", mailboxName).
+			Msg("Skipping empty mirror batch")
 		return nil
 	}
 

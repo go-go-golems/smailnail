@@ -78,7 +78,7 @@ Review the output row carefully. The important fields are `sqlite_path`, `mirror
 Once the plan looks correct, remove `--print-plan` and run the real sync:
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -88,6 +88,8 @@ go run -tags sqlite_fts5 ./cmd/smailnail mirror \
 ```
 
 On the first run, expect the command to bootstrap the schema and fetch all mail that falls beyond the initial local checkpoint. On later runs, it should only fetch newly seen UIDs unless you reset state.
+
+The `--log-level info` flag is optional but recommended for first runs. It shows live progress on stderr while the final Glazed output row is still being assembled on stdout.
 
 ## Step 4: Inspect The Result
 

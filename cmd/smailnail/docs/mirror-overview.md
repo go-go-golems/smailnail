@@ -71,6 +71,20 @@ The command reports these results as a single Glazed output row, which means you
 
 `--reset-mailbox-state` clears the stored local sync checkpoint before the run. Use it when the local state is no longer trustworthy or when you intentionally want to rebuild a mailbox snapshot from scratch.
 
+## Progress Logging
+
+Mirror emits its summary row only after the sync finishes, so a large mailbox can look idle if you only watch stdout. Use the root logging flags when you want live progress on stderr:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX
+```
+
+`--log-level info` shows high-level progress such as mailbox selection, UID discovery, batch fetches, reconcile passes, and final totals. `--log-level debug` adds lower-level details that are more useful when debugging a specific sync problem.
+
 ## Build Requirement
 
 The mirror feature requires SQLite FTS5 support at build time. In this repository, the supported path is:

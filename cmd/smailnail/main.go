@@ -7,23 +7,25 @@ import (
 	"os/signal"
 
 	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/glazed/pkg/help"
 	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/go-go-golems/smailnail/cmd/smailnail/commands"
 	smailnaildocs "github.com/go-go-golems/smailnail/cmd/smailnail/docs"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 func main() {
-	// Setup logging
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-
 	rootCmd := &cobra.Command{
 		Use:   "smailnail",
 		Short: "Process mail rules on an IMAP server",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return logging.InitLoggerFromCobra(cmd)
+		},
+	}
+	if err := logging.AddLoggingSectionToRootCommand(rootCmd, "smailnail"); err != nil {
+		fmt.Printf("Error adding logging flags: %v\n", err)
+		os.Exit(1)
 	}
 
 	helpSystem := help.NewHelpSystem()
@@ -32,8 +34,6 @@ func main() {
 		os.Exit(1)
 	}
 	help_cmd.SetupCobraRootCommand(helpSystem, rootCmd)
-
-	log.Debug().Msg("Starting smailnail")
 
 	// Create and add the mail-rules command
 	mailRulesCmd, err := commands.NewMailRulesCommand()
