@@ -14,6 +14,7 @@ import (
 	annotatecommands "github.com/go-go-golems/smailnail/cmd/smailnail/commands/annotate"
 	enrichcommands "github.com/go-go-golems/smailnail/cmd/smailnail/commands/enrich"
 	smailnaildocs "github.com/go-go-golems/smailnail/cmd/smailnail/docs"
+	pkgdoc "github.com/go-go-golems/smailnail/pkg/doc"
 	"github.com/spf13/cobra"
 )
 
@@ -33,6 +34,10 @@ func main() {
 	helpSystem := help.NewHelpSystem()
 	if err := smailnaildocs.AddDocToHelpSystem(helpSystem); err != nil {
 		fmt.Printf("Error loading help docs: %v\n", err)
+		os.Exit(1)
+	}
+	if err := pkgdoc.AddDocToHelpSystem(helpSystem); err != nil {
+		fmt.Printf("Error loading pkg help docs: %v\n", err)
 		os.Exit(1)
 	}
 	help_cmd.SetupCobraRootCommand(helpSystem, rootCmd)
