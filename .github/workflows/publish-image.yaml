@@ -27,8 +27,9 @@ jobs:
         go generate ./...
         go test ./...
       go_version_file: go.mod
+      image_name: ghcr.io/go-go-golems/smailnail
+      gitops_target_config: deploy/gitops-targets.json
       push_image: ${{ github.event_name != 'pull_request' }}
-      # Enable once the smailnail GitOps package and deploy/gitops-targets.json exist.
-      open_gitops_pr: false
+      open_gitops_pr: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
       tooling_repository: wesen/corporate-headquarters/infra-tooling
       tooling_ref: main
