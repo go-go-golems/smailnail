@@ -117,3 +117,12 @@ Step 11: added root logging flags and progress-oriented mirror sync logs so long
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Mirror sync now emits progress logs for sync start, mailbox selection, batch fetches, reconcile passes, and completion totals
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-overview.md — Help page now explains `--log-level info` for live progress
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-first-sync-tutorial.md — Tutorial now recommends `--log-level info` on first real syncs
+
+
+## 2026-04-01
+
+Step 12: expanded the ticket task list for the next mirror-scope control slice covering `--max-messages`, `--since-days`, mailbox include/exclude patterns, and `--stop-on-error` (commit PENDING)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/ttmp/2026/04/01/SMN-20260401-IMAP-MIRROR--add-a-glazed-imap-mirror-verb-with-sqlite-indexing/tasks.md — Added a dedicated Phase 6B checklist for the new sync-scope and safety flags

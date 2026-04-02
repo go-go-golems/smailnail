@@ -71,6 +71,16 @@
 - [x] Add a full-mailbox reconciliation mode that marks locally mirrored rows as remotely deleted when the server no longer reports them
 - [x] Add root logging flags and progress-oriented mirror sync logs so long-running runs no longer look idle
 
+## Phase 6B: Sync Scope And Safety Controls
+
+- [ ] Add `--max-messages` so first syncs can stop after a bounded number of fetched messages
+- [ ] Add `--since-days` so first syncs can limit IMAP search to recent mail only
+- [ ] Add `--mailbox-pattern` so `--all-mailboxes` can be narrowed to matching mailbox names
+- [ ] Add `--exclude-mailbox-pattern` so `--all-mailboxes` can skip noisy mailboxes like Trash or Spam
+- [ ] Add `--stop-on-error` so multi-mailbox syncs can continue after one mailbox fails when desired
+- [ ] Extend sync reporting rows to surface the new scope-control settings and partial-error behavior
+- [ ] Add targeted unit coverage for new message-limit, date-limit, mailbox-filter, and stop-on-error behavior
+
 ## Phase 7: Validation And Documentation
 
 - [x] Add unit tests for schema bootstrap and migration upgrades

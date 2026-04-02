@@ -95,7 +95,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T21:23:31-04:00
+LastUpdated: 2026-04-01T21:30:43-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -1068,6 +1068,56 @@ That gives a user confidence that the process is moving without overwhelming std
   - `pkg/mirror/service.go`
   - `cmd/smailnail/docs/mirror-overview.md`
   - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
+
+## Step 12: Expand The Ticket For Additional Sync Scope Controls
+
+This step prepared the next implementation round by turning the requested follow-up flags into an explicit checklist in the ticket. The user asked for five additional sync controls beyond logging and timeout discussion, so I added a dedicated Phase 6B covering message limits, recent-mail scoping, mailbox include/exclude filters, stop-on-error behavior, reporting changes, and targeted tests.
+
+### Prompt Context
+
+**User prompt (verbatim):** "do all 5, add tasks to the ticket and th etask by task, comitting at appropriate intervals, keep a diary"
+
+**Assistant interpretation:** Expand the ticket with concrete tasks for the five new sync-control flags, then implement them one slice at a time with separate commits and diary updates.
+
+**Inferred user intent:** The user wants the next flag work to follow the same disciplined ticket-first workflow as the earlier mirror implementation.
+
+**Commit (docs):** `PENDING` — `docs(ticket): add sync-scope control tasks`
+
+### What I did
+
+- Added a new Phase 6B to `tasks.md`.
+- Broke the requested follow-up into explicit ticket items:
+  - `--max-messages`
+  - `--since-days`
+  - `--mailbox-pattern`
+  - `--exclude-mailbox-pattern`
+  - `--stop-on-error`
+  - reporting updates
+  - targeted tests
+
+### Why
+
+- The new flags affect multiple layers at once:
+  - Glazed command schema
+  - sync option normalization
+  - mailbox selection
+  - IMAP search criteria
+  - aggregate reporting
+- Writing them down first makes it easier to land each flag in a focused code commit and keep the diary aligned with the actual implementation order.
+
+### What worked
+
+- The new work fits naturally after the existing Phase 6 reporting/reconcile slice.
+- The requested controls are cohesive enough to live under one dedicated “sync scope and safety” phase instead of being scattered through unrelated parts of the checklist.
+
+### What should be done in the future
+
+- Implement the new controls one at a time and commit each slice separately:
+  - message limit
+  - recent-mail window
+  - mailbox include/exclude filters
+  - stop-on-error behavior
+  - final doc/report updates
 
 ## Step 9: Add Full-Mailbox Reconciliation And Tombstoning
 
