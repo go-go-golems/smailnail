@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	metadataKeyEnrichThreadsAt = "enrich_threads_at"
 	metadataKeyEnrichSendersAt = "enrich_senders_at"
 )
 
