@@ -69,6 +69,7 @@ type BootstrapReport struct {
 	BatchSize             int          `json:"batchSize"`
 	MaxMessages           int          `json:"maxMessages"`
 	SinceDays             int          `json:"sinceDays"`
+	StopOnError           bool         `json:"stopOnError"`
 	ResetState            bool         `json:"resetState"`
 	ReconcileFull         bool         `json:"reconcileFull"`
 }
@@ -82,6 +83,7 @@ type RawMessageResult struct {
 
 type MailboxSyncResult struct {
 	MailboxName        string `json:"mailboxName"`
+	Error              string `json:"error,omitempty"`
 	UIDValidity        uint32 `json:"uidValidity"`
 	UIDNext            uint32 `json:"uidNext"`
 	PreviousHighUID    uint32 `json:"previousHighUid"`
@@ -101,11 +103,14 @@ type SyncReport struct {
 	AccountKey            string              `json:"accountKey"`
 	MailboxesPlanned      int                 `json:"mailboxesPlanned"`
 	MailboxesSynced       int                 `json:"mailboxesSynced"`
+	MailboxErrors         int                 `json:"mailboxErrors"`
+	FailedMailboxes       []string            `json:"failedMailboxes"`
 	MailboxPattern        string              `json:"mailboxPattern"`
 	ExcludeMailboxPattern string              `json:"excludeMailboxPattern"`
 	MaxMessages           int                 `json:"maxMessages"`
 	MaxMessagesReached    bool                `json:"maxMessagesReached"`
 	SinceDays             int                 `json:"sinceDays"`
+	StopOnError           bool                `json:"stopOnError"`
 	MessagesFetched       int                 `json:"messagesFetched"`
 	MessagesStored        int                 `json:"messagesStored"`
 	RawFilesWritten       int                 `json:"rawFilesWritten"`

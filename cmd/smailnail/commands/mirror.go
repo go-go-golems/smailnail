@@ -28,6 +28,7 @@ type MirrorSettings struct {
 	AllMailboxes          bool   `glazed:"all-mailboxes"`
 	MailboxPattern        string `glazed:"mailbox-pattern"`
 	ExcludeMailboxPattern string `glazed:"exclude-mailbox-pattern"`
+	StopOnError           bool   `glazed:"stop-on-error"`
 	PrintPlan             bool   `glazed:"print-plan"`
 	ReconcileFull         bool   `glazed:"reconcile-full-mailbox"`
 	ResetMailboxState     bool   `glazed:"reset-mailbox-state"`
@@ -95,6 +96,12 @@ func NewMirrorCommand() (*MirrorCommand, error) {
 				"exclude-mailbox-pattern",
 				fields.TypeString,
 				fields.WithHelp("Skip mailboxes whose names match this glob pattern when --all-mailboxes is enabled"),
+			),
+			fields.New(
+				"stop-on-error",
+				fields.TypeBool,
+				fields.WithHelp("Stop the whole sync on the first mailbox error (set false to continue with remaining mailboxes)"),
+				fields.WithDefault(true),
 			),
 			fields.New(
 				"print-plan",
@@ -170,6 +177,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		BatchSize:             settings.BatchSize,
 		MaxMessages:           settings.MaxMessages,
 		SinceDays:             settings.SinceDays,
+		StopOnError:           settings.StopOnError,
 		ReconcileFull:         settings.ReconcileFull,
 		ResetState:            settings.ResetMailboxState,
 	}
@@ -197,6 +205,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 		report.BatchSize = settings.BatchSize
 		report.MaxMessages = settings.MaxMessages
 		report.SinceDays = settings.SinceDays
+		report.StopOnError = settings.StopOnError
 		report.ResetState = settings.ResetMailboxState
 
 		service := mirror.NewService(store)
@@ -214,6 +223,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 			BatchSize:             settings.BatchSize,
 			MaxMessages:           settings.MaxMessages,
 			SinceDays:             settings.SinceDays,
+			StopOnError:           settings.StopOnError,
 			ReconcileFull:         settings.ReconcileFull,
 			ResetMailboxState:     settings.ResetMailboxState,
 		})
@@ -223,7 +233,7 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	}
 
 	row := types.NewRow()
-	row.Set("status", statusFromPlan(settings.PrintPlan))
+	row.Set("status", statusFromSync(settings.PrintPlan, syncReport))
 	row.Set("sqlite_driver", report.Database.Driver)
 	row.Set("sqlite_path", report.Database.Path)
 	row.Set("mirror_root", report.MirrorRoot)
@@ -238,12 +248,15 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	row.Set("batch_size", report.BatchSize)
 	row.Set("max_messages", report.MaxMessages)
 	row.Set("since_days", report.SinceDays)
+	row.Set("stop_on_error", report.StopOnError)
 	row.Set("reconcile_full_mailbox", report.ReconcileFull)
 	row.Set("reset_mailbox_state", report.ResetState)
 	if syncReport != nil {
 		row.Set("account_key", syncReport.AccountKey)
 		row.Set("mailboxes_planned", syncReport.MailboxesPlanned)
 		row.Set("mailboxes_synced", syncReport.MailboxesSynced)
+		row.Set("mailbox_errors", syncReport.MailboxErrors)
+		row.Set("failed_mailboxes", syncReport.FailedMailboxes)
 		row.Set("max_messages_reached", syncReport.MaxMessagesReached)
 		row.Set("messages_fetched", syncReport.MessagesFetched)
 		row.Set("messages_stored", syncReport.MessagesStored)
@@ -256,9 +269,12 @@ func (c *MirrorCommand) RunIntoGlazeProcessor(
 	return gp.AddRow(ctx, row)
 }
 
-func statusFromPlan(printPlan bool) string {
+func statusFromSync(printPlan bool, syncReport *mirror.SyncReport) string {
 	if printPlan {
 		return "plan"
+	}
+	if syncReport != nil && syncReport.MailboxErrors > 0 {
+		return "partial"
 	}
 	return "synced"
 }

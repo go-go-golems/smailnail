@@ -32,6 +32,7 @@ type SyncOptions struct {
 	BatchSize             int
 	MaxMessages           int
 	SinceDays             int
+	StopOnError           bool
 	ResetMailboxState     bool
 	ReconcileFull         bool
 }
@@ -85,6 +86,7 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		Int("batch_size", normalized.BatchSize).
 		Int("max_messages", normalized.MaxMessages).
 		Int("since_days", normalized.SinceDays).
+		Bool("stop_on_error", normalized.StopOnError).
 		Bool("reconcile_full_mailbox", normalized.ReconcileFull).
 		Bool("reset_mailbox_state", normalized.ResetMailboxState).
 		Msg("Starting IMAP mirror sync")
@@ -122,6 +124,7 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 		ExcludeMailboxPattern: normalized.ExcludeMailboxPattern,
 		MaxMessages:           normalized.MaxMessages,
 		SinceDays:             normalized.SinceDays,
+		StopOnError:           normalized.StopOnError,
 	}
 	for _, mailboxName := range mailboxes {
 		if normalized.MaxMessages > 0 && report.MessagesFetched >= normalized.MaxMessages {
@@ -138,7 +141,21 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 			Msg("Syncing mailbox")
 		mailboxReport, err := s.syncMailbox(ctx, session, accountKey, mailboxName, normalized, report.MessagesFetched)
 		if err != nil {
-			return nil, errors.Wrapf(err, "sync mailbox %s", mailboxName)
+			if normalized.StopOnError {
+				return nil, errors.Wrapf(err, "sync mailbox %s", mailboxName)
+			}
+			report.MailboxErrors++
+			report.FailedMailboxes = append(report.FailedMailboxes, mailboxName)
+			report.Mailboxes = append(report.Mailboxes, MailboxSyncResult{
+				MailboxName: mailboxName,
+				Error:       err.Error(),
+			})
+			log.Error().
+				Err(err).
+				Str("account_key", accountKey).
+				Str("mailbox", mailboxName).
+				Msg("Continuing after mailbox sync error because stop_on_error is disabled")
+			continue
 		}
 		report.Mailboxes = append(report.Mailboxes, *mailboxReport)
 		report.MailboxesSynced++
@@ -156,6 +173,7 @@ func (s *Service) Sync(ctx context.Context, opts SyncOptions) (*SyncReport, erro
 	log.Info().
 		Str("account_key", report.AccountKey).
 		Int("mailboxes_synced", report.MailboxesSynced).
+		Int("mailbox_errors", report.MailboxErrors).
 		Int("max_messages", report.MaxMessages).
 		Bool("max_messages_reached", report.MaxMessagesReached).
 		Int("messages_fetched", report.MessagesFetched).

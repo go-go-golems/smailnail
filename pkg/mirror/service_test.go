@@ -38,14 +38,15 @@ func TestServiceSyncPersistsIncrementalMessages(t *testing.T) {
 	service.now = func() time.Time { return fixedNow }
 
 	report, err := service.Sync(t.Context(), SyncOptions{
-		Server:     "localhost",
-		Port:       993,
-		Username:   "a",
-		Password:   "pass",
-		Insecure:   true,
-		Mailbox:    "INBOX",
-		MirrorRoot: root,
-		BatchSize:  2,
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   2,
+		StopOnError: true,
 	})
 	if err != nil {
 		t.Fatalf("Sync() error = %v", err)
@@ -70,14 +71,15 @@ func TestServiceSyncPersistsIncrementalMessages(t *testing.T) {
 	session.messages["INBOX"][3] = newFetchedMessage(3, "Gamma")
 
 	report, err = service.Sync(t.Context(), SyncOptions{
-		Server:     "localhost",
-		Port:       993,
-		Username:   "a",
-		Password:   "pass",
-		Insecure:   true,
-		Mailbox:    "INBOX",
-		MirrorRoot: root,
-		BatchSize:  2,
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   2,
+		StopOnError: true,
 	})
 	if err != nil {
 		t.Fatalf("Sync() second error = %v", err)
@@ -125,6 +127,7 @@ func TestServiceSyncHonorsMaxMessages(t *testing.T) {
 		MirrorRoot:  root,
 		BatchSize:   10,
 		MaxMessages: 2,
+		StopOnError: true,
 	})
 	if err != nil {
 		t.Fatalf("Sync() error = %v", err)
@@ -182,6 +185,7 @@ func TestServiceSyncHonorsSinceDays(t *testing.T) {
 		BatchSize:   10,
 		SinceDays:   3,
 		MaxMessages: 0,
+		StopOnError: true,
 	})
 	if err != nil {
 		t.Fatalf("Sync() error = %v", err)
@@ -218,14 +222,15 @@ func TestServiceSyncResetsOnUIDValidityChange(t *testing.T) {
 	service.now = func() time.Time { return time.Date(2026, 4, 1, 20, 0, 0, 0, time.UTC) }
 
 	if _, err := service.Sync(t.Context(), SyncOptions{
-		Server:     "localhost",
-		Port:       993,
-		Username:   "a",
-		Password:   "pass",
-		Insecure:   true,
-		Mailbox:    "INBOX",
-		MirrorRoot: root,
-		BatchSize:  10,
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   10,
+		StopOnError: true,
 	}); err != nil {
 		t.Fatalf("initial Sync() error = %v", err)
 	}
@@ -236,14 +241,15 @@ func TestServiceSyncResetsOnUIDValidityChange(t *testing.T) {
 	}
 
 	report, err := service.Sync(t.Context(), SyncOptions{
-		Server:     "localhost",
-		Port:       993,
-		Username:   "a",
-		Password:   "pass",
-		Insecure:   true,
-		Mailbox:    "INBOX",
-		MirrorRoot: root,
-		BatchSize:  10,
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   10,
+		StopOnError: true,
 	})
 	if err != nil {
 		t.Fatalf("second Sync() error = %v", err)
@@ -319,6 +325,88 @@ func TestResolveMailboxesAppliesIncludeAndExcludePatterns(t *testing.T) {
 	}
 }
 
+func TestServiceSyncStopOnErrorFailsFast(t *testing.T) {
+	store := openTestStore(t)
+	root := t.TempDir()
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	session := newFakeIMAPSession()
+	session.mailboxes = []mailruntime.MailboxInfo{{Name: "Broken"}, {Name: "INBOX"}}
+	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 2}
+	session.messages["INBOX"] = map[uint32]*mailruntime.FetchedMessage{
+		1: newFetchedMessage(1, "Alpha"),
+	}
+
+	service := NewService(store)
+	service.dial = func(_ context.Context, _ mailruntime.IMAPOptions) (imapSession, error) {
+		return session, nil
+	}
+
+	_, err := service.Sync(t.Context(), SyncOptions{
+		Server:       "localhost",
+		Port:         993,
+		Username:     "a",
+		Password:     "pass",
+		Insecure:     true,
+		AllMailboxes: true,
+		MirrorRoot:   root,
+		BatchSize:    10,
+		StopOnError:  true,
+	})
+	if err == nil {
+		t.Fatalf("expected fail-fast sync to return an error")
+	}
+}
+
+func TestServiceSyncContinuesWhenStopOnErrorDisabled(t *testing.T) {
+	store := openTestStore(t)
+	root := t.TempDir()
+	if _, err := store.Bootstrap(t.Context(), root); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+
+	session := newFakeIMAPSession()
+	session.mailboxes = []mailruntime.MailboxInfo{{Name: "Broken"}, {Name: "INBOX"}}
+	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 2}
+	session.messages["INBOX"] = map[uint32]*mailruntime.FetchedMessage{
+		1: newFetchedMessage(1, "Alpha"),
+	}
+
+	service := NewService(store)
+	service.dial = func(_ context.Context, _ mailruntime.IMAPOptions) (imapSession, error) {
+		return session, nil
+	}
+
+	report, err := service.Sync(t.Context(), SyncOptions{
+		Server:       "localhost",
+		Port:         993,
+		Username:     "a",
+		Password:     "pass",
+		Insecure:     true,
+		AllMailboxes: true,
+		MirrorRoot:   root,
+		BatchSize:    10,
+		StopOnError:  false,
+	})
+	if err != nil {
+		t.Fatalf("expected continue-on-error sync to succeed, got %v", err)
+	}
+	if report.MailboxErrors != 1 {
+		t.Fatalf("expected exactly one mailbox error, got %+v", report)
+	}
+	if report.MailboxesSynced != 1 {
+		t.Fatalf("expected one successful mailbox sync, got %+v", report)
+	}
+	if got := countMessages(t, store.db, "INBOX"); got != 1 {
+		t.Fatalf("expected INBOX to still sync after Broken failed, got %d mirrored messages", got)
+	}
+	if fmt.Sprintf("%v", report.FailedMailboxes) != "[Broken]" {
+		t.Fatalf("expected failed mailbox list to contain Broken, got %+v", report.FailedMailboxes)
+	}
+}
+
 func TestServiceSyncReconcileTombstonesMissingMessages(t *testing.T) {
 	store := openTestStore(t)
 	root := t.TempDir()
@@ -342,14 +430,15 @@ func TestServiceSyncReconcileTombstonesMissingMessages(t *testing.T) {
 	service.now = func() time.Time { return time.Date(2026, 4, 1, 20, 30, 0, 0, time.UTC) }
 
 	if _, err := service.Sync(t.Context(), SyncOptions{
-		Server:     "localhost",
-		Port:       993,
-		Username:   "a",
-		Password:   "pass",
-		Insecure:   true,
-		Mailbox:    "INBOX",
-		MirrorRoot: root,
-		BatchSize:  10,
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   10,
+		StopOnError: true,
 	}); err != nil {
 		t.Fatalf("initial Sync() error = %v", err)
 	}
@@ -367,6 +456,7 @@ func TestServiceSyncReconcileTombstonesMissingMessages(t *testing.T) {
 		MirrorRoot:    root,
 		BatchSize:     10,
 		ReconcileFull: true,
+		StopOnError:   true,
 	})
 	if err != nil {
 		t.Fatalf("reconcile Sync() error = %v", err)
@@ -411,14 +501,15 @@ func TestServiceSyncReconcileRestoresPresentMessages(t *testing.T) {
 	service.now = func() time.Time { return time.Date(2026, 4, 1, 20, 45, 0, 0, time.UTC) }
 
 	if _, err := service.Sync(t.Context(), SyncOptions{
-		Server:     "localhost",
-		Port:       993,
-		Username:   "a",
-		Password:   "pass",
-		Insecure:   true,
-		Mailbox:    "INBOX",
-		MirrorRoot: root,
-		BatchSize:  10,
+		Server:      "localhost",
+		Port:        993,
+		Username:    "a",
+		Password:    "pass",
+		Insecure:    true,
+		Mailbox:     "INBOX",
+		MirrorRoot:  root,
+		BatchSize:   10,
+		StopOnError: true,
 	}); err != nil {
 		t.Fatalf("initial Sync() error = %v", err)
 	}
@@ -437,6 +528,7 @@ func TestServiceSyncReconcileRestoresPresentMessages(t *testing.T) {
 		MirrorRoot:    root,
 		BatchSize:     10,
 		ReconcileFull: true,
+		StopOnError:   true,
 	})
 	if err != nil {
 		t.Fatalf("reconcile Sync() error = %v", err)
