@@ -27,6 +27,7 @@ RelatedFiles:
       Note: |-
         Registered the new mirror command in commit 1d9578a08372607e77e4de17bb95a1b75522568d
         Loaded embedded Glazed help docs in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
+        Switched root logging to Glazed logging flags in commit a1c8e5c502c3f03c0e1611db1d823f0d0bf9429e
     - Path: smailnail/cmd/smailnail/docs/embed.go
       Note: Added the embedded Glazed help loader in commit 00c5faeabd7aabca28a10c21fdf88082964a2b65
     - Path: smailnail/cmd/smailnail/docs/mail-app-rules.md
@@ -65,6 +66,11 @@ RelatedFiles:
         Added incremental IMAP sync orchestration in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
         Switched mirrored rows to prefer normalized parsed headers in commit bb97160ae5d9bd89af0233f2bf9bda6ba46fc2af
         Added full-mailbox reconcile and `remote_deleted` updates in commit f0aa4292d39d1da6240f2ec66ef068e28a7ae534
+        Added progress-oriented sync logging in commit a1c8e5c502c3f03c0e1611db1d823f0d0bf9429e
+    - Path: smailnail/cmd/smailnail/docs/mirror-overview.md
+      Note: Added progress-logging guidance in commit a1c8e5c502c3f03c0e1611db1d823f0d0bf9429e
+    - Path: smailnail/cmd/smailnail/docs/mirror-first-sync-tutorial.md
+      Note: Added first-run progress-logging guidance in commit a1c8e5c502c3f03c0e1611db1d823f0d0bf9429e
     - Path: smailnail/pkg/mirror/service_test.go
       Note: |-
         Added incremental sync and UIDVALIDITY regression tests in commit 9b0afe7a06542be44f8ae87f397c446232ec8efb
@@ -89,7 +95,7 @@ RelatedFiles:
         SQLite migration pattern examined during the investigation
 ExternalSources: []
 Summary: Chronological research diary for the IMAP mirror and SQLite indexing design ticket.
-LastUpdated: 2026-04-01T17:00:34-04:00
+LastUpdated: 2026-04-01T21:23:31-04:00
 WhatFor: Record what was investigated, what decisions were made, what failed, and how to review the resulting design docs.
 WhenToUse: Use this diary when continuing the ticket or reviewing how the design was assembled.
 ---
@@ -929,6 +935,139 @@ Unknown help topic [`topics`]
   - `cmd/smailnail/docs/mirror-overview.md`
   - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
   - `cmd/smailnail/docs/mirror-maintenance.md`
+
+## Step 11: Add Root Logging Flags And Progress Output For Mirror Sync
+
+This step addressed the operational gap that made a real mirror run look hung. The mirror command only emits its Glazed result row after the sync finishes, so if the server is slow or the mailbox is large, the user can end up staring at a blank terminal with no indication whether the process is connecting, enumerating mailboxes, fetching batches, or simply blocked.
+
+I fixed that in two layers. First, I upgraded the `smailnail` root command to use the Glazed logging setup pattern so the CLI now has standard root logging flags such as `--log-level`. Second, I added progress-oriented zerolog output inside the mirror sync path so long-running runs report start, mailbox selection, UID discovery, batch fetches, reconcile passes, and final totals on stderr while the final JSON/table row still lands on stdout.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Add progress zerolog logging output (using logging flags, see $glazed-command-authoring on how to initialize that (i think? otherwise ~/code/wesen/corporate-headquarters/glazed/cmd/glaze/)"
+
+**Assistant interpretation:** Follow the Glazed root-command logging pattern, expose the root logging flags, and add useful progress logging to the new mirror command so sync runs are observable.
+
+**Inferred user intent:** The user wants a mirror run to show visible progress and wants the logging controls to match the rest of the Glazed ecosystem instead of using ad hoc flags.
+
+**Commit (code):** `a1c8e5c502c3f03c0e1611db1d823f0d0bf9429e` — `feat(mirror): add progress logging`
+
+### What I did
+
+- Read the `glazed-command-authoring` skill and the reference root initialization in `glazed/cmd/glaze/main.go`.
+- Updated `cmd/smailnail/main.go` so the root command now:
+  - uses `PersistentPreRunE` with `logging.InitLoggerFromCobra`
+  - adds the standard Glazed logging section with `logging.AddLoggingSectionToRootCommand`
+  - keeps the embedded help wiring intact
+- Removed the old manual root logging setup so logging behavior is now controlled through the root flags instead of hard-coded defaults.
+- Added progress-oriented logs in `pkg/mirror/service.go` for:
+  - sync start
+  - mailbox resolution
+  - per-mailbox start
+  - reset-state and `UIDVALIDITY` resets
+  - selected mailbox status
+  - “no new mail” fast paths
+  - UID discovery
+  - batch fetch start and batch persistence completion
+  - reconcile start and reconcile totals
+  - mailbox sync-state updates
+  - final sync totals
+- Updated the mirror help docs so operators are told to run:
+  - `smailnail --log-level info mirror ...`
+  when they want live progress while the final result row is still pending.
+
+### Why
+
+- The mirror command is a batch operation, not an interactive stream. Without logging, large or slow runs look indistinguishable from a hang.
+- Root logging flags should be standardized at the CLI root so every command gets the same behavior.
+- Progress logs belong on stderr, leaving stdout free for Glazed output formats such as JSON.
+
+### What worked
+
+- The Glazed logging integration dropped cleanly into the existing root command.
+- `smailnail --help` now shows the expected root logging flags:
+  - `--log-level`
+  - `--log-format`
+  - `--log-file`
+  - related logstash/caller options
+- A real mirror sync against the repo-local Docker Dovecot fixture now shows the expected sequence of info logs before the final JSON row:
+  - sync start
+  - mailbox resolution
+  - mailbox selection
+  - UID discovery
+  - batch fetch
+  - batch persistence
+  - sync-state update
+  - final totals
+
+### What didn't work
+
+- After the first root-logging patch, `smailnail --help` still printed an unexpected debug startup line before the logger had been initialized. The cause was a leftover `log.Debug().Msg("Starting smailnail")` in `main.go`.
+- I removed that line so the new root logging flags fully control what appears.
+
+### What I learned
+
+- The server `mail.bl0rg.net:993` is reachable and presents a valid certificate, so the “hang” symptom reported by the user is more plausibly a long-running IMAP step than a basic TCP/TLS reachability failure.
+- The main usability improvement was not more output on stdout. It was placing progress logs on stderr while preserving the final structured result row on stdout.
+- `--log-level info` is the right default recommendation for operators. `debug` is useful, but too chatty for normal sync monitoring.
+
+### What was tricky to build
+
+- The main tradeoff was choosing enough log points to show forward progress without turning every fetch into log spam. The chosen shape is intentionally phase-based:
+  - one log for sync start
+  - one per mailbox transition
+  - one per batch start
+  - one per batch persistence result
+  - one for final totals
+
+That gives a user confidence that the process is moving without overwhelming stderr for large mailboxes.
+
+### What warrants a second pair of eyes
+
+- Whether the mirror command should eventually support an explicit timeout flag for network operations, since logging improves observability but does not yet add a connection or login timeout.
+- Whether any of the current info-level logs should be downgraded to debug once the team has lived with them on larger accounts.
+
+### What should be done in the future
+
+- Consider adding an explicit sync timeout or dial/login timeout if remote-server stalls become a repeated operational issue.
+- If local query flows are added later, keep the operator docs aligned so `--log-level info` remains the documented debugging path for long-running mirror operations.
+
+### Code review instructions
+
+- Start with:
+  - `cmd/smailnail/main.go`
+  - `pkg/mirror/service.go`
+- Then review the operator docs:
+  - `cmd/smailnail/docs/mirror-overview.md`
+  - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
+- Validate with:
+  - `go test -tags sqlite_fts5 ./cmd/smailnail ./pkg/mirror`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail --help`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-overview`
+  - a real mirror sync using `--log-level info`
+
+### Technical details
+
+- Root help now advertises standard Glazed logging flags, including:
+  - `--log-level`
+  - `--log-format`
+  - `--log-file`
+  - `--with-caller`
+
+- Validation commands used in this step:
+  - `go test -tags sqlite_fts5 ./cmd/smailnail ./pkg/mirror`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail --help`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail help smailnail-mirror-overview`
+  - `docker compose -f docker-compose.local.yml up -d dovecot`
+  - `go run ./cmd/imap-tests store-text-message --server localhost --username a --password pass --mailbox INBOX --from 'Seeder <seed@example.com>' --to 'User A <a@testcot>' --subject 'Mirror Logging Validation' --body 'Validate progress logging during mirror sync.' --insecure --output json`
+  - `go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror --server localhost --username a --password pass --mailbox INBOX --sqlite-path <tmp>/mirror.sqlite --mirror-root <tmp>/raw --insecure --output json`
+  - `timeout 10 openssl s_client -connect mail.bl0rg.net:993 -servername mail.bl0rg.net </dev/null`
+
+- Files changed in the code commit:
+  - `cmd/smailnail/main.go`
+  - `pkg/mirror/service.go`
+  - `cmd/smailnail/docs/mirror-overview.md`
+  - `cmd/smailnail/docs/mirror-first-sync-tutorial.md`
 
 ## Step 9: Add Full-Mailbox Reconciliation And Tombstoning
 

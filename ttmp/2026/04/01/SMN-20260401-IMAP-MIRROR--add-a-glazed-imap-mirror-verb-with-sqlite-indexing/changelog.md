@@ -105,3 +105,15 @@ Step 10: wired embedded Glazed help pages into the CLI and added operator-facing
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-overview.md — General-topic help entry for mirror architecture and flags
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-first-sync-tutorial.md — Tutorial help entry for the first mirror run
 - /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-maintenance.md — Maintenance and reconcile help entry for existing mirrors
+
+
+## 2026-04-01
+
+Step 11: added root logging flags and progress-oriented mirror sync logs so long-running runs report connection, mailbox, batch, and completion progress (commit a1c8e5c502c3f03c0e1611db1d823f0d0bf9429e)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/main.go — Root command now initializes Glazed logging flags and logger setup through `PersistentPreRunE`
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/pkg/mirror/service.go — Mirror sync now emits progress logs for sync start, mailbox selection, batch fetches, reconcile passes, and completion totals
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-overview.md — Help page now explains `--log-level info` for live progress
+- /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail/cmd/smailnail/docs/mirror-first-sync-tutorial.md — Tutorial now recommends `--log-level info` on first real syncs

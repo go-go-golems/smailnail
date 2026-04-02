@@ -69,6 +69,7 @@
 - [x] Add `--reset-mailbox-state` behavior
 - [x] Add optional tombstoning for missing remote messages after full scans
 - [x] Add a full-mailbox reconciliation mode that marks locally mirrored rows as remotely deleted when the server no longer reports them
+- [x] Add root logging flags and progress-oriented mirror sync logs so long-running runs no longer look idle
 
 ## Phase 7: Validation And Documentation
 
