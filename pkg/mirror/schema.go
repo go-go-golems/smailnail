@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-go-golems/smailnail/pkg/annotate"
 	"github.com/go-go-golems/smailnail/pkg/enrich"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
@@ -13,7 +14,7 @@ import (
 
 const (
 	metadataTable        = "mirror_metadata"
-	currentSchemaVersion = 2
+	currentSchemaVersion = 3
 )
 
 type schemaMigration struct {
@@ -75,6 +76,10 @@ func schemaMigrations() []schemaMigration {
 		{
 			version:    2,
 			statements: enrich.SchemaMigrationV2Statements(),
+		},
+		{
+			version:    3,
+			statements: annotate.SchemaMigrationV3Statements(),
 		},
 	}
 }
@@ -171,6 +176,8 @@ func schemaVersion(ctx context.Context, db *sqlx.DB) (int, error) {
 		return 1, nil
 	case "2":
 		return 2, nil
+	case "3":
+		return 3, nil
 	default:
 		return 0, fmt.Errorf("unsupported mirror schema version %q", raw)
 	}

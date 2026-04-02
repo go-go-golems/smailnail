@@ -29,6 +29,9 @@ func TestBootstrapCreatesCoreTables(t *testing.T) {
 		"mirror_metadata",
 		"mailbox_sync_state",
 		"messages",
+		"annotations",
+		"target_groups",
+		"annotation_logs",
 	}
 	for _, table := range expected {
 		var name string
