@@ -4,6 +4,8 @@ import { accountsReducer } from "../features/accounts/accountsSlice";
 import { authReducer } from "../features/auth";
 import { mailboxReducer } from "../features/mailbox/mailboxSlice";
 import { rulesReducer } from "../features/rules/rulesSlice";
+import { annotationsApi } from "../api/annotations";
+import { annotationUiReducer } from "./annotationUiSlice";
 
 export const store = configureStore({
   reducer: {
@@ -11,7 +13,11 @@ export const store = configureStore({
     accounts: accountsReducer,
     mailbox: mailboxReducer,
     rules: rulesReducer,
+    [annotationsApi.reducerPath]: annotationsApi.reducer,
+    annotationUi: annotationUiReducer,
   },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(annotationsApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
