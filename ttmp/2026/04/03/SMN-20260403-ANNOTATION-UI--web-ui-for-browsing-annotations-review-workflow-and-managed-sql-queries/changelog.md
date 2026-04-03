@@ -68,3 +68,21 @@ Step 4: MSW setup + Sprint 3 — AgentRunsPage, RunTimeline, GroupCard, RunDetai
 - /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/mocks/handlers.ts — MSW handlers
 - /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/pages/RunDetailPage.tsx — Run detail page
 
+
+## 2026-04-03
+
+Step 5: Sprint 4 — SendersPage, SenderDetailPage (SenderProfileCard, AgentReasoningPanel, MessagePreviewTable), GroupsPage; fixed withAll route patterns (commit 4452170)
+
+### Related Files
+
+- /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/pages/SenderDetailPage.tsx — Sender detail page
+
+
+## 2026-04-03
+
+Step 6: Sprint 5 — DashboardPage (DashboardStatGrid, LatestRunBanner, RecentActivityList) with MSW stories (commit 7138f7d)
+
+### Related Files
+
+- /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/pages/DashboardPage.tsx — Dashboard page
+

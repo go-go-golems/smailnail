@@ -352,3 +352,82 @@ The user specifically asked to use MSW instead of extracting presentational comp
 - Then `ui/src/components/RunTimeline/RunTimeline.tsx` — see connector line pattern
 - Then `ui/src/pages/RunDetailPage.tsx` — see stat boxes + Approve All + composition
 - Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`
+
+
+## Step 5: Sprint 4 — Senders, SenderDetail, Groups
+
+Built all the browse views: SendersPage (MUI table with email, domain, message count, TagChips, unsubscribe icon), SenderDetailPage (profile card + annotations + agent reasoning + messages), and GroupsPage (list of GroupCards). Created three new widgets in `components/SenderProfile/`: SenderProfileCard (stat boxes row), AgentReasoningPanel (log entries with kind badge), and MessagePreviewTable (compact date/subject/size table).
+
+Also fixed the `withAll` decorator to accept a `routePattern` parameter so `useParams` works correctly in stories — without this, the `:email` and `:runId` params were undefined in Storybook.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1) plus "oh yeah, use react-router in case you didn't already, that way we can have full navigation patterns"
+
+**Assistant interpretation:** Ensure react-router is properly wired for all navigation including param-based routes; continue Sprint 4.
+
+**Inferred user intent:** Full navigation should work end-to-end — clicking a sender in the table navigates to the detail view, back button returns, URL params populate correctly.
+
+**Commit (code):** 4452170 — "ui: Sprint 4 — Senders, SenderDetail, Groups pages + SenderProfile widgets"
+
+### What I did
+- Created `SenderProfileCard` — stat boxes row: messages, domain, first/last seen, unsubscribe status, tag chips
+- Created `AgentReasoningPanel` — log entries with kind chip, title, timestamps, markdown body
+- Created `MessagePreviewTable` — compact table with date, subject, size (with `formatBytes` helper)
+- Created `SendersPage` — MUI table with click-to-navigate, unsubscribe icon
+- Created `SenderDetailPage` — composes profile card + annotation table + reasoning panel + messages
+- Created `GroupsPage` — maps over groups with GroupCard
+- Fixed `withAll`/`withRouter` to accept `routePattern` param for `useParams` support
+- Created MSW stories for all three pages
+
+### What was tricky to build
+- The `withAll` decorator's route pattern: MemoryRouter needs both `initialEntries={["/annotations/senders/news@techcrunch.com"]}` (the actual URL) and a `<Route path="/annotations/senders/:email">` (the pattern) for `useParams` to parse correctly. Without the pattern, useParams returns an empty object.
+
+### What warrants a second pair of eyes
+- `SenderDetailPage` fetches a single `SenderDetail` object that includes nested `annotations`, `logs`, and `recentMessages`. This is a large response — the backend should consider pagination for senders with many messages.
+
+### What should be done in the future
+- Add sorting to SendersPage table (by message count, annotation count, etc.)
+- Add pagination or virtual scrolling for large sender lists
+
+### Code review instructions
+- Start in `ui/src/test-utils/storybook-decorators.tsx` — see `routePattern` parameter
+- Then `ui/src/pages/SenderDetailPage.tsx` — see composition pattern
+- Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`
+
+
+## Step 6: Sprint 5 — Dashboard
+
+Built the dashboard page with three widgets: DashboardStatGrid (6-cell stat row), LatestRunBanner (highlighted CTA for the most recent run with pending annotations), and RecentActivityList (compact log timeline). The DashboardPage composes these with four RTK Query hooks (annotations, runs, logs, senders) and derives stats/sorting locally.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1)
+
+**Assistant interpretation:** Continue implementing the task list — Sprint 5 is Dashboard.
+
+**Inferred user intent:** Complete the dashboard overview page.
+
+**Commit (code):** 7138f7d — "ui: Sprint 5 — Dashboard with stat grid, latest run banner, recent activity"
+
+### What I did
+- Created `DashboardStatGrid` — Paper with StatBox row, dividers between items
+- Created `LatestRunBanner` — highlighted Paper with amber border, run info, ReviewProgressBar, Review Queue and Inspect Run buttons, relative time (`getTimeAgo` helper)
+- Created `RecentActivityList` — compact log entries with date/time, kind badge, title, truncated body
+- Created `DashboardPage` — composes all three, derives stats from annotations array, finds latest run with pending count, sorts logs by date
+- Created Storybook stories: widget-level (StatGrid, RunBanner, Activity, FullDashboard composite) and page-level with MSW (Default, Empty)
+
+### What was tricky to build
+- Picking the "latest run" for the banner: sorting runs by `startedAt` descending and finding the first with `pendingCount > 0`. Falls back to the most recent run if all are fully reviewed. This is a simple heuristic — a real dashboard might want to show multiple recent runs.
+
+### What warrants a second pair of eyes
+- DashboardPage fires 4 parallel RTK Query hooks — this means 4 API calls on mount. Verify the backend can handle this efficiently. Consider a single `/api/dashboard-summary` endpoint if performance is a concern.
+
+### What should be done in the future
+- Consider a dedicated backend endpoint that returns pre-computed dashboard stats in one call
+- Add auto-refresh interval for the dashboard (RTK Query's `pollingInterval`)
+
+### Code review instructions
+- Start in `ui/src/components/Dashboard/` — three small widgets
+- Then `ui/src/pages/DashboardPage.tsx` — see 4-hook composition
+- Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`

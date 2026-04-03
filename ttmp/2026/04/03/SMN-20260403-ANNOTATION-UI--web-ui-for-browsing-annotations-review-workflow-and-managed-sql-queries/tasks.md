@@ -40,18 +40,18 @@
 - [x] S3: Build AgentRunsPage — MUI Table with run ID, source label, annotation count, progress bar, inspect button + stories
 - [x] S3: Build RunTimeline — chronological log entries with time column, log_kind badge, markdown body, linked TargetLinks + stories
 - [x] S3: Build RunDetailPage — StatBox row (total/pending/approved/dismissed), batch approve-all, RunTimeline, GroupCard list, AnnotationTable filtered to run
-- [ ] S4: Build SendersPage — MUI Table with email/display, domain, msg count, annotation count, TagChips, unsubscribe indicator + stories
-- [ ] S4: Build SenderProfileCard — StatBox grid (messages, domain, dates, unsubscribe status) + stories
-- [ ] S4: Build SenderAnnotationList — annotation table for single sender with review actions + stories
-- [ ] S4: Build AgentReasoningPanel — related log entries panel with title, body, timestamps + stories
-- [ ] S4: Build MessagePreviewTable — compact table (date, subject, size) for sender's recent messages + stories
-- [ ] S4: Build SenderDetailPage — compose SenderProfileCard + SenderAnnotationList + AgentReasoningPanel + MessagePreviewTable
+- [x] S4: Build SendersPage — MUI Table with email/display, domain, msg count, annotation count, TagChips, unsubscribe indicator + stories
+- [x] S4: Build SenderProfileCard — StatBox grid (messages, domain, dates, unsubscribe status) + stories
+- [x] S4: Build SenderAnnotationList — annotation table for single sender with review actions + stories
+- [x] S4: Build AgentReasoningPanel — related log entries panel with title, body, timestamps + stories
+- [x] S4: Build MessagePreviewTable — compact table (date, subject, size) for sender's recent messages + stories
+- [x] S4: Build SenderDetailPage — compose SenderProfileCard + SenderAnnotationList + AgentReasoningPanel + MessagePreviewTable
 - [x] S4: Build GroupCard — Paper card with name, ReviewStateBadge, member count, description, TargetLink list + stories
-- [ ] S4: Build GroupsPage — list of GroupCards with filter
-- [ ] S5: Build DashboardStatGrid — 6-cell responsive stat grid (pending, approved, dismissed, total, runs, senders) + stories
-- [ ] S5: Build LatestRunBanner — highlighted Paper with run info + CTA buttons (Review Queue, Inspect Run) + stories
-- [ ] S5: Build RecentActivityList — compact log timeline for dashboard + stories
-- [ ] S5: Build DashboardPage — compose DashboardStatGrid + LatestRunBanner + RecentActivityList
+- [x] S4: Build GroupsPage — list of GroupCards with filter
+- [x] S5: Build DashboardStatGrid — 6-cell responsive stat grid (pending, approved, dismissed, total, runs, senders) + stories
+- [x] S5: Build LatestRunBanner — highlighted Paper with run info + CTA buttons (Review Queue, Inspect Run) + stories
+- [x] S5: Build RecentActivityList — compact log timeline for dashboard + stories
+- [x] S5: Build DashboardPage — compose DashboardStatGrid + LatestRunBanner + RecentActivityList
 - [ ] S6: Port QueryEditor, QuerySidebar, SqlEditor, ResultsTable from go-minitrace/web — adapt imports, keep same data-widget/data-part attributes
 - [ ] S6: Build QueryEditorPage — wire ported QueryEditor to smailnail annotations API (executeQuery, getPresets, getSavedQueries, saveQuery)
 - [ ] S6: Add Storybook stories for ported query editor widgets (same states as go-minitrace: empty, with-results, error, loading)
