@@ -22,7 +22,7 @@ import {
   CountSummaryBar,
   BatchActionBar,
 } from "../components/shared";
-import type { Annotation, AnnotationFilter } from "../types/annotations";
+import type { Annotation } from "../types/annotations";
 
 export function ReviewQueuePage() {
   const dispatch = useAppDispatch();
@@ -31,30 +31,25 @@ export function ReviewQueuePage() {
     (s) => s.annotationUi.reviewQueue,
   );
 
-  // Build API filter
-  const filter: AnnotationFilter = useMemo(
-    () => ({
-      ...(filterTag ? { tag: filterTag } : {}),
-    }),
-    [filterTag],
+  const { data: annotations = [], isLoading } = useListAnnotationsQuery(
+    filterTag ? { tag: filterTag } : {},
   );
-
-  const { data: annotations = [], isLoading } = useListAnnotationsQuery(filter);
   const [batchReview] = useBatchReviewMutation();
   const [reviewAnnotation] = useReviewAnnotationMutation();
 
-  // Compute tag counts for filter pills
+  // Compute tag counts for filter pills (always from unfiltered set)
+  const { data: allAnnotations = [] } = useListAnnotationsQuery({});
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const ann of annotations) {
+    for (const ann of allAnnotations) {
       counts.set(ann.tag, (counts.get(ann.tag) ?? 0) + 1);
     }
     return Array.from(counts.entries())
       .map(([key, count]) => ({ key, label: key, count }))
       .sort((a, b) => b.count - a.count);
-  }, [annotations]);
+  }, [allAnnotations]);
 
-  // Compute summary counts
+  // Summary counts for current view
   const summaryItems = useMemo(() => {
     const toReview = annotations.filter(
       (a) => a.reviewState === "to_review",
@@ -72,7 +67,6 @@ export function ReviewQueuePage() {
     ];
   }, [annotations]);
 
-  // Find related annotations
   const getRelated = useCallback(
     (ann: Annotation) =>
       annotations.filter(
