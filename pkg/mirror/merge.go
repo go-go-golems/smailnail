@@ -401,7 +401,7 @@ func (s *MergeService) mergeShard(
 		if err != nil {
 			return err
 		}
-		if err := upsertMessageRecord(ctx, tx, record); err != nil {
+		if _, err := upsertMessageRecord(ctx, tx, record); err != nil {
 			return err
 		}
 		if existed {
@@ -443,11 +443,10 @@ type rawMergeResult struct {
 }
 
 func ensureMergedRawFile(shard MergeShardInfo, outputMirrorRoot string, record MessageRecord, failOnMissingRaw bool) (rawMergeResult, error) {
-	srcPath := filepath.Join(shard.RawRoot, record.RawPath)
-	srcRaw, err := os.ReadFile(srcPath)
+	srcPath, srcRaw, err := loadShardRawBytes(shard, record.RawPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			warning := fmt.Sprintf("missing raw file for shard=%s path=%s", shard.Name, srcPath)
+			warning := fmt.Sprintf("missing raw file for shard=%s raw_path=%s", shard.Name, record.RawPath)
 			if failOnMissingRaw {
 				return rawMergeResult{}, errors.New(warning)
 			}
@@ -498,6 +497,52 @@ func ensureMergedRawFile(shard MergeShardInfo, outputMirrorRoot string, record M
 	}
 
 	return rawMergeResult{Copied: 1}, nil
+}
+
+func loadShardRawBytes(shard MergeShardInfo, rawPath string) (string, []byte, error) {
+	var firstMissing string
+	for _, candidate := range shardRawCandidates(shard, rawPath) {
+		srcRaw, err := os.ReadFile(candidate)
+		if err == nil {
+			return candidate, srcRaw, nil
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			if firstMissing == "" {
+				firstMissing = candidate
+			}
+			continue
+		}
+		return "", nil, err
+	}
+	if firstMissing == "" {
+		firstMissing = filepath.Join(shard.Root, filepath.FromSlash(rawPath))
+	}
+	return firstMissing, nil, os.ErrNotExist
+}
+
+func shardRawCandidates(shard MergeShardInfo, rawPath string) []string {
+	candidates := []string{}
+	seen := map[string]struct{}{}
+	add := func(candidate string) {
+		candidate = filepath.Clean(candidate)
+		if _, ok := seen[candidate]; ok {
+			return
+		}
+		seen[candidate] = struct{}{}
+		candidates = append(candidates, candidate)
+	}
+
+	relPath := filepath.FromSlash(rawPath)
+	add(filepath.Join(shard.Root, relPath))
+	if shard.RawRoot != "" {
+		add(filepath.Join(shard.RawRoot, relPath))
+		rawPrefix := "raw" + string(filepath.Separator)
+		if strings.HasPrefix(relPath, rawPrefix) {
+			add(filepath.Join(shard.RawRoot, strings.TrimPrefix(relPath, rawPrefix)))
+		}
+	}
+
+	return candidates
 }
 
 func destinationMessageExists(ctx context.Context, tx *sqlx.Tx, record MessageRecord) (bool, error) {

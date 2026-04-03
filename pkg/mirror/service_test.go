@@ -66,6 +66,9 @@ func TestServiceSyncPersistsIncrementalMessages(t *testing.T) {
 	if got := countMessages(t, store.db, "INBOX"); got != 2 {
 		t.Fatalf("expected 2 mirrored messages, got %d", got)
 	}
+	if got := countFTSRows(t, store.db); got != 2 {
+		t.Fatalf("expected 2 messages_fts rows after initial sync, got %d", got)
+	}
 
 	session.statuses["INBOX"] = &mailruntime.MailboxStatus{UIDValidity: 21, UIDNext: 4}
 	session.messages["INBOX"][3] = newFetchedMessage(3, "Gamma")
@@ -89,6 +92,12 @@ func TestServiceSyncPersistsIncrementalMessages(t *testing.T) {
 	}
 	if got := countMessages(t, store.db, "INBOX"); got != 3 {
 		t.Fatalf("expected 3 mirrored messages after incremental sync, got %d", got)
+	}
+	if got := countFTSRows(t, store.db); got != 3 {
+		t.Fatalf("expected 3 messages_fts rows after incremental sync, got %d", got)
+	}
+	if !ftsMatches(t, store.db, "Gamma") {
+		t.Fatalf("expected messages_fts to index newly mirrored message subject")
 	}
 
 	rawPath := filepath.Join(root, RawMessagePath(AccountKey("localhost", 993, "a"), "INBOX", 21, 3))
@@ -656,6 +665,26 @@ func countMessages(t *testing.T, db *sqlx.DB, mailboxName string) int {
 		t.Fatalf("count messages error = %v", err)
 	}
 	return count
+}
+
+func countFTSRows(t *testing.T, db *sqlx.DB) int {
+	t.Helper()
+
+	var count int
+	if err := db.Get(&count, `SELECT COUNT(*) FROM messages_fts`); err != nil {
+		t.Fatalf("count messages_fts error = %v", err)
+	}
+	return count
+}
+
+func ftsMatches(t *testing.T, db *sqlx.DB, query string) bool {
+	t.Helper()
+
+	var count int
+	if err := db.Get(&count, `SELECT COUNT(*) FROM messages_fts WHERE messages_fts MATCH ?`, query); err != nil {
+		t.Fatalf("query messages_fts error = %v", err)
+	}
+	return count > 0
 }
 
 func hasMessage(t *testing.T, db *sqlx.DB, mailboxName string, uid uint32) bool {

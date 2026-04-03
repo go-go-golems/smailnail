@@ -204,6 +204,34 @@ func TestMergeServiceWarnsOnMissingRawByDefault(t *testing.T) {
 	}
 }
 
+func TestMergeServiceFindsRawFilesWhenShardMirrorRootIsShardRoot(t *testing.T) {
+	inputRoot := t.TempDir()
+	shard := createMergeTestShardAtMirrorRoot(t, inputRoot, "2026-04", 21, []uint32{1}, false)
+
+	outputDir := t.TempDir()
+	outputSQLite := filepath.Join(outputDir, "merged.sqlite")
+	outputRoot := filepath.Join(outputDir, "merged-root")
+
+	service := NewMergeService()
+	report, err := service.Merge(t.Context(), MergeOptions{
+		InputRoot:        inputRoot,
+		OutputSQLitePath: outputSQLite,
+		OutputMirrorRoot: outputRoot,
+		CopyRaw:          true,
+		RebuildFTS:       true,
+		RebuildSyncState: true,
+	})
+	if err != nil {
+		t.Fatalf("Merge() error = %v", err)
+	}
+
+	if report.RawFilesCopied != 1 || report.RawFilesMissing != 0 {
+		t.Fatalf("expected alternate shard layout raw file to be copied, got %+v", report)
+	}
+	assertFileExists(t, filepath.Join(outputRoot, RawMessagePath(AccountKey("localhost", 993, "merge-user"), "INBOX", 21, 1)))
+	assertFileExists(t, filepath.Join(shard.Root, RawMessagePath(AccountKey("localhost", 993, "merge-user"), "INBOX", 21, 1)))
+}
+
 func TestMergeServiceFailsWhenMissingRawIsStrict(t *testing.T) {
 	inputRoot := t.TempDir()
 	shard := createMergeTestShard(t, inputRoot, "2026-03", 21, []uint32{1})
@@ -229,6 +257,10 @@ func TestMergeServiceFailsWhenMissingRawIsStrict(t *testing.T) {
 }
 
 func createMergeTestShard(t *testing.T, inputRoot, name string, uidValidity uint32, uids []uint32) MergeShardInfo {
+	return createMergeTestShardAtMirrorRoot(t, inputRoot, name, uidValidity, uids, true)
+}
+
+func createMergeTestShardAtMirrorRoot(t *testing.T, inputRoot, name string, uidValidity uint32, uids []uint32, nestedRawRoot bool) MergeShardInfo {
 	t.Helper()
 
 	root := filepath.Join(inputRoot, name)
@@ -245,8 +277,14 @@ func createMergeTestShard(t *testing.T, inputRoot, name string, uidValidity uint
 
 	accountKey := AccountKey("localhost", 993, "merge-user")
 	now := mustParseMergeTime(t, "2026-04-02T12:00:00Z")
+	mirrorRoot := root
+	rawRoot := root
+	if nestedRawRoot {
+		mirrorRoot = filepath.Join(root, "raw")
+		rawRoot = mirrorRoot
+	}
 	for _, uid := range uids {
-		rawResult, err := WriteRawMessage(filepath.Join(root, "raw"), accountKey, "INBOX", uidValidity, uid, []byte("From: Tester <test@example.com>\r\nSubject: Merge\r\n\r\nBody\r\n"))
+		rawResult, err := WriteRawMessage(mirrorRoot, accountKey, "INBOX", uidValidity, uid, []byte("From: Tester <test@example.com>\r\nSubject: Merge\r\n\r\nBody\r\n"))
 		if err != nil {
 			t.Fatalf("WriteRawMessage() error = %v", err)
 		}
@@ -273,7 +311,7 @@ func createMergeTestShard(t *testing.T, inputRoot, name string, uidValidity uint
 		if err != nil {
 			t.Fatalf("BeginTxx() error = %v", err)
 		}
-		if err := upsertMessageRecord(t.Context(), tx, record); err != nil {
+		if _, err := upsertMessageRecord(t.Context(), tx, record); err != nil {
 			t.Fatalf("upsertMessageRecord() error = %v", err)
 		}
 		if err := tx.Commit(); err != nil {
@@ -285,7 +323,7 @@ func createMergeTestShard(t *testing.T, inputRoot, name string, uidValidity uint
 		Name:       name,
 		Root:       root,
 		SQLitePath: filepath.Join(root, "mirror.sqlite"),
-		RawRoot:    filepath.Join(root, "raw"),
+		RawRoot:    rawRoot,
 	}
 }
 

@@ -675,7 +675,11 @@ func (s *Service) persistBatch(
 		if err != nil {
 			return err
 		}
-		if err := upsertMessageRecord(ctx, tx, record); err != nil {
+		messageRowID, err := upsertMessageRecord(ctx, tx, record)
+		if err != nil {
+			return err
+		}
+		if err := upsertMessageFTS(ctx, tx, messageRowID, record); err != nil {
 			return err
 		}
 
@@ -1022,7 +1026,7 @@ func updateRemoteDeletedState(
 	return nil
 }
 
-func upsertMessageRecord(ctx context.Context, tx *sqlx.Tx, record MessageRecord) error {
+func upsertMessageRecord(ctx context.Context, tx *sqlx.Tx, record MessageRecord) (int64, error) {
 	query := `INSERT INTO messages (
 		account_key, mailbox_name, uidvalidity, uid, message_id, internal_date, sent_date, subject,
 		from_summary, to_summary, cc_summary, size_bytes, flags_json, headers_json, parts_json,
@@ -1077,7 +1081,52 @@ func upsertMessageRecord(ctx context.Context, tx *sqlx.Tx, record MessageRecord)
 		record.FirstSeenAt,
 		record.LastSyncedAt,
 	); err != nil {
-		return errors.Wrap(err, "upsert mirrored message")
+		return 0, errors.Wrap(err, "upsert mirrored message")
 	}
+
+	var messageRowID int64
+	if err := tx.GetContext(
+		ctx,
+		&messageRowID,
+		`SELECT id FROM messages
+		  WHERE account_key = ?
+		    AND mailbox_name = ?
+		    AND uidvalidity = ?
+		    AND uid = ?`,
+		record.AccountKey,
+		record.MailboxName,
+		record.UIDValidity,
+		record.UID,
+	); err != nil {
+		return 0, errors.Wrap(err, "load mirrored message row id")
+	}
+
+	return messageRowID, nil
+}
+
+func upsertMessageFTS(ctx context.Context, tx *sqlx.Tx, rowID int64, record MessageRecord) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM messages_fts WHERE rowid = ?`, rowID); err != nil {
+		return errors.Wrap(err, "delete stale mirrored messages_fts row")
+	}
+
+	if _, err := tx.ExecContext(
+		ctx,
+		`INSERT INTO messages_fts (
+			rowid, account_key, mailbox_name, subject, from_summary, to_summary, cc_summary, body_text, body_html, search_text
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		rowID,
+		record.AccountKey,
+		record.MailboxName,
+		record.Subject,
+		record.FromSummary,
+		record.ToSummary,
+		record.CCSummary,
+		record.BodyText,
+		record.BodyHTML,
+		record.SearchText,
+	); err != nil {
+		return errors.Wrap(err, "upsert mirrored messages_fts row")
+	}
+
 	return nil
 }
