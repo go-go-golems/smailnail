@@ -13,12 +13,30 @@ Intent: long-term
 Owners:
     - manuel
 RelatedFiles:
+    - Path: cmd/smailnail/commands/sqlite/serve.go
+      Note: New smailnail sqlite serve command
     - Path: cmd/smailnail/main.go
-      Note: Root CLI wiring where the sqlite command group will be registered
+      Note: |-
+        Root CLI wiring where the sqlite command group will be registered
+        Root CLI registration for the sqlite command group
     - Path: cmd/smailnaild/commands/serve.go
       Note: Existing hosted server used only as a pattern reference
     - Path: pkg/annotate/repository.go
-      Note: Repository layer that already contains most annotation CRUD primitives
+      Note: |-
+        Repository layer that already contains most annotation CRUD primitives
+        Repository aggregation and batch review SQL used by the backend
+    - Path: pkg/annotate/types.go
+      Note: Repository-side response and filter types added for agent runs and group detail
+    - Path: pkg/annotationui/handlers_annotations.go
+      Note: Annotation
+    - Path: pkg/annotationui/handlers_query.go
+      Note: Read-only SQL execution plus preset/saved query handling
+    - Path: pkg/annotationui/handlers_senders.go
+      Note: Sender list/detail queries and response composition
+    - Path: pkg/annotationui/server.go
+      Note: SQLite HTTP server boundary
+    - Path: pkg/annotationui/server_test.go
+      Note: End-to-end handler contract tests for the sqlite backend
     - Path: ttmp/2026/04/03/SMN-20260403-ANNOTATION-UI--web-ui-for-browsing-annotations-review-workflow-and-managed-sql-queries/design/08-backend-api-specification-for-annotation-ui.md
       Note: Source handoff spec being corrected for the sqlite server architecture
     - Path: ui/src/api/annotations.ts
@@ -33,6 +51,7 @@ LastUpdated: 2026-04-03T09:43:51.032449805-04:00
 WhatFor: Correct the annotation UI backend handoff and drive implementation of a sqlite-backed web server under the smailnail CLI
 WhenToUse: Use when implementing or reviewing the sqlite-backed annotation/query backend and the smailnail sqlite serve command
 ---
+
 
 
 # SQLite annotation backend implementation guide
