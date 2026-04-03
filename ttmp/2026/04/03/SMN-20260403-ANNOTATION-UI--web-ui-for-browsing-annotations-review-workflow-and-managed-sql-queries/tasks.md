@@ -52,9 +52,9 @@
 - [x] S5: Build LatestRunBanner — highlighted Paper with run info + CTA buttons (Review Queue, Inspect Run) + stories
 - [x] S5: Build RecentActivityList — compact log timeline for dashboard + stories
 - [x] S5: Build DashboardPage — compose DashboardStatGrid + LatestRunBanner + RecentActivityList
-- [ ] S6: Port QueryEditor, QuerySidebar, SqlEditor, ResultsTable from go-minitrace/web — adapt imports, keep same data-widget/data-part attributes
-- [ ] S6: Build QueryEditorPage — wire ported QueryEditor to smailnail annotations API (executeQuery, getPresets, getSavedQueries, saveQuery)
-- [ ] S6: Add Storybook stories for ported query editor widgets (same states as go-minitrace: empty, with-results, error, loading)
+- [x] S6: Port QueryEditor, QuerySidebar, SqlEditor, ResultsTable from go-minitrace/web — adapt imports, keep same data-widget/data-part attributes
+- [x] S6: Build QueryEditorPage — wire ported QueryEditor to smailnail annotations API (executeQuery, getPresets, getSavedQueries, saveQuery)
+- [x] S6: Add Storybook stories for ported query editor widgets (same states as go-minitrace: empty, with-results, error, loading)
 - [ ] S7: Add keyboard shortcuts — j/k row navigation, x toggle select, a approve, d dismiss, Enter expand, Esc close, Ctrl+Enter run query, / focus search
 - [ ] S7: Add breadcrumb navigation for detail views (Agent Runs > run-42, Senders > news@example.com)
 - [ ] S7: Add sidebar pending-count badge — live from RTK Query listAnnotations cache, filtered to review_state=to_review

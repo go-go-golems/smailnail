@@ -396,6 +396,11 @@ Also fixed the `withAll` decorator to accept a `routePattern` parameter so `useP
 - Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`
 
 
+## Step 5b: react-router route patterns for useParams
+
+The user pointed out we should use react-router for full navigation patterns. We already had react-router wired (commit 9319d86) but the `withAll` Storybook decorator used a wildcard `Route path="*"` which broke `useParams` parsing in stories. Fixed by adding a `routePattern` parameter to `withAll` and `withRouter` — stories now pass both the actual URL and the route pattern (e.g., `withAll("/annotations/senders/news@techcrunch.com", "/annotations/senders/:email")`).
+
+
 ## Step 6: Sprint 5 — Dashboard
 
 Built the dashboard page with three widgets: DashboardStatGrid (6-cell stat row), LatestRunBanner (highlighted CTA for the most recent run with pending annotations), and RecentActivityList (compact log timeline). The DashboardPage composes these with four RTK Query hooks (annotations, runs, logs, senders) and derives stats/sorting locally.
@@ -430,4 +435,47 @@ Built the dashboard page with three widgets: DashboardStatGrid (6-cell stat row)
 ### Code review instructions
 - Start in `ui/src/components/Dashboard/` — three small widgets
 - Then `ui/src/pages/DashboardPage.tsx` — see 4-hook composition
+- Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`
+
+
+## Step 7: Sprint 6 — QueryEditor Port from go-minitrace
+
+Ported the QueryEditor widget cluster from go-minitrace: SqlEditor (CodeMirror 6 with SQL highlighting and one-dark theme), QuerySidebar (folder-grouped query list), ResultsTable (sortable with CSV/JSON export and cell expansion), and the composing QueryEditor widget. Adapted the code for smailnail's types (no `path` field on SavedQuery, `rowCount`/`durationMs` instead of snake_case, no `onClickSessionId`).
+
+The QueryEditorPage wires everything to RTK Query with local state for the SQL text, result, and error. The CodeMirror integration required installing 5 `@codemirror/*` packages.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1)
+
+**Assistant interpretation:** Port the query editor from go-minitrace for Sprint 6.
+
+**Inferred user intent:** Reuse the proven query editor with SQL workbench functionality.
+
+**Commit (code):** 11fb711 — "ui: Sprint 6 — QueryEditor ported from go-minitrace"
+
+### What I did
+- Installed `@codemirror/state`, `@codemirror/view`, `@codemirror/lang-sql`, `@codemirror/theme-one-dark`, `@codemirror/commands`
+- Copied `SqlEditor.tsx` verbatim from go-minitrace (no changes needed)
+- Adapted `QuerySidebar.tsx` — removed `path` field usage, used `${folder}/${name}` as key, added null-safety for `groups[folder]`
+- Adapted `ResultsTable.tsx` — changed `result.row_count`/`result.duration_ms` to `result.rowCount`/`result.durationMs`, removed `onClickSessionId` prop
+- Adapted `QueryEditor.tsx` — removed `sourceStatus` and `onReloadSource` props (simpler for smailnail)
+- Created `QueryEditorPage` — local state for sql/result/error, wires executeQuery mutation with error handling
+- Created stories: QueryEditor widget (5 states) + QueryEditorPage with MSW
+
+### What was tricky to build
+- CodeMirror's `EditorView` lifecycle: the editor is created once in a `useEffect` with empty deps, then external value changes are synced via a second `useEffect`. The eslint-disable for exhaustive-deps is intentional — recreating the editor on every prop change would lose cursor position and undo history.
+- The `ResultsTable` field name adaptation (snake_case → camelCase) was a source of silent bugs — `result.row_count` would be `undefined` in TypeScript but wouldn't throw. Caught it because the Chip label showed "undefined rows".
+
+### What warrants a second pair of eyes
+- `SqlEditor.tsx` is copied verbatim from go-minitrace — this is the main candidate for the shared package extraction. Any changes should be made in both places until extraction happens.
+- The `QueryEditorPage` error handling casts the RTK Query error to extract the message — this depends on the backend returning `{ message: string }` in error responses.
+
+### What should be done in the future
+- Extract `SqlEditor`, `QuerySidebar`, `ResultsTable`, `QueryEditor` into `@go-go-golems/ui-shared` package
+- Add `onSave` wiring to QueryEditorPage (currently passed but not connected to `useSaveQueryMutation`)
+
+### Code review instructions
+- Compare `ui/src/components/QueryEditor/SqlEditor.tsx` with `go-minitrace/web/src/components/QueryEditor/SqlEditor.tsx` — should be identical
+- Check `ResultsTable.tsx` field name adaptation
 - Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`

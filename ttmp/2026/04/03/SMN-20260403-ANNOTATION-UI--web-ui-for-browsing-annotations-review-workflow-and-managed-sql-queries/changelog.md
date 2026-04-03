@@ -86,3 +86,12 @@ Step 6: Sprint 5 — DashboardPage (DashboardStatGrid, LatestRunBanner, RecentAc
 
 - /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/pages/DashboardPage.tsx — Dashboard page
 
+
+## 2026-04-03
+
+Step 7: Sprint 6 — QueryEditor ported from go-minitrace (SqlEditor, QuerySidebar, ResultsTable, QueryEditor, QueryEditorPage) with CodeMirror 6 and MSW stories (commit 11fb711)
+
+### Related Files
+
+- /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/components/QueryEditor/QueryEditor.tsx — Ported query editor
+
