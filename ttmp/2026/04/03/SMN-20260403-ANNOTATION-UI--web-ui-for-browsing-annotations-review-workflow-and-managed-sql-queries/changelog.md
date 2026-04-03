@@ -95,3 +95,12 @@ Step 7: Sprint 6 — QueryEditor ported from go-minitrace (SqlEditor, QuerySideb
 
 - /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/components/QueryEditor/QueryEditor.tsx — Ported query editor
 
+
+## 2026-04-03
+
+Created backend API specification (design/08) — 16 endpoints with exact URLs, HTTP methods, query params, JSON shapes, SQL queries, Go type definitions, implementation order, and testing strategy. Self-contained handoff for backend engineer.
+
+### Related Files
+
+- /home/manuel/code/wesen/corporate-headquarters/smailnail/ttmp/2026/04/03/SMN-20260403-ANNOTATION-UI--web-ui-for-browsing-annotations-review-workflow-and-managed-sql-queries/design/08-backend-api-specification-for-annotation-ui.md — Backend API spec
+
