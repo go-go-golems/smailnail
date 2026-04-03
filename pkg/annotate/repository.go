@@ -2,6 +2,7 @@ package annotate
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -74,7 +75,7 @@ func (r *Repository) GetAnnotation(ctx context.Context, id string) (*Annotation,
 
 func (r *Repository) ListAnnotations(ctx context.Context, filter ListAnnotationsFilter) ([]Annotation, error) {
 	query := `SELECT * FROM annotations WHERE 1 = 1`
-	args := make([]any, 0, 5)
+	args := make([]any, 0, 6)
 	if strings.TrimSpace(filter.TargetType) != "" {
 		query += ` AND target_type = ?`
 		args = append(args, strings.TrimSpace(filter.TargetType))
@@ -94,6 +95,10 @@ func (r *Repository) ListAnnotations(ctx context.Context, filter ListAnnotations
 	if strings.TrimSpace(filter.SourceKind) != "" {
 		query += ` AND source_kind = ?`
 		args = append(args, strings.TrimSpace(filter.SourceKind))
+	}
+	if strings.TrimSpace(filter.AgentRunID) != "" {
+		query += ` AND agent_run_id = ?`
+		args = append(args, strings.TrimSpace(filter.AgentRunID))
 	}
 	query += ` ORDER BY created_at DESC, id DESC`
 	if filter.Limit > 0 {
@@ -128,6 +133,48 @@ func (r *Repository) UpdateAnnotationReviewState(ctx context.Context, id, review
 		return nil, fmt.Errorf("annotation %s not found", id)
 	}
 	return r.GetAnnotation(ctx, id)
+}
+
+func (r *Repository) BatchUpdateReviewState(ctx context.Context, ids []string, reviewState string) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("ids are required")
+	}
+
+	trimmedIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		trimmedIDs = append(trimmedIDs, id)
+	}
+	if len(trimmedIDs) == 0 {
+		return fmt.Errorf("ids are required")
+	}
+
+	query, args, err := sqlx.In(`UPDATE annotations
+		SET review_state = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id IN (?)`, defaultReviewState(reviewState, ""), trimmedIDs)
+	if err != nil {
+		return errors.Wrap(err, "build batch review update query")
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return errors.Wrap(err, "begin batch review update transaction")
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if _, err := tx.ExecContext(ctx, tx.Rebind(query), args...); err != nil {
+		return errors.Wrap(err, "batch update annotation review state")
+	}
+	if err := tx.Commit(); err != nil {
+		return errors.Wrap(err, "commit batch review update transaction")
+	}
+
+	return nil
 }
 
 func (r *Repository) CreateGroup(ctx context.Context, input CreateGroupInput) (*TargetGroup, error) {
@@ -326,6 +373,151 @@ func (r *Repository) ListLogTargets(ctx context.Context, logID string) ([]LogTar
 		return nil, errors.Wrap(err, "list annotation log targets")
 	}
 	return ret, nil
+}
+
+func (r *Repository) ListRuns(ctx context.Context) ([]AgentRunSummary, error) {
+	query := `
+WITH run_annotations AS (
+	SELECT
+		agent_run_id,
+		source_label,
+		source_kind,
+		COUNT(*) AS annotation_count,
+		SUM(CASE WHEN review_state = 'to_review' THEN 1 ELSE 0 END) AS pending_count,
+		SUM(CASE WHEN review_state = 'reviewed' THEN 1 ELSE 0 END) AS reviewed_count,
+		SUM(CASE WHEN review_state = 'dismissed' THEN 1 ELSE 0 END) AS dismissed_count,
+		MIN(created_at) AS started_at,
+		MAX(created_at) AS completed_at
+	FROM annotations
+	WHERE agent_run_id != ''
+	GROUP BY agent_run_id, source_label, source_kind
+),
+run_logs AS (
+	SELECT agent_run_id, COUNT(*) AS log_count
+	FROM annotation_logs
+	WHERE agent_run_id != ''
+	GROUP BY agent_run_id
+),
+run_groups AS (
+	SELECT agent_run_id, COUNT(*) AS group_count
+	FROM target_groups
+	WHERE agent_run_id != ''
+	GROUP BY agent_run_id
+)
+SELECT
+	ra.agent_run_id AS run_id,
+	ra.source_label,
+	ra.source_kind,
+	ra.annotation_count,
+	ra.pending_count,
+	ra.reviewed_count,
+	ra.dismissed_count,
+	COALESCE(rl.log_count, 0) AS log_count,
+	COALESCE(rg.group_count, 0) AS group_count,
+	ra.started_at,
+	ra.completed_at
+FROM run_annotations ra
+LEFT JOIN run_logs rl ON rl.agent_run_id = ra.agent_run_id
+LEFT JOIN run_groups rg ON rg.agent_run_id = ra.agent_run_id
+ORDER BY ra.started_at DESC, ra.agent_run_id DESC`
+
+	ret := []AgentRunSummary{}
+	if err := r.db.SelectContext(ctx, &ret, query); err != nil {
+		return nil, errors.Wrap(err, "list annotation runs")
+	}
+	return ret, nil
+}
+
+func (r *Repository) GetRunDetail(ctx context.Context, runID string) (*AgentRunDetail, error) {
+	summary, err := r.getRunSummary(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+
+	annotations, err := r.ListAnnotations(ctx, ListAnnotationsFilter{AgentRunID: runID})
+	if err != nil {
+		return nil, errors.Wrap(err, "list run annotations")
+	}
+
+	logs, err := r.ListLogs(ctx, ListLogsFilter{AgentRunID: runID})
+	if err != nil {
+		return nil, errors.Wrap(err, "list run logs")
+	}
+
+	groups := []TargetGroup{}
+	query := r.db.Rebind(`SELECT * FROM target_groups
+		WHERE agent_run_id = ?
+		ORDER BY created_at DESC, id DESC`)
+	if err := r.db.SelectContext(ctx, &groups, query, strings.TrimSpace(runID)); err != nil {
+		return nil, errors.Wrap(err, "list run groups")
+	}
+
+	return &AgentRunDetail{
+		AgentRunSummary: *summary,
+		Annotations:     annotations,
+		Logs:            logs,
+		Groups:          groups,
+	}, nil
+}
+
+func (r *Repository) getRunSummary(ctx context.Context, runID string) (*AgentRunSummary, error) {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return nil, fmt.Errorf("run id is required")
+	}
+
+	query := `
+WITH run_annotations AS (
+	SELECT
+		agent_run_id,
+		source_label,
+		source_kind,
+		COUNT(*) AS annotation_count,
+		SUM(CASE WHEN review_state = 'to_review' THEN 1 ELSE 0 END) AS pending_count,
+		SUM(CASE WHEN review_state = 'reviewed' THEN 1 ELSE 0 END) AS reviewed_count,
+		SUM(CASE WHEN review_state = 'dismissed' THEN 1 ELSE 0 END) AS dismissed_count,
+		MIN(created_at) AS started_at,
+		MAX(created_at) AS completed_at
+	FROM annotations
+	WHERE agent_run_id = ?
+	GROUP BY agent_run_id, source_label, source_kind
+),
+run_logs AS (
+	SELECT agent_run_id, COUNT(*) AS log_count
+	FROM annotation_logs
+	WHERE agent_run_id = ?
+	GROUP BY agent_run_id
+),
+run_groups AS (
+	SELECT agent_run_id, COUNT(*) AS group_count
+	FROM target_groups
+	WHERE agent_run_id = ?
+	GROUP BY agent_run_id
+)
+SELECT
+	ra.agent_run_id AS run_id,
+	ra.source_label,
+	ra.source_kind,
+	ra.annotation_count,
+	ra.pending_count,
+	ra.reviewed_count,
+	ra.dismissed_count,
+	COALESCE(rl.log_count, 0) AS log_count,
+	COALESCE(rg.group_count, 0) AS group_count,
+	ra.started_at,
+	ra.completed_at
+FROM run_annotations ra
+LEFT JOIN run_logs rl ON rl.agent_run_id = ra.agent_run_id
+LEFT JOIN run_groups rg ON rg.agent_run_id = ra.agent_run_id`
+
+	var ret AgentRunSummary
+	if err := r.db.GetContext(ctx, &ret, r.db.Rebind(query), runID, runID, runID); err != nil {
+		if errors.Cause(err) == sql.ErrNoRows {
+			return nil, fmt.Errorf("annotation run %s not found", runID)
+		}
+		return nil, errors.Wrap(err, "get annotation run summary")
+	}
+	return &ret, nil
 }
 
 func defaultSourceKind(sourceKind string) string {
