@@ -27,6 +27,16 @@ topics:
       description: Local mirror storage, synchronization, and related tooling
     - slug: backfill
       description: Bulk historical import or reconstruction of prior data ranges
+    - slug: annotations
+      description: Annotation and review workflows
+    - slug: frontend
+      description: Frontend and web UI work
+    - slug: workflow
+      description: Human and agent workflow design
+    - slug: search
+      description: Search and filtering features
+    - slug: ux-design
+      description: Functionality-first UX and interaction design
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes

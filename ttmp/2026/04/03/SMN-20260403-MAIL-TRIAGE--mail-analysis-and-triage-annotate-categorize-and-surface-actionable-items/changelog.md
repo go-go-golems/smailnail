@@ -36,3 +36,21 @@ Designed 5-layer selective embedding/RAG strategy (200x cheaper than naive). Sav
 
 - /home/manuel/code/wesen/corporate-headquarters/smailnail/ttmp/2026/04/03/SMN-20260403-MAIL-TRIAGE--mail-analysis-and-triage-annotate-categorize-and-surface-actionable-items/design/02-selective-embedding-and-rag-strategy-for-email-triage.md — Comprehensive embedding/RAG design with 5 layers
 
+
+## 2026-04-03
+
+Created agent annotation handbook (pkg/doc/agent-annotation-handbook.md) — Glazed help page for future agents
+
+### Related Files
+
+- /home/manuel/code/wesen/corporate-headquarters/smailnail/pkg/doc/agent-annotation-handbook.md — Agent handbook with granular logging requirements
+
+
+## 2026-04-03
+
+Created project report as narrative blog post in Obsidian vault and ticket reference/
+
+### Related Files
+
+- /home/manuel/code/wesen/obsidian-vault/Projects/2026/04/03/PROJ - Email Triage - AI Secretary for a 33K Message Inbox.md — Anonymized project report in Obsidian vault
+
