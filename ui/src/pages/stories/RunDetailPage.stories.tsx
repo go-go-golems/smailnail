@@ -31,7 +31,7 @@ const meta = {
   title: "Pages/RunDetailPage",
   component: RunDetailPage,
   decorators: [
-    withAll("/annotations/runs/run-42"),
+    withAll("/annotations/runs/run-42", "/annotations/runs/:runId"),
     (Story) => (
       <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
         <Story />
@@ -69,7 +69,7 @@ export const Loading: Story = {
 
 export const NotFound: Story = {
   decorators: [
-    withAll("/annotations/runs/run-999"),
+    withAll("/annotations/runs/run-999", "/annotations/runs/:runId"),
     (Story) => (
       <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
         <Story />

@@ -16,12 +16,20 @@ export const withTheme: Decorator = (Story) => (
   </ThemeProvider>
 );
 
-/** Wraps in a MemoryRouter at a given path */
-export function withRouter(initialPath = "/"): Decorator {
+/**
+ * Wraps in a MemoryRouter with proper route patterns for param parsing.
+ * @param initialPath - The URL to render, e.g. "/annotations/runs/run-42"
+ * @param routePattern - The route pattern with params, e.g. "/annotations/runs/:runId"
+ *                        Defaults to a catch-all "*" if not specified.
+ */
+export function withRouter(
+  initialPath = "/",
+  routePattern?: string,
+): Decorator {
   return (Story) => (
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
-        <Route path="*" element={<Story />} />
+        <Route path={routePattern ?? "*"} element={<Story />} />
       </Routes>
     </MemoryRouter>
   );
@@ -44,8 +52,15 @@ export const withStore: Decorator = (Story) => {
   );
 };
 
-/** Combined: store + router + theme */
-export function withAll(initialPath = "/"): Decorator {
+/**
+ * Combined: store + router + theme.
+ * @param initialPath - The URL to render
+ * @param routePattern - Route pattern for param parsing (e.g. "/annotations/senders/:email")
+ */
+export function withAll(
+  initialPath = "/",
+  routePattern?: string,
+): Decorator {
   return (Story) => {
     const store = configureStore({
       reducer: {
@@ -61,7 +76,10 @@ export function withAll(initialPath = "/"): Decorator {
           <CssBaseline />
           <MemoryRouter initialEntries={[initialPath]}>
             <Routes>
-              <Route path="*" element={<Story />} />
+              <Route
+                path={routePattern ?? "*"}
+                element={<Story />}
+              />
             </Routes>
           </MemoryRouter>
         </ThemeProvider>
