@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
-	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 )
 
@@ -139,7 +138,7 @@ WHERE email = ?`)
 		return
 	}
 
-	logs, err := h.listSenderLogs(r.Context(), annotations)
+	logs, err := h.listSenderLogs(r.Context(), email)
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -194,32 +193,14 @@ LIMIT 20`)
 	})
 }
 
-func (h *appHandler) listSenderLogs(ctx context.Context, annotations []annotate.Annotation) ([]annotate.AnnotationLog, error) {
-	runIDs := make([]string, 0)
-	seen := map[string]struct{}{}
-	for _, annotation := range annotations {
-		runID := strings.TrimSpace(annotation.AgentRunID)
-		if runID == "" {
-			continue
-		}
-		if _, ok := seen[runID]; ok {
-			continue
-		}
-		seen[runID] = struct{}{}
-		runIDs = append(runIDs, runID)
-	}
-	if len(runIDs) == 0 {
-		return []annotate.AnnotationLog{}, nil
-	}
-
-	query, args, err := sqlx.In(`SELECT * FROM annotation_logs
-		WHERE agent_run_id IN (?)
-		ORDER BY created_at DESC, id DESC`, runIDs)
-	if err != nil {
-		return nil, errors.Wrap(err, "build sender logs query")
-	}
+func (h *appHandler) listSenderLogs(ctx context.Context, email string) ([]annotate.AnnotationLog, error) {
+	query := h.db.Rebind(`SELECT DISTINCT l.*
+		FROM annotation_logs l
+		INNER JOIN annotation_log_targets t ON t.log_id = l.id
+		WHERE t.target_type = ? AND t.target_id = ?
+		ORDER BY l.created_at DESC, l.id DESC`)
 	ret := []annotate.AnnotationLog{}
-	if err := h.db.SelectContext(ctx, &ret, h.db.Rebind(query), args...); err != nil {
+	if err := h.db.SelectContext(ctx, &ret, query, "sender", strings.TrimSpace(email)); err != nil {
 		return nil, errors.Wrap(err, "list sender logs")
 	}
 	return ret, nil

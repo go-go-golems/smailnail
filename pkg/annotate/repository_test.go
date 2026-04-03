@@ -302,3 +302,71 @@ func TestRepositoryListRunsAndGetRunDetail(t *testing.T) {
 		t.Fatalf("expected 1 group, got %d", len(detail.Groups))
 	}
 }
+
+func TestRepositoryRunSummaryAggregatesMixedSourceMetadata(t *testing.T) {
+	db := openTestDB(t)
+	repo := annotate.NewRepository(db)
+
+	first, err := repo.CreateAnnotation(context.Background(), annotate.CreateAnnotationInput{
+		TargetType:  "sender",
+		TargetID:    "sender@example.com",
+		Tag:         "newsletter",
+		SourceKind:  annotate.SourceKindAgent,
+		SourceLabel: "triage-agent-v1",
+		AgentRunID:  "run-mixed",
+	})
+	if err != nil {
+		t.Fatalf("CreateAnnotation(first) error = %v", err)
+	}
+	if _, err := repo.UpdateAnnotationReviewState(context.Background(), first.ID, annotate.ReviewStateReviewed); err != nil {
+		t.Fatalf("UpdateAnnotationReviewState(first) error = %v", err)
+	}
+
+	if _, err := repo.CreateAnnotation(context.Background(), annotate.CreateAnnotationInput{
+		TargetType:  "sender",
+		TargetID:    "sender-two@example.com",
+		Tag:         "alert",
+		SourceKind:  annotate.SourceKindAgent,
+		SourceLabel: "triage-agent-v2",
+		AgentRunID:  "run-mixed",
+	}); err != nil {
+		t.Fatalf("CreateAnnotation(second) error = %v", err)
+	}
+
+	runs, err := repo.ListRuns(context.Background())
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runs))
+	}
+	if runs[0].RunID != "run-mixed" {
+		t.Fatalf("expected run id run-mixed, got %q", runs[0].RunID)
+	}
+	if runs[0].AnnotationCount != 2 {
+		t.Fatalf("expected annotation count 2, got %d", runs[0].AnnotationCount)
+	}
+	if runs[0].ReviewedCount != 1 {
+		t.Fatalf("expected reviewed count 1, got %d", runs[0].ReviewedCount)
+	}
+	if runs[0].PendingCount != 1 {
+		t.Fatalf("expected pending count 1, got %d", runs[0].PendingCount)
+	}
+
+	detail, err := repo.GetRunDetail(context.Background(), "run-mixed")
+	if err != nil {
+		t.Fatalf("GetRunDetail() error = %v", err)
+	}
+	if detail.AnnotationCount != 2 {
+		t.Fatalf("expected detail annotation count 2, got %d", detail.AnnotationCount)
+	}
+	if detail.ReviewedCount != 1 {
+		t.Fatalf("expected detail reviewed count 1, got %d", detail.ReviewedCount)
+	}
+	if detail.PendingCount != 1 {
+		t.Fatalf("expected detail pending count 1, got %d", detail.PendingCount)
+	}
+	if len(detail.Annotations) != 2 {
+		t.Fatalf("expected 2 annotations, got %d", len(detail.Annotations))
+	}
+}

@@ -380,8 +380,6 @@ func (r *Repository) ListRuns(ctx context.Context) ([]AgentRunSummary, error) {
 WITH run_annotations AS (
 	SELECT
 		agent_run_id,
-		source_label,
-		source_kind,
 		COUNT(*) AS annotation_count,
 		SUM(CASE WHEN review_state = 'to_review' THEN 1 ELSE 0 END) AS pending_count,
 		SUM(CASE WHEN review_state = 'reviewed' THEN 1 ELSE 0 END) AS reviewed_count,
@@ -390,7 +388,23 @@ WITH run_annotations AS (
 		MAX(created_at) AS completed_at
 	FROM annotations
 	WHERE agent_run_id != ''
-	GROUP BY agent_run_id, source_label, source_kind
+	GROUP BY agent_run_id
+),
+run_annotation_metadata AS (
+	SELECT agent_run_id, source_label, source_kind
+	FROM (
+		SELECT
+			agent_run_id,
+			source_label,
+			source_kind,
+			ROW_NUMBER() OVER (
+				PARTITION BY agent_run_id
+				ORDER BY created_at DESC, id DESC
+			) AS row_number
+		FROM annotations
+		WHERE agent_run_id != ''
+	)
+	WHERE row_number = 1
 ),
 run_logs AS (
 	SELECT agent_run_id, COUNT(*) AS log_count
@@ -406,8 +420,8 @@ run_groups AS (
 )
 SELECT
 	ra.agent_run_id AS run_id,
-	ra.source_label,
-	ra.source_kind,
+	COALESCE(ram.source_label, '') AS source_label,
+	COALESCE(ram.source_kind, '') AS source_kind,
 	ra.annotation_count,
 	ra.pending_count,
 	ra.reviewed_count,
@@ -417,6 +431,7 @@ SELECT
 	ra.started_at,
 	ra.completed_at
 FROM run_annotations ra
+LEFT JOIN run_annotation_metadata ram ON ram.agent_run_id = ra.agent_run_id
 LEFT JOIN run_logs rl ON rl.agent_run_id = ra.agent_run_id
 LEFT JOIN run_groups rg ON rg.agent_run_id = ra.agent_run_id
 ORDER BY ra.started_at DESC, ra.agent_run_id DESC`
@@ -470,8 +485,6 @@ func (r *Repository) getRunSummary(ctx context.Context, runID string) (*AgentRun
 WITH run_annotations AS (
 	SELECT
 		agent_run_id,
-		source_label,
-		source_kind,
 		COUNT(*) AS annotation_count,
 		SUM(CASE WHEN review_state = 'to_review' THEN 1 ELSE 0 END) AS pending_count,
 		SUM(CASE WHEN review_state = 'reviewed' THEN 1 ELSE 0 END) AS reviewed_count,
@@ -480,7 +493,23 @@ WITH run_annotations AS (
 		MAX(created_at) AS completed_at
 	FROM annotations
 	WHERE agent_run_id = ?
-	GROUP BY agent_run_id, source_label, source_kind
+	GROUP BY agent_run_id
+),
+run_annotation_metadata AS (
+	SELECT agent_run_id, source_label, source_kind
+	FROM (
+		SELECT
+			agent_run_id,
+			source_label,
+			source_kind,
+			ROW_NUMBER() OVER (
+				PARTITION BY agent_run_id
+				ORDER BY created_at DESC, id DESC
+			) AS row_number
+		FROM annotations
+		WHERE agent_run_id = ?
+	)
+	WHERE row_number = 1
 ),
 run_logs AS (
 	SELECT agent_run_id, COUNT(*) AS log_count
@@ -496,8 +525,8 @@ run_groups AS (
 )
 SELECT
 	ra.agent_run_id AS run_id,
-	ra.source_label,
-	ra.source_kind,
+	COALESCE(ram.source_label, '') AS source_label,
+	COALESCE(ram.source_kind, '') AS source_kind,
 	ra.annotation_count,
 	ra.pending_count,
 	ra.reviewed_count,
@@ -507,11 +536,12 @@ SELECT
 	ra.started_at,
 	ra.completed_at
 FROM run_annotations ra
+LEFT JOIN run_annotation_metadata ram ON ram.agent_run_id = ra.agent_run_id
 LEFT JOIN run_logs rl ON rl.agent_run_id = ra.agent_run_id
 LEFT JOIN run_groups rg ON rg.agent_run_id = ra.agent_run_id`
 
 	var ret AgentRunSummary
-	if err := r.db.GetContext(ctx, &ret, r.db.Rebind(query), runID, runID, runID); err != nil {
+	if err := r.db.GetContext(ctx, &ret, r.db.Rebind(query), runID, runID, runID, runID); err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
 			return nil, fmt.Errorf("annotation run %s not found", runID)
 		}

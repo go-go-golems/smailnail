@@ -145,8 +145,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 
 		var payload []annotate.AnnotationLog
 		decodeJSONResponse(t, rec, &payload)
-		if len(payload) != 1 {
-			t.Fatalf("expected 1 log, got %d", len(payload))
+		if len(payload) != 2 {
+			t.Fatalf("expected 2 logs, got %d", len(payload))
 		}
 	})
 
@@ -161,7 +161,7 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		if payload.RunID != "run-42" {
 			t.Fatalf("runID = %q", payload.RunID)
 		}
-		if len(payload.Annotations) != 2 || len(payload.Logs) != 1 || len(payload.Groups) != 1 {
+		if len(payload.Annotations) != 2 || len(payload.Logs) != 2 || len(payload.Groups) != 1 {
 			t.Fatalf("unexpected detail sizes: annotations=%d logs=%d groups=%d", len(payload.Annotations), len(payload.Logs), len(payload.Groups))
 		}
 	})
@@ -196,11 +196,16 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		if len(payload.Annotations) != 2 {
 			t.Fatalf("expected 2 annotations, got %d", len(payload.Annotations))
 		}
-		if len(payload.Logs) != 1 {
-			t.Fatalf("expected 1 log, got %d", len(payload.Logs))
+		if len(payload.Logs) != 2 {
+			t.Fatalf("expected 2 sender-linked logs, got %d", len(payload.Logs))
 		}
 		if len(payload.RecentMessages) != 2 {
 			t.Fatalf("expected 2 messages, got %d", len(payload.RecentMessages))
+		}
+		for _, log := range payload.Logs {
+			if log.Title == "Other sender on same run" {
+				t.Fatalf("unexpected unrelated log leaked into sender detail")
+			}
 		}
 	})
 
@@ -399,6 +404,42 @@ func seedAnnotationUITestData(t *testing.T, db *sqlx.DB) annotationUITestFixture
 		TargetID:   "news@example.com",
 	}); err != nil {
 		t.Fatalf("LinkLogTarget() error = %v", err)
+	}
+	otherLog, err := repo.CreateLog(context.Background(), annotate.CreateLogInput{
+		Title:        "Other sender on same run",
+		BodyMarkdown: "Should not leak into sender detail.",
+		SourceKind:   annotate.SourceKindAgent,
+		SourceLabel:  "triage-agent-v1",
+		AgentRunID:   "run-42",
+		CreatedBy:    "system",
+	})
+	if err != nil {
+		t.Fatalf("CreateLog(otherLog) error = %v", err)
+	}
+	if err := repo.LinkLogTarget(context.Background(), annotate.LinkLogTargetInput{
+		LogID:      otherLog.ID,
+		TargetType: "sender",
+		TargetID:   "other@example.com",
+	}); err != nil {
+		t.Fatalf("LinkLogTarget(otherLog) error = %v", err)
+	}
+	targetOnlyLog, err := repo.CreateLog(context.Background(), annotate.CreateLogInput{
+		Title:        "Direct sender note",
+		BodyMarkdown: "Linked to sender without sharing the sender run id.",
+		SourceKind:   annotate.SourceKindHuman,
+		SourceLabel:  "reviewer",
+		AgentRunID:   "run-unrelated",
+		CreatedBy:    "system",
+	})
+	if err != nil {
+		t.Fatalf("CreateLog(targetOnlyLog) error = %v", err)
+	}
+	if err := repo.LinkLogTarget(context.Background(), annotate.LinkLogTargetInput{
+		LogID:      targetOnlyLog.ID,
+		TargetType: "sender",
+		TargetID:   "news@example.com",
+	}); err != nil {
+		t.Fatalf("LinkLogTarget(targetOnlyLog) error = %v", err)
 	}
 
 	mustExec(t, db, `INSERT INTO senders (
