@@ -1,0 +1,22 @@
+id     date        sender_email                   subject                                                       
+-----  ----------  -----------------------------  --------------------------------------------------------------
+32888  2026-03-03  support@e.usa.experian.com     Reminder: Your alerts are waiting for you, Manuel!            
+32836  2026-03-02  support@e.usa.experian.com     Another company has reported a major data breach              
+32708  2026-03-01  support@e.usa.experian.com     Manuel, your FICO® Score is affected by these five factors    
+32556  2026-03-01  no_reply@post.applecard.apple  Your Apple Card statement is ready                            
+32516  2026-03-01  support@e.usa.experian.com     Good news, Manuel! You may qualify for a good driver discount.
+32460  2026-02-18  support@e.usa.experian.com     Manuel, your FICO® Score is affected by these five factors    
+32402  2026-02-18  support@e.usa.experian.com     Good news, Manuel! You may qualify for a good driver discount.
+32380  2026-02-17  support@e.usa.experian.com     Manuel, you could get a refund on your auto insurance         
+32354  2026-02-17  email@e.affirm.com             Get everything you came for (and more) at Costco              
+32326  2026-02-16  support@e.usa.experian.com     Manuel, you still have scores to view!                        
+32259  2026-02-15  support@e.usa.experian.com     Manuel, you're close to earning The Seeker badge!             
+32178  2026-02-15  support@e.usa.experian.com     Good news, Manuel! You may qualify for a good driver discount.
+32161  2026-02-14  support@e.usa.experian.com     Manuel, a perfect 850 is this close                           
+32092  2026-02-13  support@e.usa.experian.com     Manuel, you're close to earning The Seeker badge!             
+32057  2026-02-13  support@e.usa.experian.com     Manuel, here's a quick overview of your credit...             
+32007  2026-02-12  email@e.affirm.com             The home upgrade you want is around the corner                
+31932  2026-02-11  support@e.usa.experian.com     Manuel, your FICO®Score is affected by these five factors     
+31825  2026-02-11  support@e.usa.experian.com     Good news, Manuel! You may qualify for a good driver discount.
+31797  2026-02-10  support@e.usa.experian.com     Manuel, your hard work is paying off...                       
+31770  2026-02-10  email@e.affirm.com             Claim your $100 off at Expedia Flights                        

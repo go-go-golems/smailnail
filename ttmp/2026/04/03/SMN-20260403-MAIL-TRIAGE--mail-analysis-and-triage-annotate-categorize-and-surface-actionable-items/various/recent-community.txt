@@ -1,0 +1,32 @@
+id     date        sender_email               subject                                                               
+-----  ----------  -------------------------  ----------------------------------------------------------------------
+32912  2026-03-03  mwillia8@bates.edu         [(Brush)strokes of Genius] March 22 – Museum Town (2019)              
+32910  2026-03-03  dreeves@beeminder.com      monthly beemail: integrations, hotkeys, death to deadline snoozing    
+32859  2026-03-02  gallery@riphotocenter.org  March Update from the Rhode Island Center for Photographic Arts       
+32858  2026-03-02  gallery@riphotocenter.org  March Update from the Rhode Island Center for Photographic Arts       
+32857  2026-03-02  gallery@riphotocenter.org  March Update from the Rhode Island Center for Photographic Arts       
+32840  2026-03-02  intern@lists.entropia.de   [gewerbehof-intern] Plenum ist morgen, Dienstag um 18Uhr              
+32472  2026-02-19  gallery@riphotocenter.org  Opening Reception at the Rhode Island Center for Photographic Arts    
+32471  2026-02-19  gallery@riphotocenter.org  Opening Reception at the Rhode Island Center for Photographic Arts    
+32470  2026-02-19  gallery@riphotocenter.org  Opening Reception at the Rhode Island Center for Photographic Arts    
+32439  2026-02-18  mail@provath.org           Executive Director's Log (or, a Man Gone Mad)                         
+32438  2026-02-18  mail@provath.org           Executive Director's Log (or, a Man Gone Mad)                         
+32410  2026-02-18  intern@lists.entropia.de   [gewerbehof-intern] Erinnerung: morgen ist wieder HV i um 18 Uhr im Bü
+32392  2026-02-17  mwillia8@bates.edu         [(Brush)strokes] Reminder: Frida Kahlo and Jean-Michel Basquiat - Sund
+32339  2026-02-17  intern@lists.entropia.de   [gewerbehof-intern] Nächstes Plenum am Dienstag, dem 3. März um 18 Uhr
+32034  2026-02-13  intern@lists.entropia.de   Re: Mittwoch 19:00 Treffen OpenDesk für privatuser*innen              
+31961  2026-02-12  intern@lists.entropia.de   [gewerbehof-intern] HV am 19. Februar um 18 Uhr im Büro               
+31897  2026-02-11  gallery@riphotocenter.org  February Update from the Rhode Island Center for Photographic Arts    
+31895  2026-02-11  gallery@riphotocenter.org  February Update from the Rhode Island Center for Photographic Arts    
+31894  2026-02-11  gallery@riphotocenter.org  February Update from the Rhode Island Center for Photographic Arts    
+31888  2026-02-11  mail@provath.org           I doubt it                                                            
+31887  2026-02-11  mail@provath.org           I doubt it                                                            
+31839  2026-02-11  intern@lists.entropia.de   Re: Computertruhe Team KA / Raum für Treffen                          
+31738  2026-02-09  david@as220.org            Anti-ICE screenprinting / Show your work in PARIS  + FRIENDS!         
+31688  2026-02-09  intern@lists.entropia.de   Mittwoch 19:00 Treffen OpenDesk für privatuser*innen                  
+31567  2026-02-07  intern@lists.entropia.de   Re: Vorschlag 1k                                                      
+31558  2026-02-07  intern@lists.entropia.de   Vorschlag 1k                                                          
+31550  2026-02-06  intern@lists.entropia.de   Ausleihe Multi-Schleifer                                              
+31367  2026-02-04  david@as220.org            More inspiration than you may ever realize.                           
+31346  2026-02-04  mail@provath.org           Be easy, my bruh                                                      
+31345  2026-02-04  mail@provath.org           Be easy, my bruh                                                      
