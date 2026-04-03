@@ -1,0 +1,525 @@
+---
+Title: Investigation diary
+Ticket: SMN-20260402-MIRROR-MERGE
+Status: active
+Topics:
+    - mirror
+    - sqlite
+    - backfill
+    - cli
+DocType: reference
+Intent: long-term
+Owners:
+    - manuel
+RelatedFiles:
+    - Path: cmd/smailnail/commands/merge_mirror_shards.go
+      Note: Diary record for the initial merge command surface
+    - Path: cmd/smailnail/commands/mirror.go
+      Note: Diary evidence for current mirror command behavior and operator contract
+    - Path: pkg/mirror/files.go
+      Note: Diary evidence for raw file naming and SHA semantics
+    - Path: pkg/mirror/merge.go
+      Note: Diary record for the first merge service slice
+    - Path: pkg/mirror/merge_test.go
+      Note: Diary record for the first merge tests
+    - Path: pkg/mirror/schema.go
+      Note: Diary evidence for schema versioning and derived-state tables
+    - Path: pkg/mirror/service.go
+      Note: Diary evidence for sync flow
+    - Path: ttmp/2026/04/01/SMN-20260401-IMAP-MIRROR--add-a-glazed-imap-mirror-verb-with-sqlite-indexing/scripts/dashboard-last-24-months-backfill.sh
+      Note: Diary evidence for the shard directory contract observed by operators
+ExternalSources: []
+Summary: Chronological research log for the merge-shards verb design, including evidence gathered from the current mirror command, service, schema, and scripts.
+LastUpdated: 2026-04-02T16:14:59.780360632-04:00
+WhatFor: Chronological record of the analysis work used to design the mirror shard merge verb.
+WhenToUse: Use when continuing the merge-verb design or reviewing why the proposed architecture was chosen.
+---
+
+
+
+# Investigation diary
+
+## Goal
+
+Capture the evidence, reasoning, and concrete commands behind the design for a `smailnail` merge-shards verb. This diary is written so a future engineer can understand what was inspected, what constraints were discovered, and why the proposed implementation favors a correctness-first Go service over a shell-only or SQL-only merge.
+
+## Step 1: Create the ticket and map the current mirror architecture
+
+I started by creating a new ticket workspace specifically for the merge-shards problem instead of extending the earlier IMAP mirror ticket further. The previous ticket already documented how month-sharded backfills are produced, but this follow-up work needed its own scope because the merge step is a separate product capability with different failure modes, especially around raw-file integrity, checkpoint reconstruction, and derived index rebuilds.
+
+The main work in this step was evidence gathering. I inspected the current `mirror` verb, the mirror service, the on-disk raw-message layout, the schema bootstrap path, and the month-sharded backfill scripts. That inspection made the central architectural point clear: the missing merge is not just a `sqlite3 ATTACH` convenience script. It has to reconcile database rows, raw `.eml` files, `mailbox_sync_state`, and the standalone `messages_fts` table in one coherent operation.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Alright, create a new docmgr ticket and create a detailed analysis / implementation plan. 
+
+Create a detailed analysis / design / implementation guide that is very detailed for a new intern, explaining all the parts of the system needed to understand what it is, with prose paragraphs and bullet point sand pseudocode and diagrams and api references and file
+  references.
+  It should be very clear and detailed. Store in the ticket and the nupload to remarkable."
+
+**Assistant interpretation:** Create a new docmgr ticket dedicated to the merge-shards verb, gather evidence from the current mirror system, and write a detailed intern-facing design/implementation guide plus diary, then upload the bundle to reMarkable.
+
+**Inferred user intent:** Turn the earlier ad hoc discussion about merging month-sharded mirror databases into a formal, actionable design package that another engineer could implement safely.
+
+**Commit (code):** N/A
+
+### What I did
+- Created a new ticket workspace with `docmgr ticket create-ticket --ticket SMN-20260402-MIRROR-MERGE --title "Add a mirror shard merge verb for month-sharded backfills" --topics mirror,sqlite,backfill,cli`.
+- Added a design doc and diary with `docmgr doc add`.
+- Inspected `cmd/smailnail/commands/mirror.go` to understand the current Glazed command surface and output contract.
+- Inspected `pkg/mirror/service.go` to understand how sync currently writes rows, raw files, and sync state.
+- Inspected `pkg/mirror/schema.go`, `pkg/mirror/store.go`, `pkg/mirror/files.go`, and `pkg/mirror/types.go`.
+- Inspected the existing backfill scripts in `ttmp/2026/04/01/.../scripts/run-last-24-months-backfill.sh` and `dashboard-last-24-months-backfill.sh`.
+
+### Why
+- The merge verb must fit the current mirror model instead of inventing a parallel data model.
+- The main design decisions depend on observed invariants, especially:
+  - `raw_path` is relative under the mirror root.
+  - `mailbox_sync_state` is keyed by `(account_key, mailbox_name)` rather than by shard.
+  - `messages_fts` is created at bootstrap and must be rebuilt deliberately.
+  - month sharding is currently orchestrated by scripts, not by a Go command.
+
+### What worked
+- The current mirror code is structured cleanly enough to support a merge verb in the same package family.
+- The earlier sharding work already created the exact artifact layout the merge verb needs to consume: one shard directory with `mirror.sqlite`, `raw/`, `result.json`, and logs.
+- The evidence showed a clear separation of concerns:
+  - `mirror` handles fetching and persistence.
+  - scripts handle orchestration.
+  - the missing product feature is the consolidation step.
+
+### What didn't work
+- N/A. This step was analysis-only and did not involve code changes or runtime debugging.
+
+### What I learned
+- The current schema version is `2`, and schema bootstrap already pulls in enrichment migrations via `enrich.SchemaMigrationV2Statements()`.
+- The merge verb should not blindly copy enrichment tables from shards. Those tables are derived state and should instead be rebuilt or rerun after merge.
+- `mailbox_sync_state` cannot safely be copied shard-by-shard because the merged destination needs one coherent checkpoint per `(account_key, mailbox_name)`.
+
+### What was tricky to build
+- The trickiest part of the design was not the SQL insert itself. It was identifying which parts of the current mirror are source-of-truth data versus derived state. The raw `.eml` files and `messages` rows are canonical persisted artifacts; `mailbox_sync_state`, `messages_fts`, and enrichment tables are derived or checkpoint state. That distinction drives the merge order and the failure model.
+
+### What warrants a second pair of eyes
+- The UIDVALIDITY conflict policy. The current schema lets `messages` contain multiple `uidvalidity` values for one mailbox, but `mailbox_sync_state` only stores one current `uidvalidity`, which makes merge behavior ambiguous if shards span a mailbox reset.
+- Whether the first implementation should support merging previously enriched shards or explicitly require rerunning enrichment afterward.
+
+### What should be done in the future
+- Implement the merge verb as a new Glazed command and a dedicated `pkg/mirror` merge service.
+- Add integration tests that build monthly shards against the Docker Compose IMAP fixture and then merge them.
+- Add help pages once the verb exists.
+
+### Code review instructions
+- Start with the design doc and compare its claims against:
+  - `cmd/smailnail/commands/mirror.go`
+  - `pkg/mirror/service.go`
+  - `pkg/mirror/schema.go`
+  - `pkg/mirror/files.go`
+  - `ttmp/2026/04/01/.../scripts/run-last-24-months-backfill.sh`
+- Validate the evidence trail with:
+  - `nl -ba cmd/smailnail/commands/mirror.go | sed -n '1,360p'`
+  - `nl -ba pkg/mirror/service.go | sed -n '1,1120p'`
+  - `nl -ba pkg/mirror/schema.go | sed -n '1,220p'`
+  - `nl -ba pkg/mirror/files.go | sed -n '1,120p'`
+
+### Technical details
+- Ticket creation:
+```bash
+docmgr ticket create-ticket \
+  --ticket SMN-20260402-MIRROR-MERGE \
+  --title "Add a mirror shard merge verb for month-sharded backfills" \
+  --topics mirror,sqlite,backfill,cli
+
+docmgr doc add --ticket SMN-20260402-MIRROR-MERGE \
+  --doc-type design-doc \
+  --title "Analysis, design, and implementation plan for a mirror shard merge verb"
+
+docmgr doc add --ticket SMN-20260402-MIRROR-MERGE \
+  --doc-type reference \
+  --title "Investigation diary"
+```
+
+- Most important evidence locations:
+  - `cmd/smailnail/commands/mirror.go:24-42`, `:55-145`, `:188-330`
+  - `pkg/mirror/service.go:21-40`, `:70-198`, `:312-556`, `:642-1082`
+  - `pkg/mirror/schema.go:24-79`, `:82-156`
+  - `pkg/mirror/files.go:23-92`
+  - `ttmp/2026/04/01/SMN-20260401-IMAP-MIRROR--add-a-glazed-imap-mirror-verb-with-sqlite-indexing/scripts/run-last-24-months-backfill.sh:45-147`
+
+## Step 2: Write the design guide, relate files, validate, and package the bundle
+
+With the evidence in hand, I wrote the detailed design guide as an implementation handoff for a new intern. The guide explains the current mirror stack, defines the merge problem precisely, recommends a verb/API shape, and walks through the merge algorithm phase by phase, including validation strategy, conflict policy, and test planning.
+
+I also prepared the ticket bookkeeping for delivery: the tasks checklist, changelog, file relations, and upload workflow. The goal of this step was not just to produce a document, but to make the ticket continuation-friendly and reviewable.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1)
+
+**Assistant interpretation:** Finish the ticket package so the design is stored, validated, and delivered.
+
+**Inferred user intent:** Have a durable, shareable design artifact that can drive implementation and can be read on reMarkable.
+
+**Commit (code):** N/A
+
+### What I did
+- Wrote the primary design guide with sections for scope, architecture, gaps, proposed APIs, merge flow, pseudocode, phased implementation, tests, alternatives, risks, and references.
+- Updated `index.md`, `tasks.md`, and `changelog.md`.
+- Related the key mirror files and sharding scripts to the design doc and diary with `docmgr doc relate`.
+- Ran `docmgr doctor --ticket SMN-20260402-MIRROR-MERGE --stale-after 30`.
+- Prepared a bundled reMarkable upload under `/ai/2026/04/02/SMN-20260402-MIRROR-MERGE`.
+
+### Why
+- The design doc is the main deliverable, but the ticket metadata and relations are what make it searchable and maintainable.
+- The upload bundle matters because the user explicitly asked to store the work in the ticket and upload it to reMarkable.
+
+### What worked
+- The ticket structure created by `docmgr` fit the workflow well.
+- The current mirror code was evidence-rich enough to support a concrete implementation plan without guessing.
+- The design naturally decomposed into clear phases: command surface, preflight discovery, merge execution, checkpoint rebuild, FTS rebuild, and test hardening.
+
+### What didn't work
+- N/A. There were no code-level bugs in this documentation step.
+
+### What I learned
+- The strongest reason to implement the merge in Go is not CLI aesthetics. It is the need to coordinate SQLite rows, file copies, integrity checks, and derived-state rebuilds in one testable unit.
+- The strongest reason not to promote the parallel runner into the CLI yet is that it remains operator policy rather than core data-model logic.
+
+### What was tricky to build
+- The trickiest writing problem was deciding how much of the earlier month-sharding workflow to re-explain. The right balance was to explain enough for the intern to understand the producer side of shard data, but keep the main focus on the merge semantics and the boundary between canonical persisted artifacts and rebuildable derived state.
+
+### What warrants a second pair of eyes
+- The proposed conflict resolution rule for duplicate rows and duplicate raw files.
+- The exact v1 contract for missing raw files: warning, hard failure, or operator-controlled flag.
+- Whether `--enrich-after` should be in scope for the first implementation or documented as a follow-up.
+
+### What should be done in the future
+- After implementation, add:
+  - help pages for the new verb,
+  - operator examples showing merge after a 24-month shard run,
+  - integration tests that verify the merged DB is incrementally syncable.
+
+### Code review instructions
+- Read the design doc top to bottom once before reviewing implementation details.
+- Verify that every major recommendation has evidence in the referenced code.
+- After implementation exists, validate with:
+  - a temp-dir unit test harness for merge service logic,
+  - a shard merge of synthetic fixture DBs,
+  - a real shard merge built from Docker Compose IMAP fixture month runs.
+
+### Technical details
+- Validation command:
+```bash
+docmgr doctor --ticket SMN-20260402-MIRROR-MERGE --stale-after 30
+```
+
+- Planned reMarkable bundle shape:
+```bash
+remarquee upload bundle \
+  ttmp/2026/04/02/SMN-20260402-MIRROR-MERGE--add-a-mirror-shard-merge-verb-for-month-sharded-backfills/design-doc/01-analysis-design-and-implementation-plan-for-a-mirror-shard-merge-verb.md \
+  ttmp/2026/04/02/SMN-20260402-MIRROR-MERGE--add-a-mirror-shard-merge-verb-for-month-sharded-backfills/reference/01-investigation-diary.md \
+  --name "SMN-20260402-MIRROR-MERGE" \
+  --remote-dir "/ai/2026/04/02/SMN-20260402-MIRROR-MERGE" \
+  --toc-depth 2
+```
+
+## Step 3: Convert the design into an implementation checklist and lock the remaining v1 decisions
+
+Once the research bundle was done, the next step was to convert the ticket into an actual implementation workspace. I replaced the placeholder task list with a staged implementation checklist and updated the design recommendations to match the product choices you clarified after reading the first version of the ticket.
+
+The three clarified decisions were important because they directly affect command shape and error handling. The merge command should support `--enrich-after` in v1, missing raw source files should warn by default instead of hard-failing, and shard discovery should stay root-based in v1 rather than accepting arbitrary explicit shard paths.
+
+### Prompt Context
+
+**User prompt (verbatim):** "--enrich-after is great. can you add that flag to the normal download too? missing raw should warn. 
+
+I don't understand the last point"
+
+**Assistant interpretation:** Confirm the current mirror command already has `--enrich-after`, explain the shard discovery choice more concretely, and update the merge design to lock in the requested defaults.
+
+**Inferred user intent:** Reduce ambiguity in the design before implementation starts, especially around operator ergonomics and failure behavior.
+
+**Commit (code):** pending
+
+### What I did
+- Confirmed that the existing `smailnail mirror` command already supports `--enrich-after`.
+- Reframed the shard-discovery decision as a simple v1 `--input-root` scan, without explicit `--shard` flags.
+- Expanded the ticket `tasks.md` with an implementation checklist.
+- Updated the design guide so v1 now explicitly includes `--enrich-after`, warning-by-default missing raw handling, and root-based shard discovery only.
+- Updated `changelog.md` to record those product decisions.
+
+### Why
+- These decisions are not cosmetic. They control:
+  - whether the command surface needs enrichment reporting from day one,
+  - whether the merge path is strict or forgiving when a shard is slightly incomplete,
+  - whether the first implementation stays simple by targeting the directory layout that the current scripts already produce.
+
+### What worked
+- The existing `mirror` command already had the right enrichment pattern to copy.
+- Root-based discovery turned out to be the clearest operator story because it matches the existing shard producer scripts exactly.
+- Warning-by-default for missing raw files fits the user’s operational preference without complicating the first implementation too much.
+
+### What didn't work
+- N/A. This step was a design and ticket-management step, not a code-debugging step.
+
+### What I learned
+- The merge verb’s product contract is now narrow enough to implement directly:
+  - one input root,
+  - one destination DB,
+  - one destination mirror root,
+  - optional enrichment after merge,
+  - warnings for missing raw files rather than immediate failure.
+
+### What was tricky to build
+- The subtle part was making sure “warn by default for missing raw files” did not silently undermine the rest of the design. The right framing is that missing raw files are tolerated and counted in the report, but genuine raw-file conflicts, such as the same relative path with a different SHA, should still remain hard errors.
+
+### What warrants a second pair of eyes
+- Whether warning-by-default for missing raw files should still be paired with an explicit strict flag from the start.
+- Whether the first merge report should include detailed per-shard warning breakdowns or just aggregate counts.
+
+### What should be done in the future
+- Implement the command and service to match these now-locked decisions.
+
+### Code review instructions
+- Check that the design doc now consistently reflects the clarified decisions in:
+  - command shape,
+  - enrichment section,
+  - open questions / recommendations.
+- Check that `tasks.md` is now implementation-oriented rather than research-oriented.
+
+### Technical details
+- The current normal download command already exposes `enrich-after` in `cmd/smailnail/commands/mirror.go`.
+
+## Step 4: Add the merge command shell and a dry-run inspection path
+
+The first implementation slice was deliberately narrow. I added a real `merge-mirror-shards` command to the CLI, but only with discovery and inspection behavior. That means the command can now scan an input root, identify shard directories, inspect their SQLite metadata, detect simple UIDVALIDITY conflicts, and return a dry-run report. It does not yet copy rows or files, which keeps the first code slice safe and easy to validate.
+
+This was the right place to start because the merge feature has two very different responsibilities: preflight and execution. Preflight needs to be correct before execution can be trusted. By committing that slice first, we now have a stable command surface and a tested representation of shard inputs, and the next slice can focus entirely on merge semantics.
+
+### Prompt Context
+
+**User prompt (verbatim):** "option 1 .
+
+Now create tasks in the ticket and implement them one by one, committing at appropriate intervals, and keeping a detailed diary as you go."
+
+**Assistant interpretation:** Turn the merge ticket into an execution plan, then implement the feature incrementally with small commits and contemporaneous diary updates.
+
+**Inferred user intent:** Drive the merge feature from design into actual code while preserving traceability and reviewability.
+
+**Commit (code):** `a6a9099` — "feat(mirror): add shard merge dry-run command"
+
+### What I did
+- Added a new CLI command in `cmd/smailnail/commands/merge_mirror_shards.go`.
+- Registered the command in `cmd/smailnail/main.go`.
+- Added `pkg/mirror/merge.go` with:
+  - `MergeOptions`,
+  - `MergeShardInfo`,
+  - `MergeReport`,
+  - `MergeService`,
+  - root-based shard discovery,
+  - shard inspection,
+  - UIDVALIDITY conflict validation,
+  - dry-run reporting.
+- Added `pkg/mirror/merge_test.go` with tests for:
+  - shard discovery,
+  - shard glob filtering,
+  - missing raw-root warnings,
+  - UIDVALIDITY conflict rejection.
+- Ran targeted tests and a full CLI build, then fixed one `staticcheck` lint issue before committing.
+
+### Why
+- The merge command needed a stable contract before implementing destructive behavior.
+- Dry-run inspection gives operators a safe way to confirm what the merge sees.
+- The merge service types and shard model are the foundation for the later row/file merge logic.
+
+### What worked
+- The Glazed command pattern from `mirror.go` translated cleanly to a new merge command.
+- The existing mirror schema and raw-root conventions were enough to inspect shards without any special migration work.
+- The temp-dir fixture pattern from existing mirror tests made it easy to create realistic shard databases in tests.
+
+### What didn't work
+- The first commit attempt failed pre-commit linting because `staticcheck` flagged one struct literal conversion in `pkg/mirror/merge.go`:
+
+```text
+pkg/mirror/merge.go:258:41: S1016: should convert row (type mailboxUIDValidityRow) to MergeShardMailboxInfo instead of using struct literal (staticcheck)
+```
+
+- Command used:
+```bash
+git add cmd/smailnail/main.go cmd/smailnail/commands/merge_mirror_shards.go pkg/mirror/merge.go pkg/mirror/merge_test.go
+git commit -m "feat(mirror): add shard merge dry-run command"
+```
+
+- I fixed the lint issue, reran `gofmt`, and retried the commit successfully.
+
+### What I learned
+- The shard inspection code needs a precise `(account_key, mailbox_name, uidvalidity)` model. A looser per-mailbox-only representation would have produced misleading conflict checks.
+- Test shard creation must use a real shard-local SQLite path. Reusing the generic in-memory-style helper would have hidden path assumptions that the merge command depends on.
+
+### What was tricky to build
+- The subtle bug in the first draft was the shard test fixture path. The existing `openTestStore()` helper uses an internal temp DB path that is fine for service tests, but the merge tests need an actual on-disk `mirror.sqlite` exactly where shard discovery expects it. That made the shard fixture builder slightly different from the normal service test setup.
+
+### What warrants a second pair of eyes
+- The current dry-run validator only checks schema compatibility and UIDVALIDITY conflicts. The next slice will need deeper destination and raw-path conflict handling, so reviewers should look at whether the current types cleanly support that extension.
+- The command currently returns a “not implemented yet” error for non-dry-run mode. That is intentional for this slice, but it means the next slice must replace that error path cleanly.
+
+### What should be done in the future
+- Implement actual row and raw-file merge execution.
+- Add destination bootstrap and conflict handling.
+- Extend tests from dry-run coverage into end-to-end merge coverage.
+
+### Code review instructions
+- Start with:
+  - `cmd/smailnail/commands/merge_mirror_shards.go`
+  - `pkg/mirror/merge.go`
+  - `pkg/mirror/merge_test.go`
+  - `cmd/smailnail/main.go`
+- Validate with:
+```bash
+go test -tags sqlite_fts5 ./pkg/mirror -run 'TestMergeService|TestDiscoverMergeShards'
+go build -tags sqlite_fts5 ./cmd/smailnail
+```
+
+### Technical details
+- The dry-run command reports shard metadata and warnings but intentionally refuses non-dry-run execution until the merge path is implemented.
+- Pre-commit validation for the successful commit ran:
+```bash
+golangci-lint run -v --build-tags sqlite_fts5
+go test -tags "sqlite_fts5" ./...
+```
+
+## Step 5: Implement real shard merge execution, rebuild derived state, and smoke it against real shard output
+
+The second code slice replaced the dry-run placeholder with the actual merge execution path. The merge service now bootstraps a destination mirror, iterates shard message rows, copies raw `.eml` files into the destination mirror root, upserts `messages`, rebuilds `mailbox_sync_state`, rebuilds `messages_fts`, and then lets the command optionally run enrichment afterward. This is the first point where the feature became genuinely usable rather than just inspectable.
+
+I also validated the finished path two ways. First with focused package tests covering real merges, raw-file warnings, and strict missing-raw failure. Then with real CLI smokes against the month-sharded backfill root at `/tmp/smailnail-last-24-months-backfill`, including one run with `--enrich-after`. That matters because the command’s input contract comes from those real shard directories, not only from synthetic fixtures.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 4)
+
+**Assistant interpretation:** Continue the task-by-task implementation from the dry-run slice into the real merge execution path, keeping the ticket updated as code lands.
+
+**Inferred user intent:** Finish the feature rather than stopping at planning or command scaffolding.
+
+**Commit (code):** `4acad07` — "feat(mirror): implement shard merge execution"
+
+### What I did
+- Implemented destination bootstrap in `pkg/mirror/merge.go` using `OpenStore(...).Bootstrap(...)`.
+- Implemented per-shard transactional message loading and destination upsert behavior.
+- Implemented raw-file handling with these semantics:
+  - copy when missing in destination,
+  - reuse when destination SHA matches,
+  - hard-fail on destination content conflicts,
+  - warn by default when the source raw file is missing,
+  - hard-fail on missing source raw when `--fail-on-missing-raw` is set.
+- Implemented `mailbox_sync_state` rebuild from merged `messages`.
+- Implemented `messages_fts` rebuild from merged `messages`.
+- Left post-merge enrichment in the command layer, where `--enrich-after` now runs `enrich.RunAll(...)` after a successful merge.
+- Expanded `pkg/mirror/merge_test.go` with tests for:
+  - successful multi-shard merge,
+  - rebuilt mailbox checkpoint values,
+  - rebuilt FTS row counts,
+  - warning-by-default missing raw handling,
+  - strict missing raw failures.
+- Ran a real merge smoke and a real merge-plus-enrichment smoke against `/tmp/smailnail-last-24-months-backfill`.
+
+### Why
+- The merge feature is only useful if it produces one destination mirror that can immediately be searched, resumed, and optionally enriched.
+- Rebuilding checkpoint and FTS state after canonical row merge keeps the implementation simpler and more reliable than trying to maintain derived state incrementally while rows are streaming in.
+- Keeping `--enrich-after` in the command layer matches the existing `mirror` command pattern and avoids coupling the merge service to enrichment internals.
+
+### What worked
+- The per-shard transaction model fit the current schema well.
+- Raw-file reuse and conflict handling worked cleanly once destination path semantics matched the existing `raw_path` contract.
+- The real shard smoke succeeded:
+  - one run merged `2026-03` into `/tmp/smailnail-merge-smoke.sqlite` with `400` messages, `400` copied raw files, `1` rebuilt mailbox state, and `400` rebuilt FTS rows.
+- The enrich-after smoke also succeeded:
+  - one run merged `2026-03` into `/tmp/smailnail-merge-enrich.sqlite` and then reported sender/thread/unsubscribe enrichment counters.
+
+### What didn't work
+- The first execution test run failed because the grouped `MAX(last_synced_at)` query returned a SQLite timestamp string, not a native `time.Time`:
+
+```text
+Merge() error = query rebuilt mailbox sync states: sql: Scan error on column index 4, name "last_sync_at": unsupported Scan, storing driver.Value type string into type *time.Time
+```
+
+- The same run also showed that the shard test fixture was writing raw files under the wrong root for script-shaped shard layouts:
+
+```text
+remove .../2026-03/raw/raw/.../1.eml: no such file or directory
+```
+
+- I fixed both by:
+  - parsing `last_sync_at` from `sql.NullString` with multiple accepted layouts,
+  - changing the test shard builder to write raw files under `<shard>/raw`, matching the actual month-sharded script layout.
+
+- A follow-up rerun then failed once more because I had introduced `sql.NullString` without re-adding the `database/sql` import:
+
+```text
+pkg/mirror/merge.go:537:15: undefined: sql
+```
+
+- After that import fix, the remaining timestamp parse issue was:
+
+```text
+parse rebuilt last_sync_at "2026-04-02 12:00:00+00:00": parsing time "2026-04-02 12:00:00+00:00" as "2006-01-02T15:04:05Z07:00": cannot parse " 12:00:00+00:00" as "T"
+```
+
+- I fixed that by expanding the accepted layouts to include SQLite’s space-separated timestamp form.
+
+### What I learned
+- The shard layout contract from the actual backfill script matters even in unit tests. A synthetic fixture that hides that layout difference can let raw-path bugs slip through.
+- Rebuilding checkpoint state from grouped query results is straightforward, but SQLite timestamp coercion needs defensive parsing.
+- The existing enrichment API is already good enough for the merge command to reuse directly without further abstractions.
+
+### What was tricky to build
+- The trickiest implementation detail was the interaction between `raw_path` and the configured mirror root. The system stores `raw_path` as a relative path that already begins with `raw/...`, while the script-shaped shard root uses `<shard>/raw` as the merge-time mirror root. That means file operations must join against the configured mirror root, not the shard directory itself, and tests have to mirror that exact convention or they will validate the wrong behavior.
+
+### What warrants a second pair of eyes
+- The current merge loads all shard messages into memory per shard. That is fine for the first implementation, but a reviewer should decide whether very large shard merges need row streaming later.
+- The missing-raw warning list currently records warnings verbosely. If operators start merging shards with many gaps, the report shape may need aggregation or truncation.
+- `AllowOverwriteDestination` currently means “allow merge into an existing destination” rather than “clear and replace destination.” That distinction is intentional but should be reviewed for operator clarity.
+
+### What should be done in the future
+- Add help pages and README/operator docs for the new verb.
+- Consider a future streaming row reader for very large shard databases.
+- Decide whether warning aggregation should be capped or summarized.
+
+### Code review instructions
+- Read:
+  - `pkg/mirror/merge.go`
+  - `pkg/mirror/merge_test.go`
+  - `cmd/smailnail/commands/merge_mirror_shards.go`
+- Validate with:
+```bash
+go test -tags sqlite_fts5 ./pkg/mirror ./cmd/smailnail
+golangci-lint run -v --build-tags sqlite_fts5 ./pkg/mirror ./cmd/smailnail/...
+```
+- Real CLI smoke used during implementation:
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info merge-mirror-shards \
+  --input-root /tmp/smailnail-last-24-months-backfill \
+  --shard-glob '2026-0[34]' \
+  --output-sqlite /tmp/smailnail-merge-smoke.sqlite \
+  --output-mirror-root /tmp/smailnail-merge-smoke-root \
+  --output json
+
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info merge-mirror-shards \
+  --input-root /tmp/smailnail-last-24-months-backfill \
+  --shard-glob '2026-03' \
+  --output-sqlite /tmp/smailnail-merge-enrich.sqlite \
+  --output-mirror-root /tmp/smailnail-merge-enrich-root \
+  --enrich-after \
+  --output json
+```
+
+### Technical details
+- Smoke verification after merge:
+```bash
+sqlite3 /tmp/smailnail-merge-smoke.sqlite \
+  'select count(*) from messages; select count(*) from messages_fts; select highest_uid,last_uidnext from mailbox_sync_state;'
+```
+
+- The observed smoke values were:
+  - `messages = 400`
+  - `messages_fts = 400`
+  - `mailbox_sync_state = 857575|857576`

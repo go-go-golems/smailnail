@@ -371,7 +371,8 @@ func (d RealDialer) Dial(ctx context.Context, opts ConnectOptions) (Session, err
 	client, err := mailruntime.Connect(ctx, mailruntime.IMAPOptions{
 		Host:     normalized.Server,
 		Port:     normalized.Port,
-		TLS:      !normalized.Insecure,
+		TLS:      true,
+		Insecure: normalized.Insecure,
 		Username: normalized.Username,
 		Password: normalized.Password,
 	})

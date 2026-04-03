@@ -4,7 +4,7 @@
 
 It currently contains three CLIs:
 
-- `smailnail`: search, fetch, and process mail with a YAML DSL or direct CLI flags
+- `smailnail`: search, fetch, mirror, and process mail with a YAML DSL or direct CLI flags
 - `mailgen`: generate synthetic email from YAML templates and optionally append it to IMAP
 - `imap-tests`: helper commands for creating mailboxes and storing fixture messages
 
@@ -25,8 +25,10 @@ The repository now also contains an initial reusable JavaScript surface:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp ./cmd/smailnaild
+go build -tags sqlite_fts5 ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp ./cmd/smailnaild
 ```
+
+`smailnail` now requires the `sqlite_fts5` build tag because the local mirror and search index depend on SQLite FTS5 being compiled in.
 
 ## Commands
 
@@ -35,7 +37,7 @@ go build ./cmd/smailnail ./cmd/mailgen ./cmd/imap-tests ./cmd/smailnail-imap-mcp
 Rule-driven execution:
 
 ```bash
-go run ./cmd/smailnail mail-rules \
+go run -tags sqlite_fts5 ./cmd/smailnail mail-rules \
   --rule examples/smailnail/recent-emails.yaml \
   --server imap.example.com \
   --username user@example.com \
@@ -47,12 +49,82 @@ go run ./cmd/smailnail mail-rules \
 Direct fetch via flags:
 
 ```bash
-go run ./cmd/smailnail fetch-mail \
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
   --mailbox INBOX \
   --subject-contains "invoice" \
+  --output json
+```
+
+Local mirror via SQLite plus raw `.eml` storage:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Run a cautious first sync against a real account:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --since-days 30 \
+  --max-messages 200 \
+  --output json
+```
+
+Run a wider account sync with mailbox filters and partial-failure continuation:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --mailbox-pattern 'Archive/*' \
+  --exclude-mailbox-pattern 'Archive/Spam*' \
+  --stop-on-error=false \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Print the mirror plan without creating local files:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --print-plan \
+  --output json
+```
+
+Reconcile the full mailbox and mark locally mirrored rows as `remote_deleted` when the server no longer reports them:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --reconcile-full-mailbox \
   --output json
 ```
 
@@ -263,6 +335,38 @@ make smoke-docker-imap
 
 If the fixture lives somewhere else locally, override it with `DOCKER_IMAP_FIXTURE_ROOT=/path/to/docker-test-dovecot`.
 
+To validate the local mirror against the bundled Docker Compose fixture in this repo:
+
+```bash
+cd /home/manuel/workspaces/2026-04-01/smailnail-sqlite/smailnail
+docker compose -f docker-compose.local.yml up -d dovecot
+
+go run ./cmd/imap-tests store-text-message \
+  --server 127.0.0.1 \
+  --port 993 \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --insecure \
+  --from seed@example.com \
+  --to a@test.local \
+  --subject "Mirror fixture message" \
+  --output json
+
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server 127.0.0.1 \
+  --port 993 \
+  --username a \
+  --password pass \
+  --mailbox INBOX \
+  --insecure \
+  --sqlite-path /tmp/smailnail-mirror.sqlite \
+  --mirror-root /tmp/smailnail-mirror \
+  --output json
+
+docker compose -f docker-compose.local.yml down
+```
+
 ## Local Dovecot + Keycloak Stack
 
 For hosted-app and OIDC work, the repo now includes a local Docker Compose stack with:
@@ -320,7 +424,7 @@ To run the hosted-backend integration suite against the local Dovecot fixture:
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
 export SMAILNAILD_ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)"
 SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/...
-SMAILNAILD_DOVECOT_TEST=1 go test ./...
+SMAILNAILD_DOVECOT_TEST=1 go test -tags sqlite_fts5 ./...
 ```
 
 To run the full shared OIDC + stored-account + local Dovecot smoke:

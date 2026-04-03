@@ -1,4 +1,28 @@
-# Mail App Rules - IMAP Email Processing Tool
+---
+Title: Mail App Rules and Fetching Mail
+Slug: smailnail-mail-app-rules
+Short: Search and inspect IMAP mail with either YAML rule files or direct CLI flags.
+Topics:
+- imap
+- mail-rules
+- fetch-mail
+- cli
+Commands:
+- mail-rules
+- fetch-mail
+Flags:
+- rule
+- server
+- username
+- password
+- mailbox
+IsTopLevel: true
+IsTemplate: false
+ShowPerDefault: true
+SectionType: GeneralTopic
+---
+
+This page covers the two pre-existing ways `smailnail` works with IMAP without building a durable local mirror. Use it when you want to fetch, filter, and format mail directly from the server, either with YAML rules or one-off command-line flags.
 
 ## Overview
 

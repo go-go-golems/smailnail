@@ -12,6 +12,8 @@ builds:
       - CGO_ENABLED=0
     main: ./cmd/smailnail
     binary: smailnail
+    tags:
+      - sqlite_fts5
     goos:
       - linux
 # I am not able to test windows at the time

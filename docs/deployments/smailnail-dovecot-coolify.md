@@ -58,7 +58,7 @@ Because the fixture uses self-signed TLS, remote IMAPS checks should use `--inse
 Typical validation flow:
 
 ```bash
-go run ./cmd/smailnail fetch-mail \
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail \
   --server 89.167.52.236 \
   --port 993 \
   --username a \
@@ -105,7 +105,7 @@ go run ./cmd/imap-tests store-text-message \
 Fetch it back:
 
 ```bash
-go run ./cmd/smailnail fetch-mail \
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail \
   --server 89.167.52.236 \
   --port 993 \
   --username a \

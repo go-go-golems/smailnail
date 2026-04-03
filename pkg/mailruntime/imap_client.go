@@ -2,6 +2,7 @@ package mailruntime
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"math"
@@ -22,6 +23,7 @@ type IMAPOptions struct {
 	Host     string
 	Port     int
 	TLS      bool
+	Insecure bool
 	Username string
 	Password string
 }
@@ -99,7 +101,12 @@ func Connect(_ context.Context, opts IMAPOptions) (*IMAPClient, error) {
 	)
 
 	if opts.TLS {
-		c, err = imapclient.DialTLS(addr, nil)
+		c, err = imapclient.DialTLS(addr, &imapclient.Options{
+			TLSConfig: &tls.Config{
+				// #nosec G402 -- explicit caller-controlled option for local/self-signed test fixtures.
+				InsecureSkipVerify: opts.Insecure,
+			},
+		})
 	} else {
 		c, err = imapclient.DialInsecure(addr, nil)
 	}

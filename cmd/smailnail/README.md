@@ -6,26 +6,30 @@ It supports two main flows:
 
 - `mail-rules`: load a YAML rule file and optionally execute actions on matched messages
 - `fetch-mail`: build a temporary rule from CLI flags for quick searches
+- `mirror`: mirror IMAP mail into a local SQLite database plus raw `.eml` files
 
 ## Build
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail
+go build -tags sqlite_fts5 ./cmd/smailnail
 ```
+
+`smailnail` requires the `sqlite_fts5` build tag so the mirror database can create and query its FTS5 search index.
 
 ## Help
 
 ```bash
-go run ./cmd/smailnail --help
-go run ./cmd/smailnail mail-rules --help
-go run ./cmd/smailnail fetch-mail --help
+go run -tags sqlite_fts5 ./cmd/smailnail --help
+go run -tags sqlite_fts5 ./cmd/smailnail mail-rules --help
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail --help
+go run -tags sqlite_fts5 ./cmd/smailnail mirror --help
 ```
 
 ## Rule-driven usage
 
 ```bash
-go run ./cmd/smailnail mail-rules \
+go run -tags sqlite_fts5 ./cmd/smailnail mail-rules \
   --rule examples/smailnail/recent-emails.yaml \
   --server imap.example.com \
   --username user@example.com \
@@ -45,7 +49,7 @@ Rules can also include `actions:` blocks for:
 ## Direct fetch usage
 
 ```bash
-go run ./cmd/smailnail fetch-mail \
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail \
   --server imap.example.com \
   --username user@example.com \
   --password secret \
@@ -67,6 +71,105 @@ Both subcommands accept:
 - `--insecure`
 
 These can also be supplied through `SMAILNAIL_*` environment variables.
+
+## Local mirror usage
+
+Bootstrap and sync one mailbox into a local mirror:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Mirror all listed mailboxes:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Run a bounded first sync against a real mailbox:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --since-days 30 \
+  --max-messages 200 \
+  --output json
+```
+
+Mirror many mailboxes but keep the scope tight and continue after one mailbox fails:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail --log-level info mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --all-mailboxes \
+  --mailbox-pattern 'Archive/*' \
+  --exclude-mailbox-pattern 'Archive/Spam*' \
+  --stop-on-error=false \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Print the plan without mutating local state:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --print-plan \
+  --output json
+```
+
+Reset the stored local checkpoint before a resync:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --reset-mailbox-state \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
+
+Run a full reconcile after sync and tombstone messages that disappeared remotely:
+
+```bash
+go run -tags sqlite_fts5 ./cmd/smailnail mirror \
+  --server imap.example.com \
+  --username user@example.com \
+  --password secret \
+  --mailbox INBOX \
+  --reconcile-full-mailbox \
+  --sqlite-path ./smailnail-mirror.sqlite \
+  --mirror-root ./smailnail-mirror \
+  --output json
+```
 
 ## Examples
 

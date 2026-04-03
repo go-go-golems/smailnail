@@ -25,15 +25,15 @@ Fixture credentials:
 
 ```bash
 cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
-go build ./cmd/smailnail
+go build -tags sqlite_fts5 ./cmd/smailnail
 ```
 
-You can also use `go run ./cmd/smailnail ...` directly in the examples below.
+You can also use `go run -tags sqlite_fts5 ./cmd/smailnail ...` directly in the examples below.
 
 ## Step 3: Fetch recent mail
 
 ```bash
-go run ./cmd/smailnail fetch-mail \
+go run -tags sqlite_fts5 ./cmd/smailnail fetch-mail \
   --server localhost \
   --username a \
   --password pass \
@@ -45,7 +45,7 @@ go run ./cmd/smailnail fetch-mail \
 ## Step 4: Run a YAML rule
 
 ```bash
-go run ./cmd/smailnail mail-rules \
+go run -tags sqlite_fts5 ./cmd/smailnail mail-rules \
   --rule examples/smailnail/recent-emails.yaml \
   --server localhost \
   --username a \

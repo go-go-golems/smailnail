@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SMAILNAIL_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 DOCKER_ROOT="${DOCKER_IMAP_FIXTURE_ROOT:-$SMAILNAIL_ROOT/../docker-test-dovecot}"
+SMAILNAIL_GO_TAGS="${SMAILNAIL_GO_TAGS:-sqlite_fts5}"
 
 if [[ ! -d "$DOCKER_ROOT" ]]; then
 	echo "Docker IMAP fixture not found at '$DOCKER_ROOT'." >&2
@@ -73,7 +74,7 @@ done
 
 echo "==> CLI help smoke"
 cd "$SMAILNAIL_ROOT"
-go run ./cmd/smailnail --help >/dev/null
+go run -tags "$SMAILNAIL_GO_TAGS" ./cmd/smailnail --help >/dev/null
 go run ./cmd/mailgen --help >/dev/null
 go run ./cmd/imap-tests --help >/dev/null
 
@@ -101,7 +102,7 @@ go run ./cmd/imap-tests store-text-message \
   --output json >/dev/null
 
 echo "==> Running mail-rules action validation"
-go run ./cmd/smailnail mail-rules \
+go run -tags "$SMAILNAIL_GO_TAGS" ./cmd/smailnail mail-rules \
   --rule "$action_rule" \
   --server localhost \
   --username a \
@@ -111,7 +112,7 @@ go run ./cmd/smailnail mail-rules \
   --output json >/dev/null
 
 echo "==> Verifying flags were applied to the intended message"
-inbox_fetch="$(go run ./cmd/smailnail fetch-mail \
+inbox_fetch="$(go run -tags "$SMAILNAIL_GO_TAGS" ./cmd/smailnail fetch-mail \
   --server localhost \
   --username a \
   --password pass \
@@ -125,7 +126,7 @@ printf '%s\n' "$inbox_fetch" | grep -F 'Flagged' >/dev/null
 printf '%s\n' "$inbox_fetch" | grep -F 'Seen' >/dev/null
 
 echo "==> Verifying copied message exists in archive mailbox"
-archive_fetch="$(go run ./cmd/smailnail fetch-mail \
+archive_fetch="$(go run -tags "$SMAILNAIL_GO_TAGS" ./cmd/smailnail fetch-mail \
   --server localhost \
   --username a \
   --password pass \
@@ -148,7 +149,7 @@ go run ./cmd/mailgen generate \
   --output json >/dev/null
 
 echo "==> Verifying generated mail round-trips display name"
-mailgen_fetch="$(go run ./cmd/smailnail fetch-mail \
+mailgen_fetch="$(go run -tags "$SMAILNAIL_GO_TAGS" ./cmd/smailnail fetch-mail \
   --server localhost \
   --username a \
   --password pass \
