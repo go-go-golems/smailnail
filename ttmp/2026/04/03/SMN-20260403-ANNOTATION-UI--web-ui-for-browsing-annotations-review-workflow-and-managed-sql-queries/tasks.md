@@ -37,16 +37,16 @@
 - [x] S2: Build AnnotationDetail — inline expanded panel showing full note, related annotations on same target, navigate-to-target button
 - [x] S2: Build ReviewQueuePage — compose FilterPillBar + CountSummaryBar + BatchActionBar + AnnotationTable, wire listAnnotations query + batchReview mutation
 - [x] S2: Wire batch review — batchReview mutation with optimistic update, RTK Query cache invalidation for Annotations + Runs tags
-- [ ] S3: Build AgentRunsPage — MUI Table with run ID, source label, annotation count, progress bar, inspect button + stories
-- [ ] S3: Build RunTimeline — chronological log entries with time column, log_kind badge, markdown body, linked TargetLinks + stories
-- [ ] S3: Build RunDetailPage — StatBox row (total/pending/approved/dismissed), batch approve-all, RunTimeline, GroupCard list, AnnotationTable filtered to run
+- [x] S3: Build AgentRunsPage — MUI Table with run ID, source label, annotation count, progress bar, inspect button + stories
+- [x] S3: Build RunTimeline — chronological log entries with time column, log_kind badge, markdown body, linked TargetLinks + stories
+- [x] S3: Build RunDetailPage — StatBox row (total/pending/approved/dismissed), batch approve-all, RunTimeline, GroupCard list, AnnotationTable filtered to run
 - [ ] S4: Build SendersPage — MUI Table with email/display, domain, msg count, annotation count, TagChips, unsubscribe indicator + stories
 - [ ] S4: Build SenderProfileCard — StatBox grid (messages, domain, dates, unsubscribe status) + stories
 - [ ] S4: Build SenderAnnotationList — annotation table for single sender with review actions + stories
 - [ ] S4: Build AgentReasoningPanel — related log entries panel with title, body, timestamps + stories
 - [ ] S4: Build MessagePreviewTable — compact table (date, subject, size) for sender's recent messages + stories
 - [ ] S4: Build SenderDetailPage — compose SenderProfileCard + SenderAnnotationList + AgentReasoningPanel + MessagePreviewTable
-- [ ] S4: Build GroupCard — Paper card with name, ReviewStateBadge, member count, description, TargetLink list + stories
+- [x] S4: Build GroupCard — Paper card with name, ReviewStateBadge, member count, description, TargetLink list + stories
 - [ ] S4: Build GroupsPage — list of GroupCards with filter
 - [ ] S5: Build DashboardStatGrid — 6-cell responsive stat grid (pending, approved, dismissed, total, runs, senders) + stories
 - [ ] S5: Build LatestRunBanner — highlighted Paper with run info + CTA buttons (Review Queue, Inspect Run) + stories

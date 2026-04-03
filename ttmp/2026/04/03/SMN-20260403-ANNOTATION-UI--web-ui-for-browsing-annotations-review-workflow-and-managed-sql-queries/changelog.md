@@ -58,3 +58,13 @@ Step 3: AnnotationTable widget (AnnotationRow + AnnotationDetail + AnnotationTab
 - /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx — Composing table widget
 - /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/pages/ReviewQueuePage.tsx — Review queue page
 
+
+## 2026-04-03
+
+Step 4: MSW setup + Sprint 3 — AgentRunsPage, RunTimeline, GroupCard, RunDetailPage, page-level MSW stories for ReviewQueue/AgentRuns/RunDetail (commit f026771)
+
+### Related Files
+
+- /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/mocks/handlers.ts — MSW handlers
+- /home/manuel/code/wesen/corporate-headquarters/smailnail/ui/src/pages/RunDetailPage.tsx — Run detail page
+

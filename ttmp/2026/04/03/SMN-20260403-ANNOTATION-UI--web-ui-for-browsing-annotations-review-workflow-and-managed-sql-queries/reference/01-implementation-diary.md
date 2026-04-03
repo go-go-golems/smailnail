@@ -31,6 +31,10 @@ RelatedFiles:
     - Path: ui/src/components/AnnotationTable/AnnotationTable.tsx:Composing table with select-all, expand, empty state (commit 7cbb343)
     - Path: ui/src/components/AppLayout/AnnotationLayout.tsx:Layout shell — sidebar + Outlet (commit 9319d86)
     - Path: ui/src/components/AppLayout/AnnotationSidebar.tsx:Sidebar nav — Overview, Review, Browse, Tools (commit 9319d86)
+    - Path: ui/src/components/GroupCard/GroupCard.tsx
+      Note: Group card with members list (commit f026771)
+    - Path: ui/src/components/RunTimeline/RunTimeline.tsx
+      Note: Log timeline with connector line (commit f026771)
     - Path: ui/src/components/shared/index.ts
       Note: 10 shared widgets barrel (commit 7515544)
     - Path: ui/src/components/shared/index.ts:Shared widget barrel — 10 widgets (commit 7515544)
@@ -38,13 +42,21 @@ RelatedFiles:
     - Path: ui/src/mocks/annotations.ts
       Note: Mock data for Storybook (commit 7515544)
     - Path: ui/src/mocks/annotations.ts:Realistic mock data for Storybook (commit 7515544)
+    - Path: ui/src/mocks/handlers.ts
+      Note: MSW handlers for all API endpoints (commit f026771)
+    - Path: ui/src/pages/AgentRunsPage.tsx
+      Note: Runs table with progress bars (commit f026771)
     - Path: ui/src/pages/ReviewQueuePage.tsx
       Note: Review queue page wiring (commit 7cbb343)
     - Path: ui/src/pages/ReviewQueuePage.tsx:Review Queue page — wires filters, batch actions, RTK Query (commit 7cbb343)
+    - Path: ui/src/pages/RunDetailPage.tsx
+      Note: Run detail with stats
     - Path: ui/src/store/annotationUiSlice.ts
       Note: Redux UI state (commit 9319d86)
     - Path: ui/src/store/annotationUiSlice.ts:Redux UI state for review queue + query editor (commit 9319d86)
     - Path: ui/src/store/index.ts:Redux store — wired annotationsApi + annotationUi (commit 9319d86)
+    - Path: ui/src/test-utils/storybook-decorators.tsx
+      Note: withAll/withStore/withRouter decorators (commit f026771)
     - Path: ui/src/theme/tagColors.ts
       Note: Tag color map (commit 7515544)
     - Path: ui/src/theme/tagColors.ts:Per-tag color map with fallback (commit 7515544)
@@ -60,6 +72,7 @@ LastUpdated: 2026-04-03T16:00:00-04:00
 WhatFor: Track implementation decisions, failures, and review instructions for the annotation UI frontend work.
 WhenToUse: ""
 ---
+
 
 
 # Diary
@@ -266,3 +279,76 @@ AnnotationRow is a table row that composes TagChip, TargetLink, SourceBadge, and
 - Then `pages/ReviewQueuePage.tsx` — see RTK Query + Redux wiring
 - Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`
 - Visual: `cd ui && npx storybook dev -p 6006` → navigate to "Annotations/AnnotationTable" → check Interactive story
+
+
+## Step 4: MSW Setup + Sprint 3 (Agent Runs, RunTimeline, RunDetail, GroupCard)
+
+Added MSW (Mock Service Worker) for Storybook page-level stories, then built Sprint 3: AgentRunsPage, RunTimeline, GroupCard, and RunDetailPage. The MSW setup was prompted by the user pointing out that we had no stories for the ReviewQueuePage — page components use RTK Query hooks and need API responses to render. MSW intercepts fetch requests in the service worker, so page stories can exercise the real connected components with realistic data flows.
+
+The user specifically asked to use MSW instead of extracting presentational components. I initially went down the presentational-extraction path (ReviewQueueView, AgentRunsView) but reverted that in favor of MSW handlers. This keeps the codebase simpler — one connected page component, no parallel presentational wrapper — and the stories test more of the real wiring.
+
+### Prompt Context
+
+**User prompt (verbatim):** "do we have storybook stories for review queue page?" followed by "use msw for the storybook when needed"
+
+**Assistant interpretation:** Add MSW-based Storybook stories for page components that use RTK Query, rather than extracting presentational wrappers.
+
+**Inferred user intent:** Keep page components as connected components; use MSW to provide mock API responses so Storybook stories exercise the real data flow.
+
+**Commit (code):** f026771 — "ui: add MSW, Sprint 3 (Agent Runs + RunTimeline + RunDetail + GroupCard)"
+
+### What I did
+- Installed `msw` (2.12.14) and `msw-storybook-addon` (2.0.6)
+- Ran `npx msw init public` to generate `mockServiceWorker.js`
+- Created `ui/src/mocks/handlers.ts` — 16 MSW handlers covering all API endpoints with filtering support
+- Created `ui/src/mocks/browser.ts` — `setupWorker` export
+- Updated `.storybook/preview.tsx` — added `initialize()` + `mswLoader`
+- Created `ui/src/test-utils/storybook-decorators.tsx` — `withTheme`, `withRouter`, `withStore`, `withAll` decorators
+- Created page stories with MSW overrides:
+  - `ReviewQueuePage.stories.tsx` — Default, Empty, Loading, AllReviewed, OnlyNewsletters
+  - `AgentRunsPage.stories.tsx` — Default, Empty, Loading
+  - `RunDetailPage.stories.tsx` — Default, Loading, NotFound, AllReviewed
+- Built `RunTimeline` widget — chronological log entries with time column, connector dot/line, log_kind badge (color-coded), markdown body, source badge; 4 stories
+- Built `GroupCard` widget — Paper card with name, review badge, member count, description, TargetLink list; 4 stories
+- Built `RunDetailPage` — stat boxes row, Approve All button (for pending), RunTimeline, GroupCard list, AnnotationTable with local selection state
+- Built `AgentRunsPage` — MUI Table with run ID, source badge, annotation count, progress bar, date, inspect button
+- Deleted unused presentational wrappers (`ReviewQueueView.tsx`, `AgentRunsView.tsx`)
+
+### Why
+- MSW-backed stories test the real connected component with real Redux store + RTK Query middleware — more confidence than testing a presentational wrapper
+- Per-story handler overrides (`parameters.msw.handlers`) make it easy to test edge cases (empty, loading, error) without test-specific props
+- RunTimeline and GroupCard are reusable — RunTimeline appears in RunDetailPage and will appear in DashboardPage; GroupCard appears in RunDetailPage and GroupsPage
+
+### What worked
+- MSW integration was clean: `initialize()` in preview, `mswLoader` in loaders, per-story `parameters.msw.handlers` for overrides
+- The handler filtering (e.g., `url.searchParams.get("tag")`) means the ReviewQueuePage's filter pills actually work in stories — switching tags re-fetches and the handler returns filtered results
+- RunTimeline's connector-line pattern (dot + vertical line) renders well — the `flex` layout makes the line stretch to match content height
+
+### What didn't work
+- Initially tried extracting `ReviewQueueView` and `AgentRunsView` as presentational wrappers before the user redirected to MSW. Deleted these files — the MSW approach is cleaner.
+
+### What I learned
+- MSW's per-story handler override pattern (`parameters.msw.handlers`) composes well — you can spread the default handlers and override specific endpoints
+- For "loading" stories, returning a never-resolving promise (`await new Promise(() => {})`) shows the loading state indefinitely
+- GroupCard was originally a Sprint 4 task (44) but was needed by RunDetailPage (Sprint 3, task 37) — pulled it forward
+
+### What was tricky to build
+- RunTimeline's connector line between entries: the vertical line needs to fill the remaining height after the dot. Using `flex: 1` on the line element and `flexDirection: "column"` on the connector wrapper achieves this, but the line can disappear if the content is very short. Added `mt: 0.5` spacing between dot and line to prevent them from overlapping.
+- RunDetailPage manages its own selection state (useState) rather than using Redux, because the run detail is a separate context from the review queue. If the user selects annotations in the review queue then navigates to a run detail, they shouldn't see the same selection. This is intentional but means the two selection states are independent.
+
+### What warrants a second pair of eyes
+- MSW handler filtering: the `/api/annotations` handler supports `tag`, `reviewState`, `sourceKind`, and `agentRunId` query params — verify these match the RTK Query `params` serialization
+- RunDetailPage uses `useGetRunQuery` which expects an `AgentRunDetail` response (with nested annotations/logs/groups). The mock handler constructs this by filtering the flat mock data. The real backend will need to match this shape.
+- The `mockServiceWorker.js` file in `public/` is auto-generated and 307 lines — it should be committed (MSW requires it) but should not be manually edited
+
+### What should be done in the future
+- Add MSW handlers for mutation responses that return updated entities (currently batch-review returns 204 with null body — RTK Query may not invalidate correctly without seeing the response)
+- Consider adding `msw` to the dev server (like go-minitrace's `main.tsx`) for a fully offline dev experience
+
+### Code review instructions
+- Start in `ui/src/mocks/handlers.ts` — verify endpoint URLs and filtering logic match RTK Query API slice
+- Then `ui/.storybook/preview.tsx` — verify MSW initialization
+- Then `ui/src/pages/stories/ReviewQueuePage.stories.tsx` — see per-story handler override pattern
+- Then `ui/src/components/RunTimeline/RunTimeline.tsx` — see connector line pattern
+- Then `ui/src/pages/RunDetailPage.tsx` — see stat boxes + Approve All + composition
+- Validate: `cd ui && npx tsc --noEmit && npx storybook build --quiet`
