@@ -9,7 +9,14 @@ import {
   mockMessages,
   mockPresets,
   mockQueryResult,
+  mockFeedback,
+  mockGuidelines,
 } from "./annotations";
+
+/** Mutable mock state for run-guideline links (survives across requests in Storybook). */
+const runGuidelineLinks = new Map<string, Set<string>>([
+  ["run-42", new Set(["guideline-001", "guideline-002"])],
+]);
 
 export const handlers = [
   // ── Annotations ──────────────────────────────
@@ -145,4 +152,174 @@ export const handlers = [
     };
     return HttpResponse.json(body, { status: 201 });
   }),
+
+  // ── Review Feedback ──────────────────────────
+  http.get("/api/review-feedback", ({ request }) => {
+    const url = new URL(request.url);
+    let result = [...mockFeedback];
+
+    const agentRunId = url.searchParams.get("agentRunId");
+    if (agentRunId) result = result.filter((f) => f.agentRunId === agentRunId);
+
+    const status = url.searchParams.get("status");
+    if (status) result = result.filter((f) => f.status === status);
+
+    const feedbackKind = url.searchParams.get("feedbackKind");
+    if (feedbackKind) result = result.filter((f) => f.feedbackKind === feedbackKind);
+
+    return HttpResponse.json(result);
+  }),
+
+  http.post("/api/review-feedback", async ({ request }) => {
+    const body = (await request.json()) as {
+      scopeKind: string;
+      feedbackKind: string;
+      title: string;
+      bodyMarkdown: string;
+      agentRunId?: string;
+      mailboxName?: string;
+      targetIds?: string[];
+    };
+    const id = `fb-${Date.now()}`;
+    return HttpResponse.json(
+      {
+        id,
+        scopeKind: body.scopeKind,
+        agentRunId: body.agentRunId ?? "",
+        mailboxName: body.mailboxName ?? "",
+        feedbackKind: body.feedbackKind,
+        status: "open",
+        title: body.title,
+        bodyMarkdown: body.bodyMarkdown,
+        createdBy: "manuel",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        targets: (body.targetIds ?? []).map((tid) => ({
+          targetType: "annotation",
+          targetId: tid,
+        })),
+      },
+      { status: 201 },
+    );
+  }),
+
+  http.get("/api/review-feedback/:id", ({ params }) => {
+    const fb = mockFeedback.find((f) => f.id === params["id"]);
+    if (!fb) return HttpResponse.json({ error: "not found" }, { status: 404 });
+    return HttpResponse.json(fb);
+  }),
+
+  http.patch("/api/review-feedback/:id", async ({ params, request }) => {
+    const fb = mockFeedback.find((f) => f.id === params["id"]);
+    if (!fb) return HttpResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await request.json()) as { status?: string; bodyMarkdown?: string };
+    return HttpResponse.json({
+      ...fb,
+      ...(body.status && { status: body.status }),
+      ...(body.bodyMarkdown && { bodyMarkdown: body.bodyMarkdown }),
+      updatedAt: new Date().toISOString(),
+    });
+  }),
+
+  // ── Review Guidelines ────────────────────────
+  http.get("/api/review-guidelines", ({ request }) => {
+    const url = new URL(request.url);
+    let result = [...mockGuidelines];
+
+    const status = url.searchParams.get("status");
+    if (status) result = result.filter((g) => g.status === status);
+
+    const scopeKind = url.searchParams.get("scopeKind");
+    if (scopeKind) result = result.filter((g) => g.scopeKind === scopeKind);
+
+    const search = url.searchParams.get("search");
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (g) =>
+          g.title.toLowerCase().includes(q) ||
+          g.slug.toLowerCase().includes(q) ||
+          g.bodyMarkdown.toLowerCase().includes(q),
+      );
+    }
+
+    return HttpResponse.json(result);
+  }),
+
+  http.post("/api/review-guidelines", async ({ request }) => {
+    const body = (await request.json()) as {
+      slug: string;
+      title: string;
+      scopeKind: string;
+      bodyMarkdown: string;
+    };
+    if (mockGuidelines.some((g) => g.slug === body.slug)) {
+      return HttpResponse.json(
+        { error: `Guideline with slug '${body.slug}' already exists` },
+        { status: 409 },
+      );
+    }
+    const id = `guideline-${Date.now()}`;
+    return HttpResponse.json(
+      {
+        id,
+        slug: body.slug,
+        title: body.title,
+        scopeKind: body.scopeKind,
+        status: "active",
+        priority: 0,
+        bodyMarkdown: body.bodyMarkdown,
+        createdBy: "manuel",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { status: 201 },
+    );
+  }),
+
+  http.get("/api/review-guidelines/:id", ({ params }) => {
+    const g = mockGuidelines.find((gl) => gl.id === params["id"]);
+    if (!g) return HttpResponse.json({ error: "not found" }, { status: 404 });
+    return HttpResponse.json(g);
+  }),
+
+  http.patch("/api/review-guidelines/:id", async ({ params, request }) => {
+    const g = mockGuidelines.find((gl) => gl.id === params["id"]);
+    if (!g) return HttpResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({
+      ...g,
+      ...body,
+      id: g.id,
+      slug: g.slug, // slug is immutable
+      updatedAt: new Date().toISOString(),
+    });
+  }),
+
+  // ── Run-Guideline Links ──────────────────────
+  http.get("/api/annotation-runs/:id/guidelines", ({ params }) => {
+    const runId = params["id"] as string;
+    const linkedIds = runGuidelineLinks.get(runId);
+    if (!linkedIds) return HttpResponse.json([]);
+    const linked = mockGuidelines.filter((g) => linkedIds.has(g.id));
+    return HttpResponse.json(linked);
+  }),
+
+  http.post("/api/annotation-runs/:id/guidelines", async ({ params, request }) => {
+    const runId = params["id"] as string;
+    const body = (await request.json()) as { guidelineId: string };
+    if (!runGuidelineLinks.has(runId)) runGuidelineLinks.set(runId, new Set());
+    runGuidelineLinks.get(runId)!.add(body.guidelineId);
+    return HttpResponse.json(null, { status: 204 });
+  }),
+
+  http.delete(
+    "/api/annotation-runs/:id/guidelines/:guidelineId",
+    ({ params }) => {
+      const runId = params["id"] as string;
+      const guidelineId = params["guidelineId"] as string;
+      runGuidelineLinks.get(runId)?.delete(guidelineId);
+      return HttpResponse.json(null, { status: 204 });
+    },
+  ),
 ];
