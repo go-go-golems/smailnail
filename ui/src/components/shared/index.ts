@@ -27,3 +27,15 @@ export type { CountSummaryBarProps, CountItem } from "./CountSummaryBar";
 
 export { MarkdownRenderer } from "./MarkdownRenderer";
 export type { MarkdownRendererProps } from "./MarkdownRenderer";
+
+export { MailboxBadge } from "./MailboxBadge";
+export type { MailboxBadgeProps } from "./MailboxBadge";
+
+export { FeedbackKindBadge } from "./FeedbackKindBadge";
+export type { FeedbackKindBadgeProps } from "./FeedbackKindBadge";
+
+export { FeedbackStatusBadge } from "./FeedbackStatusBadge";
+export type { FeedbackStatusBadgeProps } from "./FeedbackStatusBadge";
+
+export { GuidelineScopeBadge } from "./GuidelineScopeBadge";
+export type { GuidelineScopeBadgeProps } from "./GuidelineScopeBadge";
