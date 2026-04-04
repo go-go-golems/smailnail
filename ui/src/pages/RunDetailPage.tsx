@@ -9,6 +9,8 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   useGetRunQuery,
+  useGetRunGuidelinesQuery,
+  useListReviewFeedbackQuery,
   useBatchReviewMutation,
   useReviewAnnotationMutation,
 } from "../api/annotations";
@@ -16,12 +18,19 @@ import { StatBox } from "../components/shared";
 import { AnnotationTable } from "../components/AnnotationTable";
 import { RunTimeline } from "../components/RunTimeline";
 import { GroupCard } from "../components/GroupCard";
+import { RunGuidelineSection } from "../components/RunGuideline";
+import { RunFeedbackSection } from "../components/ReviewFeedback";
 import type { Annotation } from "../types/annotations";
 
 export function RunDetailPage() {
   const { runId } = useParams<{ runId: string }>();
   const navigate = useNavigate();
   const { data: run, isLoading } = useGetRunQuery(runId ?? "");
+  const { data: linkedGuidelines = [] } = useGetRunGuidelinesQuery(runId ?? "", { skip: !runId });
+  const { data: feedback = [] } = useListReviewFeedbackQuery(
+    { agentRunId: runId },
+    { skip: !runId },
+  );
   const [batchReview] = useBatchReviewMutation();
   const [reviewAnnotation] = useReviewAnnotationMutation();
 
@@ -146,6 +155,14 @@ export function RunDetailPage() {
         />
       </Stack>
 
+      {/* Linked Guidelines */}
+      <Divider sx={{ my: 3 }} />
+      <RunGuidelineSection
+        runId={runId ?? ""}
+        guidelines={linkedGuidelines}
+        onCreateAndLink={() => navigate(`/annotations/guidelines/new?runId=${runId}`)}
+      />
+
       {/* Timeline */}
       {logs.length > 0 && (
         <>
@@ -156,6 +173,13 @@ export function RunDetailPage() {
           <Divider sx={{ my: 3 }} />
         </>
       )}
+
+      {/* Run-Level Feedback */}
+      <Divider sx={{ my: 3 }} />
+      <RunFeedbackSection
+        runId={runId ?? ""}
+        feedback={feedback}
+      />
 
       {/* Groups */}
       {groups.length > 0 && (
