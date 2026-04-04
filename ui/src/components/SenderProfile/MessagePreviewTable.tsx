@@ -8,6 +8,7 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import type { MessagePreview } from "../../types/annotations";
+import { MailboxBadge } from "../shared";
 
 export interface MessagePreviewTableProps {
   messages: MessagePreview[];
@@ -39,6 +40,7 @@ export function MessagePreviewTable({ messages }: MessagePreviewTableProps) {
           <TableRow>
             <TableCell>Date</TableCell>
             <TableCell>Subject</TableCell>
+            <TableCell>Mailbox</TableCell>
             <TableCell align="right">Size</TableCell>
           </TableRow>
         </TableHead>
@@ -69,6 +71,13 @@ export function MessagePreviewTable({ messages }: MessagePreviewTableProps) {
                   >
                     {msg.subject}
                   </Typography>
+                </TableCell>
+                <TableCell>
+                  {msg.mailboxName ? (
+                    <MailboxBadge mailboxName={msg.mailboxName} variant="inline" />
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">—</Typography>
+                  )}
                 </TableCell>
                 <TableCell align="right">
                   <Typography
