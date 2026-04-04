@@ -13,7 +13,7 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-04T17:30:00-04:00
+LastUpdated: 2026-04-04T18:00:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
@@ -498,3 +498,189 @@ Edit sequence that worked (after git restore):
 2. Add 2 data-fetching hooks after `useGetRunQuery`.
 3. Insert `<RunGuidelineSection>` block before Timeline section.
 4. Insert `<RunFeedbackSection>` block before Groups section.
+
+---
+
+## Step 10: Guidelines management pages
+
+**Commit (code):** `3cb43d1` — "feat(ui): Phase 11 — Guidelines management pages"
+
+Created the full guidelines management UI: a `components/Guidelines/` directory with three widgets (GuidelineSummaryCard, GuidelineForm, GuidelineLinkedRuns) plus two new pages (GuidelinesListPage, GuidelineDetailPage). The list page supports status filter chips and search; the detail page supports view/edit/create modes and auto-links new guidelines to runs via a `?runId=` query param.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, continue, task by task, committing at appropriate intervals, and keeping a detailed diary as you go"
+
+**Assistant interpretation:** Continue implementing the remaining phases from the task list, committing after each phase, updating the diary after each commit.
+
+**Inferred user intent:** Complete the frontend implementation in a disciplined loop: implement → compile-check → commit → diary-update.
+
+### What I did
+- Created `components/Guidelines/parts.ts` and `index.ts` (barrel exports).
+- Created `GuidelineSummaryCard.tsx` — displays guideline with scope badge, status chip, priority label, truncated body, linked run count, Edit/Archive/Activate buttons.
+- Created `GuidelineForm.tsx` — three modes (view/edit/create) with MUI TextFields, scope select, edit/preview tabs for Markdown body.
+- Created `GuidelineLinkedRuns.tsx` — list of run summary rows with annotation/pending counts and navigation.
+- Created `pages/GuidelinesListPage.tsx` — uses `useListGuidelinesQuery`, status filter chips (All/Active/Draft/Archived), search field, GuidelineSummaryCard list, "New Guideline" button.
+- Created `pages/GuidelineDetailPage.tsx` — detects mode from route (`/new` vs `/:id`), handles create-then-link-to-run flow via `runId` query param.
+- Created Storybook stories for all three components and both pages.
+- Fixed import path: stories must import from `@storybook/react` (not `@storybook/react-vite`).
+- Fixed non-null assertions: `mockGuidelines[0]!` to satisfy strict TypeScript.
+
+### Why
+- Guidelines are the reusable policy layer that reviewers reference when providing feedback. They need CRUD management pages.
+- The `?runId=` auto-link pattern lets reviewers create a guideline from the run detail page and be returned to the run.
+
+### What worked
+- `tsc --noEmit` passed clean after fixing the Storybook import path issue.
+- The GuidelineForm edit/preview tabs use MUI Tabs component for a clean UX.
+
+### What didn't work
+- First attempt used `import type { Meta, StoryObj } from "@storybook/react-vite"` — this doesn't exist. Fixed to `@storybook/react`.
+- `mockGuidelines[0]` returns `ReviewGuideline | undefined` — needed non-null assertion `!` for strict mode.
+
+### What I learned
+- The existing codebase consistently uses `@storybook/react` for type imports. Always check existing stories before writing new ones.
+
+### What was tricky to build
+- `GuidelineForm`'s three modes share the same JSX but differ in which fields are read-only and which submit payload type they produce (`CreateGuidelineRequest` vs `UpdateGuidelineRequest`). The `canSave` validation differs: create requires slug, edit does not.
+
+### What warrants a second pair of eyes
+- `GuidelineDetailPage`'s create-then-link flow: the `createGuideline` mutation returns the new entity, then `linkGuidelineToRun` is called. If the link fails, the guideline exists but isn't linked. Should this be a single server-side operation?
+
+### What should be done in the future
+- `GuidelineLinkedRuns` currently receives an empty `runs` array — need a backend endpoint that returns runs linked to a specific guideline.
+
+### Code review instructions
+- Start in `ui/src/components/Guidelines/index.ts` for barrel exports.
+- Read `GuidelineForm.tsx` (most complex), then `GuidelineSummaryCard.tsx`.
+- Check `ui/src/pages/GuidelinesListPage.tsx` and `GuidelineDetailPage.tsx`.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 11: Sidebar, routes & navigation
+
+**Commit (code):** `26cfeed` — "feat(ui): Phase 12 — add Guidelines sidebar entry and routes"
+
+Wired the guidelines pages into the app's navigation: added a "Guidelines" entry with `MenuBookIcon` to the Review section of the sidebar, added three routes to `App.tsx`, and exported the new pages from the barrel. This was a small but critical integration step — without it, the pages exist but can't be reached.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 10)
+
+### What I did
+- Added `MenuBookIcon` import and "Guidelines" nav item to `reviewItems` in `AnnotationSidebar.tsx`.
+- Added `GuidelinesListPage` and `GuidelineDetailPage` exports to `pages/index.ts`.
+- Added three routes to `App.tsx`: `guidelines`, `guidelines/new`, `guidelines/:guidelineId`.
+- Imported new page components in `App.tsx`.
+
+### Why
+- Pages without routes are unreachable. The sidebar entry provides discoverability.
+
+### What worked
+- Three small targeted edits, all compiled clean on first try.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Route order matters: `guidelines/new` must come before `guidelines/:guidelineId` to avoid `:guidelineId` matching "new".
+
+### What was tricky to build
+- N/A.
+
+### What warrants a second pair of eyes
+- Verify that the sidebar's `isActive` check (`location.pathname.startsWith(item.path)`) correctly highlights "Guidelines" when on `/annotations/guidelines/guideline-001`.
+
+### What should be done in the future
+- N/A.
+
+### Code review instructions
+- `git diff d79e3b2..26cfeed` — three files changed (sidebar, barrel, routes).
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 12: Mailbox context integration (MessagePreviewTable)
+
+**Commit (code):** `d2f25df` — "feat(ui): Phase 13 — add MailboxBadge column to MessagePreviewTable"
+
+Added a Mailbox column to the message preview table in the sender detail page. The `MailboxBadge` component (created in Phase 5) renders a compact inline badge showing which mailbox each message belongs to. Skipped the AnnotationTable and AnnotationDetail mailbox tasks because the `Annotation` type doesn't carry `mailboxName` — that field only exists on `MessagePreview`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 10)
+
+### What I did
+- Added `MailboxBadge` import to `MessagePreviewTable.tsx`.
+- Added "Mailbox" column header after "Subject".
+- Added table cell rendering `MailboxBadge` (inline variant) when `msg.mailboxName` is truthy, otherwise a dash.
+
+### Why
+- Reviewers need to see which mailbox a message belongs to when reviewing sender-level context.
+
+### What worked
+- Clean compile, single targeted edit.
+
+### What didn't work
+- Phase 13 tasks 13A/13B (mailbox in AnnotationTable/AnnotationDetail) can't be implemented because `Annotation` doesn't have `mailboxName`. Only `MessagePreview` does.
+
+### What I learned
+- The data model doesn't have mailbox provenance on annotations — it's on messages. Future backend work would need to denormalize or join to support annotation-level mailbox filtering.
+
+### What was tricky to build
+- N/A.
+
+### What warrants a second pair of eyes
+- N/A.
+
+### What should be done in the future
+- Add `mailboxName` to `Annotation` type (backend change) to enable annotation-level mailbox filtering and badges.
+
+### Code review instructions
+- `git diff 26cfeed..d2f25df` — one file changed.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 13: Redux slice enhancements
+
+**Commit (code):** `473439e` — "feat(ui): Phase 14 — add commentDrawerOpen and filterMailbox to annotationUiSlice"
+
+Added two new fields to the `ReviewQueueState` slice: `commentDrawerOpen` (boolean) and `filterMailbox` (string | null), with corresponding actions. These enable the ReviewQueuePage to use Redux for drawer state (instead of local `useState`) and support future mailbox filtering.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 10)
+
+### What I did
+- Added `commentDrawerOpen: boolean` and `filterMailbox: string | null` to `ReviewQueueState`.
+- Added `openCommentDrawer`, `closeCommentDrawer`, `setFilterMailbox` reducers.
+- Exported new actions from the slice.
+- Initial values: `commentDrawerOpen: false`, `filterMailbox: null`.
+
+### Why
+- Drawer state in Redux enables cross-component coordination (e.g., BatchActionBar opens drawer, ReviewCommentDrawer reads state).
+- `filterMailbox` prepares the state for future mailbox filter pills.
+
+### What worked
+- Clean compile. Backward-compatible — existing consumers unaffected.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Adding optional state to an existing Redux slice is safe as long as defaults match the old behavior.
+
+### What was tricky to build
+- N/A.
+
+### What warrants a second pair of eyes
+- Verify that `ReviewQueuePage` still uses local `useState` for `commentDrawerOpen` — it should be migrated to the Redux action in a follow-up.
+
+### What should be done in the future
+- Migrate `ReviewQueuePage`'s local `commentDrawerOpen` state to use `useAppSelector(s => s.annotationUi.reviewQueue.commentDrawerOpen)` and dispatch `openCommentDrawer`/`closeCommentDrawer`.
+
+### Code review instructions
+- `git diff d2f25df..473439e` — one file changed.
+- Validate: `cd ui && npx tsc --noEmit`
