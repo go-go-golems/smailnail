@@ -324,18 +324,21 @@ export const mockMessages: MessagePreview[] = [
     subject: "TechCrunch Daily - April 1, 2026",
     date: "2026-04-01T08:00:00Z",
     sizeBytes: 45320,
+    mailboxName: "INBOX",
   },
   {
     uid: 1000,
     subject: "TechCrunch Daily - March 31, 2026",
     date: "2026-03-31T08:00:00Z",
     sizeBytes: 42100,
+    mailboxName: "INBOX",
   },
   {
     uid: 999,
     subject: "TechCrunch Daily - March 30, 2026",
     date: "2026-03-30T08:00:00Z",
     sizeBytes: 38900,
+    mailboxName: "INBOX",
   },
 ];
 

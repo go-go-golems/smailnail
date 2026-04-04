@@ -112,6 +112,7 @@ export interface MessagePreview {
   subject: string;
   date: string;
   sizeBytes: number;
+  mailboxName: string;
 }
 
 // ── Filter types ─────────────────────────────────────────────
@@ -123,6 +124,8 @@ export interface AnnotationFilter {
   reviewState?: ReviewState;
   sourceKind?: SourceKind;
   agentRunId?: string;
+  mailboxName?: string;
+  feedbackStatus?: string;
   limit?: number;
 }
 
