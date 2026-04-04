@@ -11,6 +11,7 @@ import SmartToyIcon from "@mui/icons-material/SmartToy";
 import PeopleIcon from "@mui/icons-material/People";
 import FolderSharedIcon from "@mui/icons-material/FolderShared";
 import StorageIcon from "@mui/icons-material/Storage";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
 import { useLocation, useNavigate } from "react-router-dom";
 
 interface NavItem {
@@ -37,6 +38,11 @@ const reviewItems: NavItem[] = [
     label: "Agent Runs",
     path: "/annotations/runs",
     icon: <SmartToyIcon fontSize="small" />,
+  },
+  {
+    label: "Guidelines",
+    path: "/annotations/guidelines",
+    icon: <MenuBookIcon fontSize="small" />,
   },
 ];
 
