@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
@@ -22,7 +22,9 @@ import {
   CountSummaryBar,
   BatchActionBar,
 } from "../components/shared";
+import { ReviewCommentDrawer } from "../components/ReviewFeedback";
 import type { Annotation } from "../types/annotations";
+import type { FeedbackKind } from "../types/reviewFeedback";
 
 export function ReviewQueuePage() {
   const dispatch = useAppDispatch();
@@ -36,6 +38,7 @@ export function ReviewQueuePage() {
   );
   const [batchReview] = useBatchReviewMutation();
   const [reviewAnnotation] = useReviewAnnotationMutation();
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
 
   // Compute tag counts for filter pills (always from unfiltered set)
   const { data: allAnnotations = [] } = useListAnnotationsQuery({});
@@ -67,7 +70,29 @@ export function ReviewQueuePage() {
     ];
   }, [annotations]);
 
-  const getRelated = useCallback(
+  const handleBatchRejectExplain = useCallback(() => {
+    setCommentDrawerOpen(true);
+  }, []);
+
+  const handleCommentSubmit = useCallback(
+    (payload: { feedbackKind: FeedbackKind; title: string; bodyMarkdown: string; guidelineIds: string[] }) => {
+      void batchReview({
+        ids: selected,
+        reviewState: "dismissed",
+        comment: {
+          feedbackKind: payload.feedbackKind,
+          title: payload.title,
+          bodyMarkdown: payload.bodyMarkdown,
+        },
+        guidelineIds: payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+      });
+      dispatch(clearSelected());
+      setCommentDrawerOpen(false);
+    },
+    [batchReview, selected, dispatch],
+  );
+
+  const handleGetRelated = useCallback(
     (ann: Annotation) =>
       annotations.filter(
         (a) =>
@@ -144,6 +169,7 @@ export function ReviewQueuePage() {
         onToggleAll={handleToggleAll}
         onApprove={handleBatchApprove}
         onDismiss={handleBatchDismiss}
+        onRejectExplain={handleBatchRejectExplain}
         onReset={handleBatchReset}
       />
 
@@ -163,7 +189,15 @@ export function ReviewQueuePage() {
           void reviewAnnotation({ id, reviewState: "dismissed" })
         }
         onNavigateTarget={handleNavigateTarget}
-        getRelated={getRelated}
+        getRelated={handleGetRelated}
+      />
+
+      <ReviewCommentDrawer
+        open={commentDrawerOpen}
+        mode="batch"
+        targetCount={selected.length}
+        onSubmit={handleCommentSubmit}
+        onCancel={() => setCommentDrawerOpen(false)}
       />
     </Box>
   );
