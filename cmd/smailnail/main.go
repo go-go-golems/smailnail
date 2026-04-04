@@ -13,6 +13,7 @@ import (
 	"github.com/go-go-golems/smailnail/cmd/smailnail/commands"
 	annotatecommands "github.com/go-go-golems/smailnail/cmd/smailnail/commands/annotate"
 	enrichcommands "github.com/go-go-golems/smailnail/cmd/smailnail/commands/enrich"
+	sqlitecommands "github.com/go-go-golems/smailnail/cmd/smailnail/commands/sqlite"
 	smailnaildocs "github.com/go-go-golems/smailnail/cmd/smailnail/docs"
 	pkgdoc "github.com/go-go-golems/smailnail/pkg/doc"
 	"github.com/spf13/cobra"
@@ -125,6 +126,13 @@ func main() {
 		os.Exit(1)
 	}
 	rootCmd.AddCommand(annotateCmd)
+
+	sqliteCmd, err := sqlitecommands.NewSQLiteCommand()
+	if err != nil {
+		fmt.Printf("Error creating sqlite command group: %v\n", err)
+		os.Exit(1)
+	}
+	rootCmd.AddCommand(sqliteCmd)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

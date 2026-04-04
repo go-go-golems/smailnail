@@ -1,20 +1,41 @@
 import { useEffect, useState } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+} from "react-router-dom";
 import type { AccountListItem } from "./api/types";
 import { AccountSetupPage } from "./features/accounts";
 import { fetchCurrentUser, LoggedOutShell } from "./features/auth";
 import { MailboxExplorer } from "./features/mailbox";
 import { RulesPage } from "./features/rules";
+import { AnnotationLayout } from "./components/AppLayout";
+import {
+  DashboardPage,
+  ReviewQueuePage,
+  AgentRunsPage,
+  RunDetailPage,
+  SendersPage,
+  SenderDetailPage,
+  GroupsPage,
+  QueryEditorPage,
+} from "./pages";
 import { useAppDispatch, useAppSelector } from "./store";
 
-type AppView =
+// ── Legacy shell (accounts/mailbox/rules — no router) ────────
+
+type LegacyView =
   | { kind: "accounts" }
   | { kind: "explore"; account: AccountListItem }
   | { kind: "rules" };
 
-export function App() {
+function LegacyShell() {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { status, user, error } = useAppSelector((state) => state.auth);
-  const [view, setView] = useState<AppView>({ kind: "accounts" });
+  const [view, setView] = useState<LegacyView>({ kind: "accounts" });
 
   useEffect(() => {
     if (status === "idle") {
@@ -64,12 +85,20 @@ export function App() {
             smailnail
           </h1>
           {view.kind === "accounts" && (
-            <button
-              className="btn btn-outline-secondary btn-sm"
-              onClick={() => setView({ kind: "rules" })}
-            >
-              Rules
-            </button>
+            <>
+              <button
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => setView({ kind: "rules" })}
+              >
+                Rules
+              </button>
+              <button
+                className="btn btn-outline-primary btn-sm"
+                onClick={() => navigate("/annotations")}
+              >
+                Annotations
+              </button>
+            </>
           )}
         </div>
         <div
@@ -96,7 +125,9 @@ export function App() {
           <div>
             <div className="small fw-semibold">{displayName}</div>
             {user?.primaryEmail && user.primaryEmail !== displayName && (
-              <div className="small text-body-secondary">{user.primaryEmail}</div>
+              <div className="small text-body-secondary">
+                {user.primaryEmail}
+              </div>
             )}
           </div>
           <a className="btn btn-outline-secondary btn-sm" href="/auth/logout">
@@ -124,5 +155,35 @@ export function App() {
         )}
       </main>
     </div>
+  );
+}
+
+// ── Root App with router ─────────────────────────────────────
+
+export function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Annotation UI — MUI dark theme with sidebar */}
+        <Route path="/annotations" element={<AnnotationLayout />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="review" element={<ReviewQueuePage />} />
+          <Route path="runs" element={<AgentRunsPage />} />
+          <Route path="runs/:runId" element={<RunDetailPage />} />
+          <Route path="senders" element={<SendersPage />} />
+          <Route path="senders/:email" element={<SenderDetailPage />} />
+          <Route path="groups" element={<GroupsPage />} />
+        </Route>
+        <Route path="/query" element={<AnnotationLayout />}>
+          <Route index element={<QueryEditorPage />} />
+        </Route>
+
+        {/* Legacy Bootstrap shell */}
+        <Route path="/" element={<LegacyShell />} />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

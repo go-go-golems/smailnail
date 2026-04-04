@@ -1,3 +1,3 @@
-//go:generate go run generate_build.go
+//go:generate go run ../../../cmd/build-web
 
 package web

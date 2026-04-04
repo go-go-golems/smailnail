@@ -3,6 +3,7 @@ module github.com/go-go-golems/smailnail
 go 1.26.1
 
 require (
+	dagger.io/dagger v0.19.9
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/dop251/goja v0.0.0-20251103141225-af2ceb9156d7
 	github.com/emersion/go-imap/v2 v2.0.0-beta.5
@@ -19,11 +20,25 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/99designs/gqlgen v0.17.81 // indirect
+	github.com/Khan/genqlient v0.8.1 // indirect
+	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.8.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/sosodev/duration v1.3.1 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.14.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.14.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.38.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.38.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0 // indirect
+	go.opentelemetry.io/otel/log v0.14.0 // indirect
+	go.opentelemetry.io/otel/sdk/log v0.14.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.42.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
 
@@ -173,7 +188,7 @@ require (
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.35.0 // indirect

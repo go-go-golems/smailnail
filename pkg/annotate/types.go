@@ -46,6 +46,7 @@ type ListAnnotationsFilter struct {
 	Tag         string
 	ReviewState string
 	SourceKind  string
+	AgentRunID  string
 	Limit       int
 }
 
@@ -76,6 +77,11 @@ type ListGroupsFilter struct {
 	ReviewState string
 	SourceKind  string
 	Limit       int
+}
+
+type GroupDetail struct {
+	TargetGroup
+	Members []GroupMember `json:"members"`
 }
 
 type GroupMember struct {
@@ -129,4 +135,25 @@ type LinkLogTargetInput struct {
 	LogID      string
 	TargetType string
 	TargetID   string
+}
+
+type AgentRunSummary struct {
+	RunID           string `db:"run_id" json:"runId"`
+	SourceLabel     string `db:"source_label" json:"sourceLabel"`
+	SourceKind      string `db:"source_kind" json:"sourceKind"`
+	AnnotationCount int    `db:"annotation_count" json:"annotationCount"`
+	PendingCount    int    `db:"pending_count" json:"pendingCount"`
+	ReviewedCount   int    `db:"reviewed_count" json:"reviewedCount"`
+	DismissedCount  int    `db:"dismissed_count" json:"dismissedCount"`
+	LogCount        int    `db:"log_count" json:"logCount"`
+	GroupCount      int    `db:"group_count" json:"groupCount"`
+	StartedAt       string `db:"started_at" json:"startedAt"`
+	CompletedAt     string `db:"completed_at" json:"completedAt"`
+}
+
+type AgentRunDetail struct {
+	AgentRunSummary
+	Annotations []Annotation    `json:"annotations"`
+	Logs        []AnnotationLog `json:"logs"`
+	Groups      []TargetGroup   `json:"groups"`
 }

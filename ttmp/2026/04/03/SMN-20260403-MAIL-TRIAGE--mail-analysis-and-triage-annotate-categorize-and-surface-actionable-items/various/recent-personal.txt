@@ -1,0 +1,23 @@
+id     date        sender_email                  subject                                                               
+-----  ----------  ----------------------------  ----------------------------------------------------------------------
+32833  2026-03-02  achambers.home@gmail.com      Re: Examples of Method Combinations, Multiple Dispatch, MOP           
+32710  2026-03-01  fahree@gmail.com              Re: Examples of Method Combinations, Multiple Dispatch, MOP           
+32704  2026-03-01  besset.stadler@gmail.com      Re: Ascension a La Forclaz                                            
+32441  2026-02-18  jessetsheehan@gmail.com       [Community - General] Graduate Course Looking for Unity Game Engine Ex
+32318  2026-02-16  jessetsheehan@gmail.com       [Community - General] Graduate Course Looking for Unity Game Engine Ex
+32304  2026-02-16  lepetitg@gmail.com            [Community - General] Does anyone even know what SAP is?              
+31899  2026-02-11  jonathanmarkfisher@gmail.com  meeting link                                                          
+31840  2026-02-11  stepanart7@gmail.com          2026-02-22_Geburtstagskonzert_Art Café Aviator                        
+31537  2026-02-06  ginny.white@gmail.com         Fwd: Your Statement is Available                                      
+31437  2026-02-05  robokid13@gmail.com           Re: Re: Re: SOITS Alumni                                              
+31276  2026-02-03  gleitman.sam@gmail.com        Re: Re: Re: SOITS Alumni                                              
+31255  2026-02-03  brendan.leonard111@gmail.com  DPW Snow Hearing                                                      
+31247  2026-02-03  robokid13@gmail.com           Re: Re: Re: SOITS Alumni                                              
+31150  2026-02-03  newoldtraditions@gmail.com    Zettelkasten Course "Module 2" (former student discount)              
+31022  2026-02-02  robokid13@gmail.com           Re: Re: Re: SOITS Alumni                                              
+31011  2026-02-02  perryholser@gmail.com         Re: Re: SOITS Alumni                                                  
+30958  2026-02-01  perryholser@gmail.com         Re: SOITS Alumni                                                      
+30803  2026-01-05  newoldtraditions@gmail.com    Last day to get in on the System fro Writing Master Course            
+30765  2026-01-05  ginny.white@gmail.com         Re: Updates                                                           
+30683  2026-01-04  ginny.white@gmail.com         Re: Updates                                                           
+30576  2026-01-03  ginny.white@gmail.com         Re: Updates                                                           

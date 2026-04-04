@@ -1,0 +1,61 @@
+# Tasks
+
+## TODO
+
+- [ ] Add tasks here
+
+- [ ] Phase 1: Review Queue + annotation list/detail + batch review actions
+- [ ] Phase 2: Query Editor (port from go-minitrace) + presets + saved queries
+- [ ] Phase 3: Senders browser + sender detail + domain aggregation
+- [ ] Phase 4: Groups + Agent Runs + Logs views
+- [ ] Phase 5: Threads/Messages browsers + FTS integration
+- [ ] Phase 6: Fragments library + cross-navigation from query results
+- [ ] Phase 7: Global search + keyboard shortcuts + polish
+- [ ] Backend: Add annotation API endpoints to smailnaild HTTP handler
+- [ ] Backend: Add query execution API + saved queries/fragments tables
+- [ ] Backend: Add mirror browser APIs (senders, threads, messages, domains with annotation counts)
+- [x] S1: Create theme/theme.ts — extend go-minitrace dark MUI theme with smailnail-specific palette (purple secondary, tag color map)
+- [x] S1: Create theme/tagColors.ts — per-tag color map (newsletter=blue, notification=orange, important=green, etc.) with fallback
+- [x] S1: Build shared/TagChip — MUI Chip with tag color lookup + stories (default, unknown-tag, each known tag)
+- [x] S1: Build shared/ReviewStateBadge — MUI Chip for to_review/reviewed/dismissed + stories
+- [x] S1: Build shared/SourceBadge — monospace Chip showing source_label + source_kind icon + stories
+- [x] S1: Build shared/TargetLink — type icon + monospace ID link + onClick navigation + stories
+- [x] S1: Build shared/StatBox — large value + label with configurable color + stories
+- [x] S1: Build shared/ReviewProgressBar — thin bar showing reviewed/pending/dismissed ratios + stories
+- [x] S1: Build shared/BatchActionBar — select-all checkbox, count display, Approve/Dismiss/Reset buttons + stories
+- [x] S1: Build shared/FilterPillBar — clickable pill group for tag/type/source filtering + stories
+- [x] S1: Build shared/CountSummaryBar — inline stats line (e.g. '247 to review · 189 agent') + stories
+- [x] S1: Build shared/MarkdownRenderer — renders markdown body (for log entries) + stories
+- [x] S1: Create types/annotations.ts — TypeScript types matching backend (Annotation, TargetGroup, AnnotationLog, AgentRunSummary, etc.)
+- [x] S1: Create mocks/annotations.ts — realistic mock data extracted from JSX sketch for Storybook and dev
+- [x] S1: Create api/annotations.ts — RTK Query API slice with all annotation, group, log, run, sender, and query endpoints
+- [x] S1: Create store/annotationUiSlice.ts — Redux slice for review queue selection, filters, expanded state, query editor SQL
+- [x] S1: Wire Redux store — add annotationsApi reducer + middleware to existing store.ts
+- [x] S1: Set up react-router routes — /annotations/* and /query paths in App.tsx with sidebar nav
+- [x] S2: Build AnnotationTable — selectable MUI Table with checkbox column, expandable rows + stories (default, empty, with-selection, expanded)
+- [x] S2: Build AnnotationRow — table row composing TargetLink, TagChip, note truncation, SourceBadge, inline approve/dismiss buttons
+- [x] S2: Build AnnotationDetail — inline expanded panel showing full note, related annotations on same target, navigate-to-target button
+- [x] S2: Build ReviewQueuePage — compose FilterPillBar + CountSummaryBar + BatchActionBar + AnnotationTable, wire listAnnotations query + batchReview mutation
+- [x] S2: Wire batch review — batchReview mutation with optimistic update, RTK Query cache invalidation for Annotations + Runs tags
+- [x] S3: Build AgentRunsPage — MUI Table with run ID, source label, annotation count, progress bar, inspect button + stories
+- [x] S3: Build RunTimeline — chronological log entries with time column, log_kind badge, markdown body, linked TargetLinks + stories
+- [x] S3: Build RunDetailPage — StatBox row (total/pending/approved/dismissed), batch approve-all, RunTimeline, GroupCard list, AnnotationTable filtered to run
+- [x] S4: Build SendersPage — MUI Table with email/display, domain, msg count, annotation count, TagChips, unsubscribe indicator + stories
+- [x] S4: Build SenderProfileCard — StatBox grid (messages, domain, dates, unsubscribe status) + stories
+- [x] S4: Build SenderAnnotationList — annotation table for single sender with review actions + stories
+- [x] S4: Build AgentReasoningPanel — related log entries panel with title, body, timestamps + stories
+- [x] S4: Build MessagePreviewTable — compact table (date, subject, size) for sender's recent messages + stories
+- [x] S4: Build SenderDetailPage — compose SenderProfileCard + SenderAnnotationList + AgentReasoningPanel + MessagePreviewTable
+- [x] S4: Build GroupCard — Paper card with name, ReviewStateBadge, member count, description, TargetLink list + stories
+- [x] S4: Build GroupsPage — list of GroupCards with filter
+- [x] S5: Build DashboardStatGrid — 6-cell responsive stat grid (pending, approved, dismissed, total, runs, senders) + stories
+- [x] S5: Build LatestRunBanner — highlighted Paper with run info + CTA buttons (Review Queue, Inspect Run) + stories
+- [x] S5: Build RecentActivityList — compact log timeline for dashboard + stories
+- [x] S5: Build DashboardPage — compose DashboardStatGrid + LatestRunBanner + RecentActivityList
+- [x] S6: Port QueryEditor, QuerySidebar, SqlEditor, ResultsTable from go-minitrace/web — adapt imports, keep same data-widget/data-part attributes
+- [x] S6: Build QueryEditorPage — wire ported QueryEditor to smailnail annotations API (executeQuery, getPresets, getSavedQueries, saveQuery)
+- [x] S6: Add Storybook stories for ported query editor widgets (same states as go-minitrace: empty, with-results, error, loading)
+- [ ] S7: Add keyboard shortcuts — j/k row navigation, x toggle select, a approve, d dismiss, Enter expand, Esc close, Ctrl+Enter run query, / focus search
+- [ ] S7: Add breadcrumb navigation for detail views (Agent Runs > run-42, Senders > news@example.com)
+- [ ] S7: Add sidebar pending-count badge — live from RTK Query listAnnotations cache, filtered to review_state=to_review
+- [ ] S7: Add empty states and loading skeletons for all page components
