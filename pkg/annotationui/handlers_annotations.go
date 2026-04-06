@@ -8,12 +8,19 @@ import (
 )
 
 type reviewRequest struct {
-	ReviewState string `json:"reviewState"`
+	ReviewState  string              `json:"reviewState"`
+	Comment      *reviewCommentInput `json:"comment,omitempty"`
+	GuidelineIDs []string            `json:"guidelineIds,omitempty"`
+	MailboxName  string              `json:"mailboxName,omitempty"`
 }
 
 type batchReviewRequest struct {
-	IDs         []string `json:"ids"`
-	ReviewState string   `json:"reviewState"`
+	IDs          []string            `json:"ids"`
+	ReviewState  string              `json:"reviewState"`
+	AgentRunID   string              `json:"agentRunId,omitempty"`
+	Comment      *reviewCommentInput `json:"comment,omitempty"`
+	GuidelineIDs []string            `json:"guidelineIds,omitempty"`
+	MailboxName  string              `json:"mailboxName,omitempty"`
 }
 
 func (h *appHandler) handleListAnnotations(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +69,13 @@ func (h *appHandler) handleReviewAnnotation(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	annotation, err := h.annotations.UpdateAnnotationReviewState(r.Context(), r.PathValue("id"), req.ReviewState)
+	annotation, err := h.annotations.ReviewAnnotationWithArtifacts(r.Context(), annotate.ReviewAnnotationActionInput{
+		AnnotationID: r.PathValue("id"),
+		ReviewState:  req.ReviewState,
+		MailboxName:  req.MailboxName,
+		Comment:      toAnnotateReviewComment(req.Comment),
+		GuidelineIDs: req.GuidelineIDs,
+	})
 	if err != nil {
 		if isNotFoundError(err) {
 			writeNotFound(w, err.Error())
@@ -87,7 +100,14 @@ func (h *appHandler) handleBatchReview(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusBadRequest, "reviewState must be one of to_review, reviewed, dismissed")
 		return
 	}
-	if err := h.annotations.BatchUpdateReviewState(r.Context(), req.IDs, req.ReviewState); err != nil {
+	if err := h.annotations.BatchReviewWithArtifacts(r.Context(), annotate.BatchReviewActionInput{
+		IDs:          req.IDs,
+		ReviewState:  req.ReviewState,
+		AgentRunID:   req.AgentRunID,
+		MailboxName:  req.MailboxName,
+		Comment:      toAnnotateReviewComment(req.Comment),
+		GuidelineIDs: req.GuidelineIDs,
+	}); err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -192,5 +212,19 @@ func isValidReviewState(reviewState string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func toAnnotateReviewComment(comment *reviewCommentInput) *annotate.ReviewCommentInput {
+	if comment == nil {
+		return nil
+	}
+	if strings.TrimSpace(comment.BodyMarkdown) == "" && strings.TrimSpace(comment.Title) == "" {
+		return nil
+	}
+	return &annotate.ReviewCommentInput{
+		FeedbackKind: strings.TrimSpace(comment.FeedbackKind),
+		Title:        strings.TrimSpace(comment.Title),
+		BodyMarkdown: strings.TrimSpace(comment.BodyMarkdown),
 	}
 }

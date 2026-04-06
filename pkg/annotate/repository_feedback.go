@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 )
 
@@ -351,7 +352,258 @@ func (r *Repository) ListRunGuidelines(ctx context.Context, runID string) ([]Rev
 	return guidelines, nil
 }
 
+func (r *Repository) ReviewAnnotationWithArtifacts(ctx context.Context, input ReviewAnnotationActionInput) (*Annotation, error) {
+	if strings.TrimSpace(input.AnnotationID) == "" {
+		return nil, fmt.Errorf("annotation id is required")
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "begin review annotation transaction")
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := r.updateAnnotationReviewStateTx(ctx, tx, input.AnnotationID, input.ReviewState); err != nil {
+		return nil, err
+	}
+
+	annotation, err := r.getAnnotationTx(ctx, tx, input.AnnotationID)
+	if err != nil {
+		return nil, err
+	}
+
+	if input.Comment != nil && strings.TrimSpace(input.Comment.BodyMarkdown) != "" {
+		if _, err := r.createReviewFeedbackTx(ctx, tx, CreateFeedbackInput{
+			ScopeKind:    FeedbackScopeAnnotation,
+			AgentRunID:   annotation.AgentRunID,
+			MailboxName:  input.MailboxName,
+			FeedbackKind: defaultString(input.Comment.FeedbackKind, FeedbackKindComment),
+			Title:        input.Comment.Title,
+			BodyMarkdown: input.Comment.BodyMarkdown,
+			CreatedBy:    input.CreatedBy,
+			Targets: []FeedbackTargetInput{{
+				TargetType: FeedbackScopeAnnotation,
+				TargetID:   annotation.ID,
+			}},
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, guidelineID := range input.GuidelineIDs {
+		guidelineID = strings.TrimSpace(guidelineID)
+		if guidelineID == "" {
+			continue
+		}
+		if strings.TrimSpace(annotation.AgentRunID) == "" {
+			return nil, fmt.Errorf("cannot link guideline %s: annotation has no agent run id", guidelineID)
+		}
+		if err := r.linkGuidelineToRunTx(ctx, tx, annotation.AgentRunID, guidelineID, input.CreatedBy); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, errors.Wrap(err, "commit review annotation transaction")
+	}
+	return r.GetAnnotation(ctx, input.AnnotationID)
+}
+
+func (r *Repository) BatchReviewWithArtifacts(ctx context.Context, input BatchReviewActionInput) error {
+	if len(input.IDs) == 0 {
+		return fmt.Errorf("ids are required")
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return errors.Wrap(err, "begin batch review with artifacts transaction")
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	trimmedIDs, err := r.batchUpdateReviewStateTx(ctx, tx, input.IDs, input.ReviewState)
+	if err != nil {
+		return err
+	}
+
+	runID := strings.TrimSpace(input.AgentRunID)
+	if runID == "" && len(input.GuidelineIDs) > 0 {
+		runID, err = r.inferSingleRunIDForAnnotationsTx(ctx, tx, trimmedIDs)
+		if err != nil {
+			return err
+		}
+	}
+
+	if input.Comment != nil && strings.TrimSpace(input.Comment.BodyMarkdown) != "" {
+		targets := make([]FeedbackTargetInput, 0, len(trimmedIDs))
+		for _, id := range trimmedIDs {
+			targets = append(targets, FeedbackTargetInput{TargetType: FeedbackScopeAnnotation, TargetID: id})
+		}
+		if _, err := r.createReviewFeedbackTx(ctx, tx, CreateFeedbackInput{
+			ScopeKind:    FeedbackScopeSelection,
+			AgentRunID:   runID,
+			MailboxName:  input.MailboxName,
+			FeedbackKind: defaultString(input.Comment.FeedbackKind, FeedbackKindComment),
+			Title:        input.Comment.Title,
+			BodyMarkdown: input.Comment.BodyMarkdown,
+			CreatedBy:    input.CreatedBy,
+			Targets:      targets,
+		}); err != nil {
+			return err
+		}
+	}
+
+	for _, guidelineID := range input.GuidelineIDs {
+		guidelineID = strings.TrimSpace(guidelineID)
+		if guidelineID == "" {
+			continue
+		}
+		if runID == "" {
+			return fmt.Errorf("guideline linking requires agentRunId or a single run inferred from annotation ids")
+		}
+		if err := r.linkGuidelineToRunTx(ctx, tx, runID, guidelineID, input.CreatedBy); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return errors.Wrap(err, "commit batch review with artifacts transaction")
+	}
+	return nil
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
+
+func (r *Repository) getAnnotationTx(ctx context.Context, tx *sqlx.Tx, id string) (*Annotation, error) {
+	var ret Annotation
+	query := tx.Rebind(`SELECT * FROM annotations WHERE id = ?`)
+	if err := tx.GetContext(ctx, &ret, query, id); err != nil {
+		return nil, errors.Wrap(err, "get annotation in transaction")
+	}
+	return &ret, nil
+}
+
+func (r *Repository) updateAnnotationReviewStateTx(ctx context.Context, tx *sqlx.Tx, id, reviewState string) error {
+	query := tx.Rebind(`UPDATE annotations
+		SET review_state = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?`)
+	result, err := tx.ExecContext(ctx, query, defaultReviewState(reviewState, ""), strings.TrimSpace(id))
+	if err != nil {
+		return errors.Wrap(err, "update annotation review state in transaction")
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return errors.Wrap(err, "read annotation review update result in transaction")
+	}
+	if rows == 0 {
+		return fmt.Errorf("annotation %s not found", id)
+	}
+	return nil
+}
+
+func (r *Repository) batchUpdateReviewStateTx(ctx context.Context, tx *sqlx.Tx, ids []string, reviewState string) ([]string, error) {
+	trimmedIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		trimmedIDs = append(trimmedIDs, id)
+	}
+	if len(trimmedIDs) == 0 {
+		return nil, fmt.Errorf("ids are required")
+	}
+
+	query, args, err := sqlx.In(`UPDATE annotations
+		SET review_state = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id IN (?)`, defaultReviewState(reviewState, ""), trimmedIDs)
+	if err != nil {
+		return nil, errors.Wrap(err, "build batch review update query in transaction")
+	}
+	if _, err := tx.ExecContext(ctx, tx.Rebind(query), args...); err != nil {
+		return nil, errors.Wrap(err, "batch update annotation review state in transaction")
+	}
+	return trimmedIDs, nil
+}
+
+func (r *Repository) createReviewFeedbackTx(ctx context.Context, tx *sqlx.Tx, input CreateFeedbackInput) (string, error) {
+	id := r.newID()
+	feedbackKind := defaultString(input.FeedbackKind, FeedbackKindComment)
+	scopeKind := defaultString(input.ScopeKind, FeedbackScopeSelection)
+
+	query := tx.Rebind(`INSERT INTO review_feedback (
+		id, scope_kind, agent_run_id, mailbox_name, feedback_kind, status,
+		title, body_markdown, created_by,
+		created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	if _, err := tx.ExecContext(ctx, query,
+		id, scopeKind,
+		strings.TrimSpace(input.AgentRunID),
+		strings.TrimSpace(input.MailboxName),
+		feedbackKind,
+		strings.TrimSpace(input.Title),
+		strings.TrimSpace(input.BodyMarkdown),
+		strings.TrimSpace(input.CreatedBy),
+	); err != nil {
+		return "", errors.Wrap(err, "insert review feedback in transaction")
+	}
+
+	for _, target := range input.Targets {
+		tq := tx.Rebind(`INSERT INTO review_feedback_targets (
+			feedback_id, target_type, target_id
+		) VALUES (?, ?, ?)
+		ON CONFLICT(feedback_id, target_type, target_id) DO NOTHING`)
+		if _, err := tx.ExecContext(ctx, tq,
+			id,
+			strings.TrimSpace(target.TargetType),
+			strings.TrimSpace(target.TargetID),
+		); err != nil {
+			return "", errors.Wrap(err, "insert feedback target in transaction")
+		}
+	}
+
+	return id, nil
+}
+
+func (r *Repository) linkGuidelineToRunTx(ctx context.Context, tx *sqlx.Tx, runID, guidelineID, linkedBy string) error {
+	query := tx.Rebind(`INSERT INTO run_guideline_links (
+		agent_run_id, guideline_id, linked_by, linked_at
+	) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+	ON CONFLICT(agent_run_id, guideline_id) DO NOTHING`)
+	if _, err := tx.ExecContext(ctx, query,
+		strings.TrimSpace(runID),
+		strings.TrimSpace(guidelineID),
+		strings.TrimSpace(linkedBy),
+	); err != nil {
+		return errors.Wrap(err, "link guideline to run in transaction")
+	}
+	return nil
+}
+
+func (r *Repository) inferSingleRunIDForAnnotationsTx(ctx context.Context, tx *sqlx.Tx, ids []string) (string, error) {
+	query, args, err := sqlx.In(`SELECT DISTINCT agent_run_id FROM annotations WHERE id IN (?)`, ids)
+	if err != nil {
+		return "", errors.Wrap(err, "build infer run id query")
+	}
+	var runIDs []string
+	if err := tx.SelectContext(ctx, &runIDs, tx.Rebind(query), args...); err != nil {
+		return "", errors.Wrap(err, "infer run id from annotations")
+	}
+	trimmed := make([]string, 0, len(runIDs))
+	for _, runID := range runIDs {
+		runID = strings.TrimSpace(runID)
+		if runID == "" {
+			continue
+		}
+		trimmed = append(trimmed, runID)
+	}
+	if len(trimmed) == 0 {
+		return "", nil
+	}
+	if len(trimmed) > 1 {
+		return "", fmt.Errorf("guideline linking requires annotations from a single run")
+	}
+	return trimmed[0], nil
+}
 
 func defaultString(value, fallback string) string {
 	if strings.TrimSpace(value) == "" {

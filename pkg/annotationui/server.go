@@ -168,6 +168,23 @@ func (h *appHandler) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/mirror/senders", h.handleListSenders)
 	mux.HandleFunc("GET /api/mirror/senders/{email}", h.handleGetSender)
 
+	// ── Review feedback ────────────────────────────────────────────
+	mux.HandleFunc("GET /api/review-feedback", h.handleListFeedback)
+	mux.HandleFunc("GET /api/review-feedback/{id}", h.handleGetFeedback)
+	mux.HandleFunc("POST /api/review-feedback", h.handleCreateFeedback)
+	mux.HandleFunc("PATCH /api/review-feedback/{id}", h.handleUpdateFeedback)
+
+	// ── Review guidelines ──────────────────────────────────────────────
+	mux.HandleFunc("GET /api/review-guidelines", h.handleListGuidelines)
+	mux.HandleFunc("GET /api/review-guidelines/{id}", h.handleGetGuideline)
+	mux.HandleFunc("POST /api/review-guidelines", h.handleCreateGuideline)
+	mux.HandleFunc("PATCH /api/review-guidelines/{id}", h.handleUpdateGuideline)
+
+	// ── Run-guideline links ────────────────────────────────────────────
+	mux.HandleFunc("GET /api/annotation-runs/{id}/guidelines", h.handleListRunGuidelines)
+	mux.HandleFunc("POST /api/annotation-runs/{id}/guidelines", h.handleLinkRunGuideline)
+	mux.HandleFunc("DELETE /api/annotation-runs/{id}/guidelines/{guidelineId}", h.handleUnlinkRunGuideline)
+
 	mux.HandleFunc("POST /api/query/execute", h.handleExecuteQuery)
 	mux.HandleFunc("GET /api/query/presets", h.handleGetPresets)
 	mux.HandleFunc("GET /api/query/saved", h.handleGetSavedQueries)

@@ -150,7 +150,8 @@ SELECT
 	uid,
 	subject,
 	COALESCE(NULLIF(sent_date, ''), NULLIF(internal_date, '')) AS date,
-	size_bytes
+	size_bytes,
+	mailbox_name
 FROM messages
 WHERE sender_email = ?
 ORDER BY COALESCE(NULLIF(sent_date, ''), NULLIF(internal_date, '')) DESC, uid DESC

@@ -226,6 +226,31 @@ type UpdateFeedbackInput struct {
 	Status string
 }
 
+type ReviewCommentInput struct {
+	FeedbackKind string
+	Title        string
+	BodyMarkdown string
+}
+
+type ReviewAnnotationActionInput struct {
+	AnnotationID string
+	ReviewState  string
+	MailboxName  string
+	Comment      *ReviewCommentInput
+	GuidelineIDs []string
+	CreatedBy    string
+}
+
+type BatchReviewActionInput struct {
+	IDs          []string
+	ReviewState  string
+	AgentRunID   string
+	MailboxName  string
+	Comment      *ReviewCommentInput
+	GuidelineIDs []string
+	CreatedBy    string
+}
+
 // ── Review Guidelines ──────────────────────────────────────────
 
 const (
