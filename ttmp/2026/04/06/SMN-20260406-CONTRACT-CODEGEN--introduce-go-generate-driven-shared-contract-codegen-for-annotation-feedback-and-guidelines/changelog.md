@@ -13,3 +13,8 @@
 - Added backend tests for generated-contract request/response flows
 - Validated generation, Go tests, UI typecheck, and Buf lint
 - Created focused commit `AnnotationUI: add shared feedback contract codegen`
+- Extended shared codegen from the review slice to the rest of the annotation UI wire layer
+- Added `proto/smailnail/annotationui/v1/annotation.proto` for annotations, groups, logs, runs, senders, info, and query payloads
+- Migrated backend list/detail/query handlers to generated annotation contract types + `protojson`
+- Migrated frontend annotation types, RTK Query list unwrapping, and MSW mocks to the generated annotation contract
+- Added `pkg/doc/annotationui-contract-codegen-playbook.md` as the operator/developer playbook for future protobuf contract additions

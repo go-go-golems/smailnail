@@ -18,6 +18,8 @@ RelatedFiles:
       Note: Buf module configuration rooted at proto for lint/generation
     - Path: cmd/generate-annotationui-contracts/main.go
       Note: Repo-local Go generator command used by go generate
+    - Path: pkg/annotationui/contracts_annotation.go
+      Note: Mapper helpers from domain/internal structs to generated annotation contract messages
     - Path: pkg/annotationui/contracts_review.go
       Note: Mappings between generated wire types and annotate domain structs
     - Path: pkg/annotationui/generate.go
@@ -30,8 +32,12 @@ RelatedFiles:
       Note: Shared protojson encode/decode helpers for generated wire types
     - Path: pkg/annotationui/server_test.go
       Note: Backend contract tests added for generated request/response flows
+    - Path: pkg/doc/annotationui-contract-codegen-playbook.md
+      Note: Reusable Glazed help playbook for future contract-codegen migrations
     - Path: pkg/gen/smailnail/annotationui/v1/review.pb.go
       Note: Generated Go contract output
+    - Path: proto/smailnail/annotationui/v1/annotation.proto
+      Note: Phase-2 annotation UI wire schema covering annotations
     - Path: proto/smailnail/annotationui/v1/review.proto
       Note: Shared IDL introduced for feedback
     - Path: ui/src/api/annotations.ts
@@ -50,6 +56,7 @@ LastUpdated: 2026-04-06T21:05:00Z
 WhatFor: Remove TS/Go contract drift around review feedback and guidelines.
 WhenToUse: Read before implementing or reviewing shared contract codegen for the annotation UI.
 ---
+
 
 
 # Implementation plan for shared feedback and guideline contract codegen

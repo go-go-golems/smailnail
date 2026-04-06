@@ -16,6 +16,10 @@ RelatedFiles:
       Note: Diary records the lint/configuration fix for the proto-rooted module
     - Path: pkg/annotationui/server_test.go
       Note: Diary records the added contract tests
+    - Path: pkg/doc/annotationui-contract-codegen-playbook.md
+      Note: Diary step for the reusable Glazed help-style playbook
+    - Path: proto/smailnail/annotationui/v1/annotation.proto
+      Note: Diary step for phase-2 annotation UI contract expansion
     - Path: ui/src/mocks/handlers.ts
       Note: Diary records the mock/stories contract migration
 ExternalSources: []
@@ -24,6 +28,7 @@ LastUpdated: 2026-04-06T21:20:00Z
 WhatFor: Capture what was implemented, how generation was wired, what broke during validation, and how it was fixed.
 WhenToUse: Read this when reviewing or continuing the shared contract codegen work.
 ---
+
 
 
 # Diary
@@ -244,6 +249,85 @@ That showed up as `string is not assignable to ...` errors in badge and form com
 
 ```bash
 cd smailnail/ui
+pnpm run check
+```
+
+## Step 4: Extend the generated contract to the rest of the annotation UI wire layer and write the reusable playbook
+
+After finishing the review slice, I extended the same pattern to the broader annotation UI surface: annotations, groups, logs, runs, senders, the `/api/info` response, and the query workbench endpoints. I also wrote a Glazed help-style playbook in `pkg/doc` so the next contract migration does not have to reverse-engineer the workflow from this ticket.
+
+The most important design choice in this phase was to keep the backend/domain split intact even while broadening the generated contract. Repository and SQL-facing structs stay handwritten. Generated protobuf messages now own the HTTP payloads, and mapper helpers translate between the two sides.
+
+### What I did
+- Added `proto/smailnail/annotationui/v1/annotation.proto`.
+- Regenerated:
+  - `pkg/gen/smailnail/annotationui/v1/annotation.pb.go`
+  - `ui/src/gen/smailnail/annotationui/v1/annotation.ts`
+  - `ui/src/gen/google/protobuf/struct.ts`
+- Added backend mapper helpers in `pkg/annotationui/contracts_annotation.go`.
+- Migrated backend handlers:
+  - `pkg/annotationui/handlers_annotations.go`
+  - `pkg/annotationui/handlers_senders.go`
+  - `pkg/annotationui/handlers_query.go`
+  - `pkg/annotationui/server.go`
+- Migrated frontend annotation wrapper types in `ui/src/types/annotations.ts`.
+- Updated `ui/src/api/annotations.ts` to unwrap generated wrapper list responses for annotations, groups, logs, runs, senders, presets, and saved queries.
+- Updated `ui/src/mocks/handlers.ts` so MSW serves the same generated-contract shapes.
+- Added `pkg/doc/annotationui-contract-codegen-playbook.md` using the Glazed help writing guidelines.
+- Extended backend tests in `pkg/annotationui/server_test.go` to decode the broader generated contract via `protojson`.
+
+### Why
+- The first phase solved the most obvious review-feedback drift, but the rest of the annotation UI still depended on handwritten parallel DTOs.
+- Extending the generated contract gives the annotation UI one consistent wire-contract story rather than one generated island surrounded by handwritten JSON.
+- The playbook makes the workflow repeatable and reviewable for the next slice.
+
+### What worked
+- The broader contract migration fit the same pattern as the review slice: generated protobuf messages at the HTTP edge, handwritten domain structs below.
+- Wrapper list responses with `items` kept frontend RTK Query integration straightforward.
+- `google.protobuf.Struct` worked well for query result rows while preserving the JSON shape as an array of plain objects.
+- The generated TypeScript output for query rows (`{ [key: string]: any }[]`) was good enough to wrap into the existing `Record<string, unknown>[]` UI type.
+
+### What didn't work
+- Nothing fundamentally blocked this phase, but it reinforced that query-result payloads are the oddest part of the contract because they carry dynamic row maps instead of stable fixed fields.
+- That dynamic shape required an explicit backend conversion step through `structpb.NewStruct`.
+
+### What I learned
+- Once the protojson + mapper pattern is in place, extending the contract to adjacent endpoints is much more mechanical and much less risky.
+- Dynamic JSON rows are still manageable in the shared contract, but they deserve to stay isolated to the query-specific messages.
+
+### What was tricky to build
+- The tricky part was migrating list endpoints and mocks together so the app, tests, and Storybook all agreed on wrapper responses.
+- The second tricky part was broadening the ticket without letting the backend start returning raw repository structs again in “just one more” handler.
+
+### What warrants a second pair of eyes
+- Whether the project wants every list endpoint in this subsystem to stay on wrapper responses permanently, or whether some older endpoints should eventually be versioned if external consumers exist.
+- Whether future query-result evolution should keep `Struct` rows or introduce stronger typed result envelopes for known workbench queries.
+
+### What should be done in the future
+- Split future schema additions into more focused proto files whenever a new slice becomes large enough to deserve its own review boundary.
+- Add pagination-specific wrapper metadata if any list endpoint grows beyond the current simple `items` shape.
+
+### Code review instructions
+- Start with:
+  - `proto/smailnail/annotationui/v1/annotation.proto`
+  - `pkg/annotationui/contracts_annotation.go`
+  - `pkg/annotationui/handlers_annotations.go`
+  - `pkg/annotationui/handlers_senders.go`
+  - `pkg/annotationui/handlers_query.go`
+  - `ui/src/types/annotations.ts`
+  - `ui/src/api/annotations.ts`
+  - `pkg/doc/annotationui-contract-codegen-playbook.md`
+
+### Technical details
+- Validation commands from this step:
+
+```bash
+cd smailnail
+buf lint
+go generate ./pkg/annotationui
+go test -tags sqlite_fts5 ./pkg/annotationui ./pkg/annotate -count=1
+
+cd ui
 pnpm run check
 ```
 

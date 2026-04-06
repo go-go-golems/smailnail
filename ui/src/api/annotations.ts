@@ -2,18 +2,26 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type {
   Annotation,
   AnnotationFilter,
+  AnnotationListResponse,
   TargetGroup,
   GroupFilter,
+  GroupListResponse,
   GroupDetail,
   AnnotationLog,
   LogFilter,
+  LogListResponse,
   AgentRunSummary,
+  AgentRunListResponse,
   AgentRunDetail,
   SenderRow,
   SenderFilter,
+  SenderListResponse,
   SenderDetail,
   SavedQuery,
+  SavedQueryListResponse,
   QueryResult,
+  ExecuteQueryRequest,
+  SaveQueryRequest,
 } from "../types/annotations";
 import type {
   ReviewFeedback,
@@ -53,6 +61,7 @@ export const annotationsApi = createApi({
     // ── Annotations ──────────────────────────────
     listAnnotations: builder.query<Annotation[], AnnotationFilter>({
       query: (filter) => ({ url: "annotations", params: filter }),
+      transformResponse: (response: AnnotationListResponse) => response.items,
       providesTags: ["Annotations"],
     }),
     getAnnotation: builder.query<Annotation, string>({
@@ -109,6 +118,7 @@ export const annotationsApi = createApi({
     // ── Groups ───────────────────────────────────
     listGroups: builder.query<TargetGroup[], GroupFilter>({
       query: (filter) => ({ url: "annotation-groups", params: filter }),
+      transformResponse: (response: GroupListResponse) => response.items,
       providesTags: ["Groups"],
     }),
     getGroup: builder.query<GroupDetail, string>({
@@ -118,6 +128,7 @@ export const annotationsApi = createApi({
     // ── Logs ─────────────────────────────────────
     listLogs: builder.query<AnnotationLog[], LogFilter>({
       query: (filter) => ({ url: "annotation-logs", params: filter }),
+      transformResponse: (response: LogListResponse) => response.items,
       providesTags: ["Logs"],
     }),
     getLog: builder.query<AnnotationLog, string>({
@@ -127,6 +138,7 @@ export const annotationsApi = createApi({
     // ── Runs (aggregated) ────────────────────────
     listRuns: builder.query<AgentRunSummary[], void>({
       query: () => "annotation-runs",
+      transformResponse: (response: AgentRunListResponse) => response.items,
       providesTags: ["Runs"],
     }),
     getRun: builder.query<AgentRunDetail, string>({
@@ -136,6 +148,7 @@ export const annotationsApi = createApi({
     // ── Senders ──────────────────────────────────
     listSenders: builder.query<SenderRow[], SenderFilter>({
       query: (filter) => ({ url: "mirror/senders", params: filter }),
+      transformResponse: (response: SenderListResponse) => response.items,
       providesTags: ["Senders"],
     }),
     getSender: builder.query<SenderDetail, string>({
@@ -143,21 +156,28 @@ export const annotationsApi = createApi({
     }),
 
     // ── Query Editor ─────────────────────────────
-    executeQuery: builder.mutation<QueryResult, { sql: string }>({
-      query: (body) => ({ url: "query/execute", method: "POST", body }),
+    executeQuery: builder.mutation<QueryResult, ExecuteQueryRequest>({
+      query: (body) => ({
+        url: "query/execute",
+        method: "POST",
+        body: body satisfies ExecuteQueryRequest,
+      }),
     }),
     getPresets: builder.query<SavedQuery[], void>({
       query: () => "query/presets",
+      transformResponse: (response: SavedQueryListResponse) => response.items,
     }),
     getSavedQueries: builder.query<SavedQuery[], void>({
       query: () => "query/saved",
+      transformResponse: (response: SavedQueryListResponse) => response.items,
       providesTags: ["Queries"],
     }),
-    saveQuery: builder.mutation<
-      SavedQuery,
-      { name: string; folder: string; description: string; sql: string }
-    >({
-      query: (body) => ({ url: "query/saved", method: "POST", body }),
+    saveQuery: builder.mutation<SavedQuery, SaveQueryRequest>({
+      query: (body) => ({
+        url: "query/saved",
+        method: "POST",
+        body: body satisfies SaveQueryRequest,
+      }),
       invalidatesTags: ["Queries"],
     }),
 

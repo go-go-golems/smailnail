@@ -48,7 +48,7 @@ export const handlers = [
     const agentRunId = url.searchParams.get("agentRunId");
     if (agentRunId) result = result.filter((a) => a.agentRunId === agentRunId);
 
-    return HttpResponse.json(result);
+    return HttpResponse.json({ items: result });
   }),
 
   http.get("/api/annotations/:id", ({ params }) => {
@@ -70,7 +70,7 @@ export const handlers = [
 
   // ── Groups ───────────────────────────────────
   http.get("/api/annotation-groups", () => {
-    return HttpResponse.json(mockGroups);
+    return HttpResponse.json({ items: mockGroups });
   }),
 
   http.get("/api/annotation-groups/:id", ({ params }) => {
@@ -88,7 +88,7 @@ export const handlers = [
     const agentRunId = url.searchParams.get("agentRunId");
     if (agentRunId) result = result.filter((l) => l.agentRunId === agentRunId);
 
-    return HttpResponse.json(result);
+    return HttpResponse.json({ items: result });
   }),
 
   http.get("/api/annotation-logs/:id", ({ params }) => {
@@ -99,7 +99,7 @@ export const handlers = [
 
   // ── Runs ─────────────────────────────────────
   http.get("/api/annotation-runs", () => {
-    return HttpResponse.json(mockRuns);
+    return HttpResponse.json({ items: mockRuns });
   }),
 
   http.get("/api/annotation-runs/:id", ({ params }) => {
@@ -113,7 +113,7 @@ export const handlers = [
 
   // ── Senders ──────────────────────────────────
   http.get("/api/mirror/senders", () => {
-    return HttpResponse.json(mockSenders);
+    return HttpResponse.json({ items: mockSenders });
   }),
 
   http.get("/api/mirror/senders/:email", ({ params }) => {
@@ -148,11 +148,11 @@ export const handlers = [
   }),
 
   http.get("/api/query/presets", () => {
-    return HttpResponse.json(mockPresets);
+    return HttpResponse.json({ items: mockPresets });
   }),
 
   http.get("/api/query/saved", () => {
-    return HttpResponse.json([]);
+    return HttpResponse.json({ items: [] });
   }),
 
   http.post("/api/query/saved", async ({ request }) => {

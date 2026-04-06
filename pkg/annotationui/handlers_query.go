@@ -10,19 +10,9 @@ import (
 	"strings"
 	"time"
 
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 	"github.com/pkg/errors"
 )
-
-type queryRequest struct {
-	SQL string `json:"sql"`
-}
-
-type saveQueryRequest struct {
-	Name        string `json:"name"`
-	Folder      string `json:"folder"`
-	Description string `json:"description"`
-	SQL         string `json:"sql"`
-}
 
 type validatedQueryPath struct {
 	rootDir      string
@@ -35,20 +25,20 @@ var mutatingQueryPattern = regexp.MustCompile(`(?i)\b(insert|update|delete|drop|
 func (h *appHandler) handleExecuteQuery(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	req := queryRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.ExecuteQueryRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if strings.TrimSpace(req.SQL) == "" {
+	if strings.TrimSpace(req.GetSql()) == "" {
 		writeMessageError(w, http.StatusBadRequest, "sql is required")
 		return
 	}
-	if err := validateReadOnlyQuery(req.SQL); err != nil {
+	if err := validateReadOnlyQuery(req.GetSql()); err != nil {
 		writeMessageError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	rows, err := h.db.QueryxContext(r.Context(), req.SQL)
+	rows, err := h.db.QueryxContext(r.Context(), req.GetSql())
 	if err != nil {
 		writeMessageError(w, http.StatusBadRequest, err.Error())
 		return
@@ -78,12 +68,17 @@ func (h *appHandler) handleExecuteQuery(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, QueryResult{
+	payload, err := queryResultToProto(QueryResult{
 		Columns:    columns,
 		Rows:       resultRows,
 		DurationMs: time.Since(start).Milliseconds(),
 		RowCount:   len(resultRows),
 	})
+	if err != nil {
+		writeMessageError(w, http.StatusInternalServerError, errors.Wrap(err, "build query result payload").Error())
+		return
+	}
+	writeProtoJSON(w, http.StatusOK, payload)
 }
 
 func (h *appHandler) handleGetPresets(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +95,7 @@ func (h *appHandler) handleGetPresets(w http.ResponseWriter, r *http.Request) {
 		}
 		presets = mergeQueries(presets, loaded)
 	}
-	writeJSON(w, http.StatusOK, presets)
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.SavedQueryListResponse{Items: savedQueriesToProto(presets)})
 }
 
 func (h *appHandler) handleGetSavedQueries(w http.ResponseWriter, r *http.Request) {
@@ -113,15 +108,15 @@ func (h *appHandler) handleGetSavedQueries(w http.ResponseWriter, r *http.Reques
 		}
 		queries = mergeQueries(queries, loaded)
 	}
-	writeJSON(w, http.StatusOK, queries)
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.SavedQueryListResponse{Items: savedQueriesToProto(queries)})
 }
 
 func (h *appHandler) handleSaveQuery(w http.ResponseWriter, r *http.Request) {
-	req := saveQueryRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.SaveQueryRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if strings.TrimSpace(req.SQL) == "" {
+	if strings.TrimSpace(req.GetSql()) == "" {
 		writeMessageError(w, http.StatusBadRequest, "sql is required")
 		return
 	}
@@ -131,7 +126,7 @@ func (h *appHandler) handleSaveQuery(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
-	queryPath, err := buildQueryCreatePath(baseDir, req.Folder, req.Name)
+	queryPath, err := buildQueryCreatePath(baseDir, req.GetFolder(), req.GetName())
 	if err != nil {
 		writeMessageError(w, http.StatusBadRequest, err.Error())
 		return
@@ -140,7 +135,7 @@ func (h *appHandler) handleSaveQuery(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusInternalServerError, errors.Wrap(err, "create query directory").Error())
 		return
 	}
-	if err := queryPath.WriteFile([]byte(buildSQLFileContent(req.Description, req.SQL))); err != nil {
+	if err := queryPath.WriteFile([]byte(buildSQLFileContent(req.GetDescription(), req.GetSql()))); err != nil {
 		writeMessageError(w, http.StatusInternalServerError, errors.Wrap(err, "write query file").Error())
 		return
 	}
@@ -150,7 +145,7 @@ func (h *appHandler) handleSaveQuery(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, saved)
+	writeProtoJSON(w, http.StatusCreated, savedQueryToProto(saved))
 }
 
 func validateReadOnlyQuery(sqlText string) error {

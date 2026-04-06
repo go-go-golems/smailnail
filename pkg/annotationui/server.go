@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -35,13 +36,6 @@ type HandlerOptions struct {
 	QueryDirs  []string
 	PresetDirs []string
 	PublicFS   fs.FS
-}
-
-type infoResponse struct {
-	Service   string       `json:"service"`
-	Version   string       `json:"version"`
-	StartedAt time.Time    `json:"startedAt"`
-	Database  DatabaseInfo `json:"database"`
 }
 
 type appHandler struct {
@@ -141,11 +135,11 @@ func (h *appHandler) registerHealthRoutes(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, infoResponse{
+		writeProtoJSON(w, http.StatusOK, &annotationuiv1.InfoResponse{
 			Service:   "smailnail-sqlite",
 			Version:   "dev",
-			StartedAt: h.startedAt,
-			Database:  h.dbInfo,
+			StartedAt: formatProtoTime(h.startedAt),
+			Database:  databaseInfoToProto(h.dbInfo),
 		})
 	})
 }
@@ -253,24 +247,6 @@ func writeNotFound(w http.ResponseWriter, message string) {
 		"error":   "not-found",
 		"message": message,
 	})
-}
-
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dest any) bool {
-	defer func() {
-		_ = r.Body.Close()
-	}()
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(dest); err != nil {
-		writeMessageError(w, http.StatusBadRequest, errors.Wrap(err, "decode json").Error())
-		return false
-	}
-	if decoder.More() {
-		writeMessageError(w, http.StatusBadRequest, "request body must contain a single JSON object")
-		return false
-	}
-	return true
 }
 
 func parseLimitQuery(r *http.Request, key string, defaultValue int) (int, error) {

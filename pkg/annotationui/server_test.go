@@ -3,7 +3,6 @@ package annotationui
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -87,10 +86,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []annotate.Annotation
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) != 2 {
-			t.Fatalf("expected 2 annotations, got %d", len(payload))
+		var payload annotationuiv1.AnnotationListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 2 {
+			t.Fatalf("expected 2 annotations, got %d", len(payload.Items))
 		}
 	})
 
@@ -100,8 +99,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload annotate.Annotation
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.Annotation
+		decodeProtoJSONResponse(t, rec, &payload)
 		if payload.ReviewState != annotate.ReviewStateReviewed {
 			t.Fatalf("reviewState = %q", payload.ReviewState)
 		}
@@ -114,10 +113,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		}
 
 		check := performRequest(t, handler, http.MethodGet, "/api/annotations?agentRunId=run-42", "")
-		var payload []annotate.Annotation
-		decodeJSONResponse(t, check, &payload)
+		var payload annotationuiv1.AnnotationListResponse
+		decodeProtoJSONResponse(t, check, &payload)
 		foundDismissed := 0
-		for _, annotation := range payload {
+		for _, annotation := range payload.Items {
 			if annotation.ReviewState == annotate.ReviewStateDismissed {
 				foundDismissed++
 			}
@@ -133,8 +132,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload annotate.GroupDetail
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.GroupDetail
+		decodeProtoJSONResponse(t, rec, &payload)
 		if len(payload.Members) != 2 {
 			t.Fatalf("expected 2 members, got %d", len(payload.Members))
 		}
@@ -146,10 +145,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []annotate.AnnotationLog
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) != 2 {
-			t.Fatalf("expected 2 logs, got %d", len(payload))
+		var payload annotationuiv1.LogListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 2 {
+			t.Fatalf("expected 2 logs, got %d", len(payload.Items))
 		}
 	})
 
@@ -159,10 +158,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload annotate.AgentRunDetail
-		decodeJSONResponse(t, rec, &payload)
-		if payload.RunID != "run-42" {
-			t.Fatalf("runID = %q", payload.RunID)
+		var payload annotationuiv1.AgentRunDetail
+		decodeProtoJSONResponse(t, rec, &payload)
+		if payload.RunId != "run-42" {
+			t.Fatalf("runID = %q", payload.RunId)
 		}
 		if len(payload.Annotations) != 2 || len(payload.Logs) != 2 || len(payload.Groups) != 1 {
 			t.Fatalf("unexpected detail sizes: annotations=%d logs=%d groups=%d", len(payload.Annotations), len(payload.Logs), len(payload.Groups))
@@ -197,8 +196,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var updated annotate.Annotation
-		decodeJSONResponse(t, rec, &updated)
+		var updated annotationuiv1.Annotation
+		decodeProtoJSONResponse(t, rec, &updated)
 		if updated.ReviewState != annotate.ReviewStateDismissed {
 			t.Fatalf("reviewState = %q", updated.ReviewState)
 		}
@@ -311,16 +310,16 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []SenderRow
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) != 1 {
-			t.Fatalf("expected 1 sender, got %d", len(payload))
+		var payload annotationuiv1.SenderListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 1 {
+			t.Fatalf("expected 1 sender, got %d", len(payload.Items))
 		}
-		if payload[0].Email != "news@example.com" {
-			t.Fatalf("email = %q", payload[0].Email)
+		if payload.Items[0].Email != "news@example.com" {
+			t.Fatalf("email = %q", payload.Items[0].Email)
 		}
-		if len(payload[0].Tags) != 1 {
-			t.Fatalf("expected 1 tag, got %d", len(payload[0].Tags))
+		if len(payload.Items[0].Tags) != 1 {
+			t.Fatalf("expected 1 tag, got %d", len(payload.Items[0].Tags))
 		}
 	})
 
@@ -330,8 +329,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload SenderDetail
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.SenderDetail
+		decodeProtoJSONResponse(t, rec, &payload)
 		if len(payload.Annotations) != 2 {
 			t.Fatalf("expected 2 annotations, got %d", len(payload.Annotations))
 		}
@@ -354,8 +353,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload QueryResult
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.QueryResult
+		decodeProtoJSONResponse(t, rec, &payload)
 		if len(payload.Columns) != 2 {
 			t.Fatalf("expected 2 columns, got %d", len(payload.Columns))
 		}
@@ -380,12 +379,12 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []SavedQuery
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) < 5 {
-			t.Fatalf("expected embedded plus external presets, got %d", len(payload))
+		var payload annotationuiv1.SavedQueryListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) < 5 {
+			t.Fatalf("expected embedded plus external presets, got %d", len(payload.Items))
 		}
-		if !containsQueryNamed(payload, "sender-count") {
+		if !containsQueryNamed(payload.Items, "sender-count") {
 			t.Fatalf("expected external preset sender-count")
 		}
 	})
@@ -395,10 +394,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
-		var initial []SavedQuery
-		decodeJSONResponse(t, rec, &initial)
-		if len(initial) != 1 {
-			t.Fatalf("expected 1 initial saved query, got %d", len(initial))
+		var initial annotationuiv1.SavedQueryListResponse
+		decodeProtoJSONResponse(t, rec, &initial)
+		if len(initial.Items) != 1 {
+			t.Fatalf("expected 1 initial saved query, got %d", len(initial.Items))
 		}
 
 		create := performRequest(t, handler, http.MethodPost, "/api/query/saved", `{"name":"my-senders","folder":"custom","description":"Custom sender analysis","sql":"SELECT email FROM senders ORDER BY email"}`)
@@ -406,17 +405,17 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", create.Code, create.Body.String())
 		}
 
-		var created SavedQuery
-		decodeJSONResponse(t, create, &created)
+		var created annotationuiv1.SavedQuery
+		decodeProtoJSONResponse(t, create, &created)
 		if created.Name != "my-senders" || created.Folder != "custom" {
-			t.Fatalf("unexpected created query: %#v", created)
+			t.Fatalf("unexpected created query: name=%q folder=%q", created.Name, created.Folder)
 		}
 
 		after := performRequest(t, handler, http.MethodGet, "/api/query/saved", "")
-		var saved []SavedQuery
-		decodeJSONResponse(t, after, &saved)
-		if len(saved) != 2 {
-			t.Fatalf("expected 2 saved queries, got %d", len(saved))
+		var saved annotationuiv1.SavedQueryListResponse
+		decodeProtoJSONResponse(t, after, &saved)
+		if len(saved.Items) != 2 {
+			t.Fatalf("expected 2 saved queries, got %d", len(saved.Items))
 		}
 	})
 }
@@ -651,13 +650,6 @@ func performProtoRequest(t *testing.T, handler http.Handler, method, path string
 	return performRequest(t, handler, method, path, string(body))
 }
 
-func decodeJSONResponse(t *testing.T, rec *httptest.ResponseRecorder, dest any) {
-	t.Helper()
-	if err := json.NewDecoder(rec.Body).Decode(dest); err != nil {
-		t.Fatalf("Decode() error = %v body=%s", err, rec.Body.String())
-	}
-}
-
 func decodeProtoJSONResponse(t *testing.T, rec *httptest.ResponseRecorder, dest proto.Message) {
 	t.Helper()
 	if err := protojson.Unmarshal(rec.Body.Bytes(), dest); err != nil {
@@ -665,9 +657,9 @@ func decodeProtoJSONResponse(t *testing.T, rec *httptest.ResponseRecorder, dest 
 	}
 }
 
-func containsQueryNamed(queries []SavedQuery, name string) bool {
+func containsQueryNamed(queries []*annotationuiv1.SavedQuery, name string) bool {
 	for _, query := range queries {
-		if query.Name == name {
+		if query.GetName() == name {
 			return true
 		}
 	}

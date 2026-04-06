@@ -44,9 +44,13 @@ This ticket implements a shared IDL and code generation pipeline for the annotat
 ## Main Outcomes
 
 - Added protobuf IDL for feedback/guideline/review-action payloads
+- Added protobuf IDL for the rest of the annotation UI wire layer (annotations, groups, logs, runs, senders, info, query payloads)
 - Added Go-command-driven `go generate` workflow for contract generation
 - Generated and committed Go + TS contract code
 - Standardized create-feedback payloads on `targets`
+- Standardized list endpoints across the annotation UI contract on wrapper responses with `items`
 - Switched backend feedback/guideline endpoints to generated wire types + `protojson`
+- Switched backend annotation/list/detail/query endpoints to generated wire types + `protojson`
 - Switched frontend type layer and RTK Query usage to generated contract types
 - Updated mocks and stories to the same shared contract
+- Added a `pkg/doc` playbook for future contract-codegen work
