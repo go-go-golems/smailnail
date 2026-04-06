@@ -1,4 +1,13 @@
 import { http, HttpResponse } from "msw";
+import type {
+  FeedbackKind,
+  FeedbackScopeKind,
+  FeedbackStatus,
+} from "../types/reviewFeedback";
+import type {
+  GuidelineScopeKind,
+  GuidelineStatus,
+} from "../types/reviewGuideline";
 import {
   mockAnnotations,
   mockLogs,
@@ -17,6 +26,9 @@ import {
 const runGuidelineLinks = new Map<string, Set<string>>([
   ["run-42", new Set(["guideline-001", "guideline-002"])],
 ]);
+
+const mutableFeedback = [...mockFeedback];
+const mutableGuidelines = [...mockGuidelines];
 
 export const handlers = [
   // ── Annotations ──────────────────────────────
@@ -156,7 +168,7 @@ export const handlers = [
   // ── Review Feedback ──────────────────────────
   http.get("/api/review-feedback", ({ request }) => {
     const url = new URL(request.url);
-    let result = [...mockFeedback];
+    let result = [...mutableFeedback];
 
     const agentRunId = url.searchParams.get("agentRunId");
     if (agentRunId) result = result.filter((f) => f.agentRunId === agentRunId);
@@ -167,7 +179,10 @@ export const handlers = [
     const feedbackKind = url.searchParams.get("feedbackKind");
     if (feedbackKind) result = result.filter((f) => f.feedbackKind === feedbackKind);
 
-    return HttpResponse.json(result);
+    const mailboxName = url.searchParams.get("mailboxName");
+    if (mailboxName) result = result.filter((f) => f.mailboxName === mailboxName);
+
+    return HttpResponse.json({ items: result });
   }),
 
   http.post("/api/review-feedback", async ({ request }) => {
@@ -178,53 +193,51 @@ export const handlers = [
       bodyMarkdown: string;
       agentRunId?: string;
       mailboxName?: string;
-      targetIds?: string[];
+      targets?: Array<{ targetType: string; targetId: string }>;
     };
     const id = `fb-${Date.now()}`;
-    return HttpResponse.json(
-      {
-        id,
-        scopeKind: body.scopeKind,
-        agentRunId: body.agentRunId ?? "",
-        mailboxName: body.mailboxName ?? "",
-        feedbackKind: body.feedbackKind,
-        status: "open",
-        title: body.title,
-        bodyMarkdown: body.bodyMarkdown,
-        createdBy: "manuel",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        targets: (body.targetIds ?? []).map((tid) => ({
-          targetType: "annotation",
-          targetId: tid,
-        })),
-      },
-      { status: 201 },
-    );
+    const created = {
+      id,
+      scopeKind: body.scopeKind as FeedbackScopeKind,
+      agentRunId: body.agentRunId ?? "",
+      mailboxName: body.mailboxName ?? "",
+      feedbackKind: body.feedbackKind as FeedbackKind,
+      status: "open" as FeedbackStatus,
+      title: body.title,
+      bodyMarkdown: body.bodyMarkdown,
+      createdBy: "manuel",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      targets: body.targets ?? [],
+    };
+    mutableFeedback.unshift(created);
+    return HttpResponse.json(created, { status: 201 });
   }),
 
   http.get("/api/review-feedback/:id", ({ params }) => {
-    const fb = mockFeedback.find((f) => f.id === params["id"]);
+    const fb = mutableFeedback.find((f) => f.id === params["id"]);
     if (!fb) return HttpResponse.json({ error: "not found" }, { status: 404 });
     return HttpResponse.json(fb);
   }),
 
   http.patch("/api/review-feedback/:id", async ({ params, request }) => {
-    const fb = mockFeedback.find((f) => f.id === params["id"]);
-    if (!fb) return HttpResponse.json({ error: "not found" }, { status: 404 });
-    const body = (await request.json()) as { status?: string; bodyMarkdown?: string };
-    return HttpResponse.json({
-      ...fb,
-      ...(body.status && { status: body.status }),
-      ...(body.bodyMarkdown && { bodyMarkdown: body.bodyMarkdown }),
+    const index = mutableFeedback.findIndex((f) => f.id === params["id"]);
+    if (index === -1) return HttpResponse.json({ error: "not found" }, { status: 404 });
+    const body = (await request.json()) as { status?: string };
+    const current = mutableFeedback[index]!;
+    const updated = {
+      ...current,
+      status: (body.status ?? current.status) as FeedbackStatus,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    mutableFeedback[index] = updated;
+    return HttpResponse.json(updated);
   }),
 
   // ── Review Guidelines ────────────────────────
   http.get("/api/review-guidelines", ({ request }) => {
     const url = new URL(request.url);
-    let result = [...mockGuidelines];
+    let result = [...mutableGuidelines];
 
     const status = url.searchParams.get("status");
     if (status) result = result.filter((g) => g.status === status);
@@ -243,7 +256,7 @@ export const handlers = [
       );
     }
 
-    return HttpResponse.json(result);
+    return HttpResponse.json({ items: result });
   }),
 
   http.post("/api/review-guidelines", async ({ request }) => {
@@ -253,56 +266,60 @@ export const handlers = [
       scopeKind: string;
       bodyMarkdown: string;
     };
-    if (mockGuidelines.some((g) => g.slug === body.slug)) {
+    if (mutableGuidelines.some((g) => g.slug === body.slug)) {
       return HttpResponse.json(
         { error: `Guideline with slug '${body.slug}' already exists` },
         { status: 409 },
       );
     }
     const id = `guideline-${Date.now()}`;
-    return HttpResponse.json(
-      {
-        id,
-        slug: body.slug,
-        title: body.title,
-        scopeKind: body.scopeKind,
-        status: "active",
-        priority: 0,
-        bodyMarkdown: body.bodyMarkdown,
-        createdBy: "manuel",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      { status: 201 },
-    );
+    const created = {
+      id,
+      slug: body.slug,
+      title: body.title,
+      scopeKind: body.scopeKind as GuidelineScopeKind,
+      status: "active" as GuidelineStatus,
+      priority: 0,
+      bodyMarkdown: body.bodyMarkdown,
+      createdBy: "manuel",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    mutableGuidelines.unshift(created);
+    return HttpResponse.json(created, { status: 201 });
   }),
 
   http.get("/api/review-guidelines/:id", ({ params }) => {
-    const g = mockGuidelines.find((gl) => gl.id === params["id"]);
+    const g = mutableGuidelines.find((gl) => gl.id === params["id"]);
     if (!g) return HttpResponse.json({ error: "not found" }, { status: 404 });
     return HttpResponse.json(g);
   }),
 
   http.patch("/api/review-guidelines/:id", async ({ params, request }) => {
-    const g = mockGuidelines.find((gl) => gl.id === params["id"]);
-    if (!g) return HttpResponse.json({ error: "not found" }, { status: 404 });
+    const index = mutableGuidelines.findIndex((gl) => gl.id === params["id"]);
+    if (index === -1) return HttpResponse.json({ error: "not found" }, { status: 404 });
     const body = (await request.json()) as Record<string, unknown>;
-    return HttpResponse.json({
-      ...g,
-      ...body,
-      id: g.id,
-      slug: g.slug, // slug is immutable
+    const current = mutableGuidelines[index]!;
+    const updated = {
+      ...current,
+      ...(body.title !== undefined ? { title: body.title as string } : {}),
+      ...(body.scopeKind !== undefined ? { scopeKind: body.scopeKind as GuidelineScopeKind } : {}),
+      ...(body.status !== undefined ? { status: body.status as GuidelineStatus } : {}),
+      ...(body.priority !== undefined ? { priority: body.priority as number } : {}),
+      ...(body.bodyMarkdown !== undefined ? { bodyMarkdown: body.bodyMarkdown as string } : {}),
       updatedAt: new Date().toISOString(),
-    });
+    };
+    mutableGuidelines[index] = updated;
+    return HttpResponse.json(updated);
   }),
 
   // ── Run-Guideline Links ──────────────────────
   http.get("/api/annotation-runs/:id/guidelines", ({ params }) => {
     const runId = params["id"] as string;
     const linkedIds = runGuidelineLinks.get(runId);
-    if (!linkedIds) return HttpResponse.json([]);
-    const linked = mockGuidelines.filter((g) => linkedIds.has(g.id));
-    return HttpResponse.json(linked);
+    if (!linkedIds) return HttpResponse.json({ items: [] });
+    const linked = mutableGuidelines.filter((g) => linkedIds.has(g.id));
+    return HttpResponse.json({ items: linked });
   }),
 
   http.post("/api/annotation-runs/:id/guidelines", async ({ params, request }) => {
@@ -310,7 +327,8 @@ export const handlers = [
     const body = (await request.json()) as { guidelineId: string };
     if (!runGuidelineLinks.has(runId)) runGuidelineLinks.set(runId, new Set());
     runGuidelineLinks.get(runId)!.add(body.guidelineId);
-    return HttpResponse.json(null, { status: 204 });
+    const linked = mutableGuidelines.filter((g) => runGuidelineLinks.get(runId)!.has(g.id));
+    return HttpResponse.json({ items: linked });
   }),
 
   http.delete(

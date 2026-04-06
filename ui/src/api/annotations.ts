@@ -17,6 +17,7 @@ import type {
 } from "../types/annotations";
 import type {
   ReviewFeedback,
+  ReviewFeedbackListResponse,
   CreateFeedbackRequest,
   UpdateFeedbackRequest,
   FeedbackFilter,
@@ -24,10 +25,16 @@ import type {
 } from "../types/reviewFeedback";
 import type {
   ReviewGuideline,
+  ReviewGuidelineListResponse,
   CreateGuidelineRequest,
   UpdateGuidelineRequest,
   GuidelineFilter,
 } from "../types/reviewGuideline";
+import type {
+  BatchReviewRequest,
+  LinkRunGuidelineRequest,
+  ReviewAnnotationRequest,
+} from "../gen/smailnail/annotationui/v1/review";
 
 export const annotationsApi = createApi({
   reducerPath: "annotationsApi",
@@ -64,7 +71,12 @@ export const annotationsApi = createApi({
       query: ({ id, reviewState, comment, guidelineIds, mailboxName }) => ({
         url: `annotations/${id}/review`,
         method: "PATCH",
-        body: { reviewState, comment, guidelineIds, mailboxName },
+        body: {
+          reviewState,
+          comment,
+          guidelineIds: guidelineIds ?? [],
+          mailboxName: mailboxName ?? "",
+        } satisfies ReviewAnnotationRequest,
       }),
       invalidatesTags: ["Annotations", "Runs", "Feedback"],
     }),
@@ -79,10 +91,17 @@ export const annotationsApi = createApi({
         mailboxName?: string;
       }
     >({
-      query: (body) => ({
+      query: ({ ids, reviewState, comment, guidelineIds, agentRunId, mailboxName }) => ({
         url: "annotations/batch-review",
         method: "POST",
-        body,
+        body: {
+          ids,
+          reviewState,
+          comment,
+          guidelineIds: guidelineIds ?? [],
+          agentRunId: agentRunId ?? "",
+          mailboxName: mailboxName ?? "",
+        } satisfies BatchReviewRequest,
       }),
       invalidatesTags: ["Annotations", "Runs", "Feedback"],
     }),
@@ -145,6 +164,7 @@ export const annotationsApi = createApi({
     // ── Review Feedback ─────────────────────────
     listReviewFeedback: builder.query<ReviewFeedback[], FeedbackFilter>({
       query: (filter) => ({ url: "review-feedback", params: filter }),
+      transformResponse: (response: ReviewFeedbackListResponse) => response.items,
       providesTags: ["Feedback"],
     }),
     getReviewFeedback: builder.query<ReviewFeedback, string>({
@@ -170,6 +190,7 @@ export const annotationsApi = createApi({
     // ── Review Guidelines ───────────────────────
     listGuidelines: builder.query<ReviewGuideline[], GuidelineFilter>({
       query: (filter) => ({ url: "review-guidelines", params: filter }),
+      transformResponse: (response: ReviewGuidelineListResponse) => response.items,
       providesTags: ["Guidelines"],
     }),
     getGuideline: builder.query<ReviewGuideline, string>({
@@ -195,17 +216,19 @@ export const annotationsApi = createApi({
     // ── Run-Guideline Links ─────────────────────
     getRunGuidelines: builder.query<ReviewGuideline[], string>({
       query: (runId) => `annotation-runs/${runId}/guidelines`,
+      transformResponse: (response: ReviewGuidelineListResponse) => response.items,
       providesTags: ["Guidelines", "Runs"],
     }),
     linkGuidelineToRun: builder.mutation<
-      void,
+      ReviewGuideline[],
       { runId: string; guidelineId: string }
     >({
       query: ({ runId, guidelineId }) => ({
         url: `annotation-runs/${runId}/guidelines`,
         method: "POST",
-        body: { guidelineId },
+        body: { guidelineId } satisfies LinkRunGuidelineRequest,
       }),
+      transformResponse: (response: ReviewGuidelineListResponse) => response.items,
       invalidatesTags: ["Guidelines", "Runs"],
     }),
     unlinkGuidelineFromRun: builder.mutation<

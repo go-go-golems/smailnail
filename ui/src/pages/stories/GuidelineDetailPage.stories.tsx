@@ -26,7 +26,7 @@ const meta = {
     msw: {
       handlers: [
         ...handlers,
-        http.get("/api/guidelines/guideline-001", () =>
+        http.get("/api/review-guidelines/guideline-001", () =>
           HttpResponse.json(sampleGuideline),
         ),
       ],
@@ -55,7 +55,7 @@ export const NotFound: Story = {
     msw: {
       handlers: [
         ...handlers,
-        http.get("/api/guidelines/guideline-999", () =>
+        http.get("/api/review-guidelines/guideline-999", () =>
           HttpResponse.json({ error: "not found" }, { status: 404 }),
         ),
       ],

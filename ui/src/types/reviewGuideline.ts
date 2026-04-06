@@ -1,55 +1,50 @@
-/**
- * TypeScript types for review guidelines (reusable reviewer policy).
- * Matches the Go backend review_guidelines + run_guideline_links tables.
- */
+import type {
+  CreateGuidelineRequest as GeneratedCreateGuidelineRequest,
+  ReviewGuideline as GeneratedReviewGuideline,
+  UpdateGuidelineRequest as GeneratedUpdateGuidelineRequest,
+} from "../gen/smailnail/annotationui/v1/review";
 
-// ── Enums ────────────────────────────────────────────────────
+export const GUIDELINE_SCOPE_KIND_VALUES = [
+  "global",
+  "mailbox",
+  "sender",
+  "domain",
+  "workflow",
+] as const;
 
-export type GuidelineScopeKind =
-  | "global"
-  | "mailbox"
-  | "sender"
-  | "domain"
-  | "workflow";
+export type GuidelineScopeKind = (typeof GUIDELINE_SCOPE_KIND_VALUES)[number];
 
-export type GuidelineStatus =
-  | "active"
-  | "archived"
-  | "draft";
+export const GUIDELINE_STATUS_VALUES = [
+  "active",
+  "archived",
+  "draft",
+] as const;
 
-// ── Core entity ──────────────────────────────────────────────
+export type GuidelineStatus = (typeof GUIDELINE_STATUS_VALUES)[number];
 
-export interface ReviewGuideline {
-  id: string;
-  slug: string;
-  title: string;
+export type ReviewGuideline = Omit<
+  GeneratedReviewGuideline,
+  "scopeKind" | "status"
+> & {
   scopeKind: GuidelineScopeKind;
   status: GuidelineStatus;
-  priority: number;
-  bodyMarkdown: string;
-  createdBy: string;
-  createdAt: string; // ISO 8601
-  updatedAt: string;
-}
+};
 
-// ── Request types ────────────────────────────────────────────
+export type ReviewGuidelineListResponse = {
+  items: ReviewGuideline[];
+};
 
-export interface CreateGuidelineRequest {
-  slug: string;
-  title: string;
+export type CreateGuidelineRequest = Omit<GeneratedCreateGuidelineRequest, "scopeKind"> & {
   scopeKind: GuidelineScopeKind;
-  bodyMarkdown: string;
-}
+};
 
-export interface UpdateGuidelineRequest {
-  title?: string;
+export type UpdateGuidelineRequest = Omit<
+  GeneratedUpdateGuidelineRequest,
+  "scopeKind" | "status"
+> & {
   scopeKind?: GuidelineScopeKind;
   status?: GuidelineStatus;
-  priority?: number;
-  bodyMarkdown?: string;
-}
-
-// ── Filter types ─────────────────────────────────────────────
+};
 
 export interface GuidelineFilter {
   status?: GuidelineStatus;

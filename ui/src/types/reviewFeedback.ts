@@ -1,78 +1,74 @@
-/**
- * TypeScript types for review feedback (reviewer-to-agent workflow).
- * Matches the Go backend review_feedback + review_feedback_targets tables.
- */
+import type {
+  CreateFeedbackRequest as GeneratedCreateFeedbackRequest,
+  FeedbackTarget as GeneratedFeedbackTarget,
+  ReviewComment as GeneratedReviewComment,
+  ReviewFeedback as GeneratedReviewFeedback,
+  UpdateFeedbackRequest as GeneratedUpdateFeedbackRequest,
+} from "../gen/smailnail/annotationui/v1/review";
 
-// ── Enums ────────────────────────────────────────────────────
+export const FEEDBACK_SCOPE_KIND_VALUES = [
+  "annotation",
+  "selection",
+  "run",
+  "guideline",
+] as const;
 
-export type FeedbackScopeKind =
-  | "annotation"
-  | "selection"
-  | "run"
-  | "guideline";
+export type FeedbackScopeKind = (typeof FEEDBACK_SCOPE_KIND_VALUES)[number];
 
-export type FeedbackKind =
-  | "comment"
-  | "reject_request"
-  | "guideline_request"
-  | "clarification";
+export const FEEDBACK_KIND_VALUES = [
+  "comment",
+  "reject_request",
+  "guideline_request",
+  "clarification",
+] as const;
 
-export type FeedbackStatus =
-  | "open"
-  | "acknowledged"
-  | "resolved"
-  | "archived";
+export type FeedbackKind = (typeof FEEDBACK_KIND_VALUES)[number];
 
-// ── Core entities ────────────────────────────────────────────
+export const FEEDBACK_STATUS_VALUES = [
+  "open",
+  "acknowledged",
+  "resolved",
+  "archived",
+] as const;
 
-export interface FeedbackTarget {
-  targetType: string;
-  targetId: string;
-}
+export type FeedbackStatus = (typeof FEEDBACK_STATUS_VALUES)[number];
 
-export interface ReviewFeedback {
-  id: string;
+export type FeedbackTarget = GeneratedFeedbackTarget;
+
+export type ReviewFeedback = Omit<
+  GeneratedReviewFeedback,
+  "scopeKind" | "feedbackKind" | "status"
+> & {
   scopeKind: FeedbackScopeKind;
-  agentRunId: string;
-  mailboxName: string;
   feedbackKind: FeedbackKind;
   status: FeedbackStatus;
-  title: string;
-  bodyMarkdown: string;
-  createdBy: string;
-  createdAt: string; // ISO 8601
-  updatedAt: string;
-  targets: FeedbackTarget[];
-}
+};
 
-// ── Request types ────────────────────────────────────────────
+export type ReviewFeedbackListResponse = {
+  items: ReviewFeedback[];
+};
 
-export interface CreateFeedbackRequest {
+export type CreateFeedbackRequest = Omit<
+  GeneratedCreateFeedbackRequest,
+  "scopeKind" | "feedbackKind" | "mailboxName" | "targets"
+> & {
   scopeKind: FeedbackScopeKind;
-  agentRunId?: string;
+  feedbackKind: FeedbackKind;
   mailboxName?: string;
-  feedbackKind: FeedbackKind;
-  title: string;
-  bodyMarkdown: string;
-  targetIds?: string[]; // annotation IDs for scope_kind=selection
-}
+  targets?: FeedbackTarget[];
+};
 
-export interface UpdateFeedbackRequest {
+export type UpdateFeedbackRequest = Omit<GeneratedUpdateFeedbackRequest, "status"> & {
   status?: FeedbackStatus;
-  bodyMarkdown?: string;
-}
+};
 
-/** Draft comment attached to a review action */
-export interface ReviewCommentDraft {
+export type ReviewCommentDraft = Omit<GeneratedReviewComment, "feedbackKind"> & {
   feedbackKind: FeedbackKind;
-  title: string;
-  bodyMarkdown: string;
-}
-
-// ── Filter types ─────────────────────────────────────────────
+};
 
 export interface FeedbackFilter {
   agentRunId?: string;
   status?: FeedbackStatus;
   feedbackKind?: FeedbackKind;
+  mailboxName?: string;
 }

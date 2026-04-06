@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package smailnail.annotationui.v1;
+
+option go_package = "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1;annotationuiv1";
+
+// Wire-format contract for annotation review feedback, guidelines, and
+// review-action request payloads shared between the Go HTTP layer and the
+// TypeScript frontend.
+//
+// Compatibility note:
+// - We deliberately keep workflow/status/kind values as strings in v1 so the
+//   current REST JSON stays stable and human-readable.
+// - A later schema revision can upgrade these to protobuf enums if the API is
+//   ready to change or if we add an explicit mapping layer.
+
+message FeedbackTarget {
+  string target_type = 1;
+  string target_id = 2;
+}
+
+message ReviewFeedback {
+  string id = 1;
+  string scope_kind = 2;
+  string agent_run_id = 3;
+  string mailbox_name = 4;
+  string feedback_kind = 5;
+  string status = 6;
+  string title = 7;
+  string body_markdown = 8;
+  string created_by = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  repeated FeedbackTarget targets = 12;
+}
+
+message ReviewFeedbackListResponse {
+  repeated ReviewFeedback items = 1;
+}
+
+message CreateFeedbackRequest {
+  string scope_kind = 1;
+  string agent_run_id = 2;
+  string mailbox_name = 3;
+  string feedback_kind = 4;
+  string title = 5;
+  string body_markdown = 6;
+  repeated FeedbackTarget targets = 7;
+}
+
+message UpdateFeedbackRequest {
+  optional string status = 1;
+}
+
+message ReviewComment {
+  string feedback_kind = 1;
+  string title = 2;
+  string body_markdown = 3;
+}
+
+message ReviewAnnotationRequest {
+  string review_state = 1;
+  optional ReviewComment comment = 2;
+  repeated string guideline_ids = 3;
+  string mailbox_name = 4;
+}
+
+message BatchReviewRequest {
+  repeated string ids = 1;
+  string review_state = 2;
+  string agent_run_id = 3;
+  optional ReviewComment comment = 4;
+  repeated string guideline_ids = 5;
+  string mailbox_name = 6;
+}
+
+message ReviewGuideline {
+  string id = 1;
+  string slug = 2;
+  string title = 3;
+  string scope_kind = 4;
+  string status = 5;
+  int32 priority = 6;
+  string body_markdown = 7;
+  string created_by = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message ReviewGuidelineListResponse {
+  repeated ReviewGuideline items = 1;
+}
+
+message CreateGuidelineRequest {
+  string slug = 1;
+  string title = 2;
+  string scope_kind = 3;
+  string body_markdown = 4;
+}
+
+message UpdateGuidelineRequest {
+  optional string title = 1;
+  optional string scope_kind = 2;
+  optional string status = 3;
+  optional int32 priority = 4;
+  optional string body_markdown = 5;
+}
+
+message LinkRunGuidelineRequest {
+  string guideline_id = 1;
+}

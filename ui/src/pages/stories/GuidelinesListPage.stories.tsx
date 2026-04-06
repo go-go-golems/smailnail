@@ -21,8 +21,8 @@ const meta = {
     msw: {
       handlers: [
         ...handlers,
-        http.get("/api/guidelines", () =>
-          HttpResponse.json(mockGuidelines),
+        http.get("/api/review-guidelines", () =>
+          HttpResponse.json({ items: mockGuidelines }),
         ),
       ],
     },
@@ -39,13 +39,13 @@ export const OnlyActive: Story = {
     msw: {
       handlers: [
         ...handlers,
-        http.get("/api/guidelines", ({ request }) => {
+        http.get("/api/review-guidelines", ({ request }) => {
           const url = new URL(request.url);
           const status = url.searchParams.get("status");
           const filtered = status
             ? mockGuidelines.filter((g) => g.status === status)
             : mockGuidelines;
-          return HttpResponse.json(filtered);
+          return HttpResponse.json({ items: filtered });
         }),
       ],
     },
@@ -57,7 +57,7 @@ export const Empty: Story = {
     msw: {
       handlers: [
         ...handlers,
-        http.get("/api/guidelines", () => HttpResponse.json([])),
+        http.get("/api/review-guidelines", () => HttpResponse.json({ items: [] })),
       ],
     },
   },

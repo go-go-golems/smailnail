@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 )
 
 // ── Review Feedback Handlers ──────────────────────────────────────
@@ -28,11 +29,7 @@ func (h *appHandler) handleListFeedback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	ret := make([]feedbackResponse, 0, len(feedback))
-	for i := range feedback {
-		ret = append(ret, feedbackToResponse(&feedback[i]))
-	}
-	writeJSON(w, http.StatusOK, ret)
+	writeProtoJSON(w, http.StatusOK, feedbackListToProto(feedback))
 }
 
 func (h *appHandler) handleGetFeedback(w http.ResponseWriter, r *http.Request) {
@@ -45,58 +42,56 @@ func (h *appHandler) handleGetFeedback(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, feedbackToResponse(fb))
+	writeProtoJSON(w, http.StatusOK, feedbackToProto(fb))
 }
 
 func (h *appHandler) handleCreateFeedback(w http.ResponseWriter, r *http.Request) {
-	req := createFeedbackRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.CreateFeedbackRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
 
-	if strings.TrimSpace(req.FeedbackKind) == "" {
-		req.FeedbackKind = annotate.FeedbackKindComment
+	feedbackKind := strings.TrimSpace(req.FeedbackKind)
+	if feedbackKind == "" {
+		feedbackKind = annotate.FeedbackKindComment
 	}
-	if strings.TrimSpace(req.ScopeKind) == "" {
-		req.ScopeKind = annotate.FeedbackScopeRun
-	}
-
-	targets := make([]annotate.FeedbackTargetInput, 0, len(req.Targets))
-	for _, t := range req.Targets {
-		targets = append(targets, annotate.FeedbackTargetInput{
-			TargetType: strings.TrimSpace(t.TargetType),
-			TargetID:   strings.TrimSpace(t.TargetID),
-		})
+	scopeKind := strings.TrimSpace(req.ScopeKind)
+	if scopeKind == "" {
+		scopeKind = annotate.FeedbackScopeRun
 	}
 
 	fb, err := h.annotations.CreateReviewFeedback(r.Context(), annotate.CreateFeedbackInput{
-		ScopeKind:    req.ScopeKind,
-		AgentRunID:   req.AgentRunID,
-		MailboxName:  req.MailboxName,
-		FeedbackKind: req.FeedbackKind,
-		Title:        req.Title,
-		BodyMarkdown: req.BodyMarkdown,
-		Targets:      targets,
+		ScopeKind:    scopeKind,
+		AgentRunID:   strings.TrimSpace(req.AgentRunId),
+		MailboxName:  strings.TrimSpace(req.MailboxName),
+		FeedbackKind: feedbackKind,
+		Title:        strings.TrimSpace(req.Title),
+		BodyMarkdown: strings.TrimSpace(req.BodyMarkdown),
+		Targets:      protoTargetsToAnnotate(req.Targets),
 	})
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, feedbackToResponse(fb))
+	writeProtoJSON(w, http.StatusCreated, feedbackToProto(fb))
 }
 
 func (h *appHandler) handleUpdateFeedback(w http.ResponseWriter, r *http.Request) {
-	req := updateFeedbackRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.UpdateFeedbackRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if !isValidFeedbackStatus(req.Status) {
+	if req.Status == nil {
+		writeMessageError(w, http.StatusBadRequest, "status is required")
+		return
+	}
+	if !isValidFeedbackStatus(req.GetStatus()) {
 		writeMessageError(w, http.StatusBadRequest, "status must be one of open, acknowledged, resolved, archived")
 		return
 	}
 
 	fb, err := h.annotations.UpdateReviewFeedback(r.Context(), r.PathValue("id"), annotate.UpdateFeedbackInput{
-		Status: req.Status,
+		Status: strings.TrimSpace(req.GetStatus()),
 	})
 	if err != nil {
 		if isNotFoundError(err) {
@@ -106,7 +101,7 @@ func (h *appHandler) handleUpdateFeedback(w http.ResponseWriter, r *http.Request
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, feedbackToResponse(fb))
+	writeProtoJSON(w, http.StatusOK, feedbackToProto(fb))
 }
 
 // ── Guideline Handlers ────────────────────────────────────────────
@@ -129,11 +124,7 @@ func (h *appHandler) handleListGuidelines(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ret := make([]guidelineResponse, 0, len(guidelines))
-	for i := range guidelines {
-		ret = append(ret, guidelineToResponse(&guidelines[i]))
-	}
-	writeJSON(w, http.StatusOK, ret)
+	writeProtoJSON(w, http.StatusOK, guidelineListToProto(guidelines))
 }
 
 func (h *appHandler) handleGetGuideline(w http.ResponseWriter, r *http.Request) {
@@ -146,12 +137,12 @@ func (h *appHandler) handleGetGuideline(w http.ResponseWriter, r *http.Request) 
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, guidelineToResponse(g))
+	writeProtoJSON(w, http.StatusOK, guidelineToProto(g))
 }
 
 func (h *appHandler) handleCreateGuideline(w http.ResponseWriter, r *http.Request) {
-	req := createGuidelineRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.CreateGuidelineRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
 	if strings.TrimSpace(req.Slug) == "" {
@@ -164,10 +155,10 @@ func (h *appHandler) handleCreateGuideline(w http.ResponseWriter, r *http.Reques
 	}
 
 	g, err := h.annotations.CreateGuideline(r.Context(), annotate.CreateGuidelineInput{
-		Slug:         req.Slug,
-		Title:        req.Title,
-		ScopeKind:    req.ScopeKind,
-		BodyMarkdown: req.BodyMarkdown,
+		Slug:         strings.TrimSpace(req.Slug),
+		Title:        strings.TrimSpace(req.Title),
+		ScopeKind:    strings.TrimSpace(req.ScopeKind),
+		BodyMarkdown: strings.TrimSpace(req.BodyMarkdown),
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
@@ -177,26 +168,20 @@ func (h *appHandler) handleCreateGuideline(w http.ResponseWriter, r *http.Reques
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, guidelineToResponse(g))
+	writeProtoJSON(w, http.StatusCreated, guidelineToProto(g))
 }
 
 func (h *appHandler) handleUpdateGuideline(w http.ResponseWriter, r *http.Request) {
-	req := updateGuidelineRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.UpdateGuidelineRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if req.Status != nil && !isValidGuidelineStatus(*req.Status) {
+	if req.Status != nil && !isValidGuidelineStatus(req.GetStatus()) {
 		writeMessageError(w, http.StatusBadRequest, "status must be one of active, archived, draft")
 		return
 	}
 
-	g, err := h.annotations.UpdateGuideline(r.Context(), r.PathValue("id"), annotate.UpdateGuidelineInput{
-		Title:        req.Title,
-		ScopeKind:    req.ScopeKind,
-		Status:       req.Status,
-		Priority:     req.Priority,
-		BodyMarkdown: req.BodyMarkdown,
-	})
+	g, err := h.annotations.UpdateGuideline(r.Context(), r.PathValue("id"), protoUpdateGuidelineToAnnotate(req))
 	if err != nil {
 		if isNotFoundError(err) {
 			writeNotFound(w, err.Error())
@@ -205,7 +190,7 @@ func (h *appHandler) handleUpdateGuideline(w http.ResponseWriter, r *http.Reques
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, guidelineToResponse(g))
+	writeProtoJSON(w, http.StatusOK, guidelineToProto(g))
 }
 
 // ── Run-Guideline Link Handlers ───────────────────────────────────
@@ -217,43 +202,34 @@ func (h *appHandler) handleListRunGuidelines(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	ret := make([]guidelineResponse, 0, len(guidelines))
-	for i := range guidelines {
-		ret = append(ret, guidelineToResponse(&guidelines[i]))
-	}
-	writeJSON(w, http.StatusOK, ret)
+	writeProtoJSON(w, http.StatusOK, guidelineListToProto(guidelines))
 }
 
 func (h *appHandler) handleLinkRunGuideline(w http.ResponseWriter, r *http.Request) {
-	req := linkGuidelineRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.LinkRunGuidelineRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if strings.TrimSpace(req.GuidelineID) == "" {
+	if strings.TrimSpace(req.GuidelineId) == "" {
 		writeMessageError(w, http.StatusBadRequest, "guidelineId is required")
 		return
 	}
 
 	if err := h.annotations.LinkGuidelineToRun(r.Context(),
 		r.PathValue("id"),
-		req.GuidelineID,
+		strings.TrimSpace(req.GuidelineId),
 		"",
 	); err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Return the updated list of linked guidelines
 	guidelines, err := h.annotations.ListRunGuidelines(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	ret := make([]guidelineResponse, 0, len(guidelines))
-	for i := range guidelines {
-		ret = append(ret, guidelineToResponse(&guidelines[i]))
-	}
-	writeJSON(w, http.StatusOK, ret)
+	writeProtoJSON(w, http.StatusOK, guidelineListToProto(guidelines))
 }
 
 func (h *appHandler) handleUnlinkRunGuideline(w http.ResponseWriter, r *http.Request) {
@@ -266,5 +242,3 @@ func (h *appHandler) handleUnlinkRunGuideline(w http.ResponseWriter, r *http.Req
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-
-// ── Extend existing review handlers ───────────────────────────────

@@ -5,23 +5,8 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 )
-
-type reviewRequest struct {
-	ReviewState  string              `json:"reviewState"`
-	Comment      *reviewCommentInput `json:"comment,omitempty"`
-	GuidelineIDs []string            `json:"guidelineIds,omitempty"`
-	MailboxName  string              `json:"mailboxName,omitempty"`
-}
-
-type batchReviewRequest struct {
-	IDs          []string            `json:"ids"`
-	ReviewState  string              `json:"reviewState"`
-	AgentRunID   string              `json:"agentRunId,omitempty"`
-	Comment      *reviewCommentInput `json:"comment,omitempty"`
-	GuidelineIDs []string            `json:"guidelineIds,omitempty"`
-	MailboxName  string              `json:"mailboxName,omitempty"`
-}
 
 func (h *appHandler) handleListAnnotations(w http.ResponseWriter, r *http.Request) {
 	limit, err := parseLimitQuery(r, "limit", 500)
@@ -60,21 +45,21 @@ func (h *appHandler) handleGetAnnotation(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *appHandler) handleReviewAnnotation(w http.ResponseWriter, r *http.Request) {
-	req := reviewRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.ReviewAnnotationRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if !isValidReviewState(req.ReviewState) {
+	if !isValidReviewState(req.GetReviewState()) {
 		writeMessageError(w, http.StatusBadRequest, "reviewState must be one of to_review, reviewed, dismissed")
 		return
 	}
 
 	annotation, err := h.annotations.ReviewAnnotationWithArtifacts(r.Context(), annotate.ReviewAnnotationActionInput{
 		AnnotationID: r.PathValue("id"),
-		ReviewState:  req.ReviewState,
-		MailboxName:  req.MailboxName,
-		Comment:      toAnnotateReviewComment(req.Comment),
-		GuidelineIDs: req.GuidelineIDs,
+		ReviewState:  strings.TrimSpace(req.GetReviewState()),
+		MailboxName:  strings.TrimSpace(req.GetMailboxName()),
+		Comment:      protoCommentToAnnotate(req.GetComment()),
+		GuidelineIDs: req.GetGuidelineIds(),
 	})
 	if err != nil {
 		if isNotFoundError(err) {
@@ -88,25 +73,25 @@ func (h *appHandler) handleReviewAnnotation(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *appHandler) handleBatchReview(w http.ResponseWriter, r *http.Request) {
-	req := batchReviewRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.BatchReviewRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if len(req.IDs) == 0 {
+	if len(req.GetIds()) == 0 {
 		writeMessageError(w, http.StatusBadRequest, "ids must not be empty")
 		return
 	}
-	if !isValidReviewState(req.ReviewState) {
+	if !isValidReviewState(req.GetReviewState()) {
 		writeMessageError(w, http.StatusBadRequest, "reviewState must be one of to_review, reviewed, dismissed")
 		return
 	}
 	if err := h.annotations.BatchReviewWithArtifacts(r.Context(), annotate.BatchReviewActionInput{
-		IDs:          req.IDs,
-		ReviewState:  req.ReviewState,
-		AgentRunID:   req.AgentRunID,
-		MailboxName:  req.MailboxName,
-		Comment:      toAnnotateReviewComment(req.Comment),
-		GuidelineIDs: req.GuidelineIDs,
+		IDs:          req.GetIds(),
+		ReviewState:  strings.TrimSpace(req.GetReviewState()),
+		AgentRunID:   strings.TrimSpace(req.GetAgentRunId()),
+		MailboxName:  strings.TrimSpace(req.GetMailboxName()),
+		Comment:      protoCommentToAnnotate(req.GetComment()),
+		GuidelineIDs: req.GetGuidelineIds(),
 	}); err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -212,19 +197,5 @@ func isValidReviewState(reviewState string) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func toAnnotateReviewComment(comment *reviewCommentInput) *annotate.ReviewCommentInput {
-	if comment == nil {
-		return nil
-	}
-	if strings.TrimSpace(comment.BodyMarkdown) == "" && strings.TrimSpace(comment.Title) == "" {
-		return nil
-	}
-	return &annotate.ReviewCommentInput{
-		FeedbackKind: strings.TrimSpace(comment.FeedbackKind),
-		Title:        strings.TrimSpace(comment.Title),
-		BodyMarkdown: strings.TrimSpace(comment.BodyMarkdown),
 	}
 }
