@@ -26,6 +26,8 @@ export interface ReviewCommentDrawerProps {
   targetCount: number;
   agentRunId?: string;
   mailboxName?: string;
+  guidelinesEnabled?: boolean;
+  guidelinesDisabledReason?: string;
   onSubmit: (payload: {
     feedbackKind: FeedbackKind;
     title: string;
@@ -47,6 +49,8 @@ export function ReviewCommentDrawer({
   mode,
   targetCount,
   mailboxName,
+  guidelinesEnabled = true,
+  guidelinesDisabledReason,
   onSubmit,
   onCancel,
 }: ReviewCommentDrawerProps) {
@@ -71,6 +75,13 @@ export function ReviewCommentDrawer({
       resetForm();
     }
   }, [open, mode]);
+
+  useEffect(() => {
+    if (!guidelinesEnabled) {
+      setGuidelineIds([]);
+      setGuidelinesExpanded(false);
+    }
+  }, [guidelinesEnabled]);
 
   const handleSubmit = () => {
     if (!title.trim()) return;
@@ -153,25 +164,34 @@ export function ReviewCommentDrawer({
             />
 
             <Box>
-              <Button
-                size="small"
-                variant="text"
-                startIcon={
-                  guidelinesExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />
-                }
-                onClick={() => setGuidelinesExpanded(!guidelinesExpanded)}
-              >
-                Attach Guidelines
-                {guidelineIds.length > 0 && ` (${guidelineIds.length})`}
-              </Button>
-              <Collapse in={guidelinesExpanded}>
-                <Box sx={{ mt: 0.5 }}>
-                  <GuidelinePicker
-                    selectedIds={guidelineIds}
-                    onToggle={toggleGuideline}
-                  />
-                </Box>
-              </Collapse>
+              {guidelinesEnabled ? (
+                <>
+                  <Button
+                    size="small"
+                    variant="text"
+                    startIcon={
+                      guidelinesExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />
+                    }
+                    onClick={() => setGuidelinesExpanded(!guidelinesExpanded)}
+                  >
+                    Attach Guidelines
+                    {guidelineIds.length > 0 && ` (${guidelineIds.length})`}
+                  </Button>
+                  <Collapse in={guidelinesExpanded}>
+                    <Box sx={{ mt: 0.5 }}>
+                      <GuidelinePicker
+                        selectedIds={guidelineIds}
+                        onToggle={toggleGuideline}
+                      />
+                    </Box>
+                  </Collapse>
+                </>
+              ) : (
+                <Typography variant="caption" color="text.secondary">
+                  {guidelinesDisabledReason ??
+                    "Guidelines can only be attached when all selected annotations come from the same run."}
+                </Typography>
+              )}
             </Box>
 
             {mailboxName && (

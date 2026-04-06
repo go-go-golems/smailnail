@@ -40,6 +40,26 @@ export function ReviewQueuePage() {
   const [reviewAnnotation] = useReviewAnnotationMutation();
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
 
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const selectedAnnotations = useMemo(
+    () => annotations.filter((annotation) => selectedSet.has(annotation.id)),
+    [annotations, selectedSet],
+  );
+  const selectedRunIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          selectedAnnotations
+            .map((annotation) => annotation.agentRunId)
+            .filter((runId) => runId.length > 0),
+        ),
+      ),
+    [selectedAnnotations],
+  );
+  const singleSelectedRunId =
+    selectedRunIds.length === 1 ? selectedRunIds[0] : undefined;
+  const guidelinesEnabled = selectedRunIds.length <= 1;
+
   // Compute tag counts for filter pills (always from unfiltered set)
   const { data: allAnnotations = [] } = useListAnnotationsQuery({});
   const tagCounts = useMemo(() => {
@@ -75,7 +95,12 @@ export function ReviewQueuePage() {
   }, []);
 
   const handleCommentSubmit = useCallback(
-    (payload: { feedbackKind: FeedbackKind; title: string; bodyMarkdown: string; guidelineIds: string[] }) => {
+    (payload: {
+      feedbackKind: FeedbackKind;
+      title: string;
+      bodyMarkdown: string;
+      guidelineIds: string[];
+    }) => {
       void batchReview({
         ids: selected,
         reviewState: "dismissed",
@@ -84,12 +109,14 @@ export function ReviewQueuePage() {
           title: payload.title,
           bodyMarkdown: payload.bodyMarkdown,
         },
-        guidelineIds: payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+        guidelineIds:
+          payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+        agentRunId: singleSelectedRunId,
       });
       dispatch(clearSelected());
       setCommentDrawerOpen(false);
     },
-    [batchReview, selected, dispatch],
+    [batchReview, selected, singleSelectedRunId, dispatch],
   );
 
   const handleGetRelated = useCallback(
@@ -218,6 +245,13 @@ export function ReviewQueuePage() {
         open={commentDrawerOpen}
         mode="batch"
         targetCount={selected.length}
+        agentRunId={singleSelectedRunId}
+        guidelinesEnabled={guidelinesEnabled}
+        guidelinesDisabledReason={
+          selectedRunIds.length > 1
+            ? "Guidelines can only be attached when the selected annotations all come from the same run."
+            : undefined
+        }
         onSubmit={handleCommentSubmit}
         onCancel={() => setCommentDrawerOpen(false)}
       />

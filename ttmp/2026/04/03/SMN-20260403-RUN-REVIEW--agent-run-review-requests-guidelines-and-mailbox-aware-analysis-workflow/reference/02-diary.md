@@ -13,7 +13,7 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-06T13:05:00-04:00
+LastUpdated: 2026-04-06T13:24:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
@@ -1107,3 +1107,80 @@ This step addressed a UX issue discovered during manual use: the existing batch 
   - batch/single/run feedback entry uses a centered dialog
   - sender and run annotation rows can open `Dismiss & Explain`
   - review queue expansion toggling now has a stable Redux action via `toggleExpandedId`
+
+---
+
+## Step 19: Fix mixed-run batch review guideline linking in the review queue
+
+This step addressed a code-review bug in `ReviewQueuePage`: batch dismiss-with-feedback requests could include guideline IDs without an explicit `agentRunId`. The backend only allows run-guideline linking when the selection either provides an `agentRunId` or can be inferred to belong to a single run. In the review queue, selections can span multiple runs, so attaching a guideline in that state caused the transactional batch review to fail and roll back.
+
+### Prompt Context
+
+**User prompt (verbatim):** a pasted review comment pointing out that `ReviewQueuePage.tsx` sends `guidelineIds` in batch review without `agentRunId`, and that mixed-run selections fail in `BatchReviewWithArtifacts(...)`.
+
+**Assistant interpretation:** Resolve the review finding safely in the frontend instead of papering over it. Preserve correct single-run linking while preventing impossible mixed-run guideline attachment.
+
+**Inferred user intent:** Fix the bug and commit the change.
+
+### What I did
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`:
+  - derived `selectedAnnotations` from current selection
+  - computed unique `selectedRunIds`
+  - derived `singleSelectedRunId` when the selection belongs to exactly one run
+  - sent `agentRunId: singleSelectedRunId` in batch dismiss-with-feedback requests
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx`:
+  - added optional `guidelinesEnabled` and `guidelinesDisabledReason` props
+  - disabled guideline attachment UI when the current batch selection spans multiple runs
+  - reset selected guideline state when guideline attachment is disabled
+- Passed the new modal props from `ReviewQueuePage` so mixed-run selections show a clear explanation instead of letting the user submit an invalid guideline-linking request.
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- Sending the first run ID from a mixed-run selection would have been unsafe because it could silently link a guideline to the wrong run.
+- Letting the UI offer an invalid combination leads to a confusing rollback/error path for the reviewer.
+- The safest UX is:
+  - if the selection is single-run, send `agentRunId`
+  - if the selection spans multiple runs, allow comment-based dismiss but disable guideline linking
+
+### What worked
+- The frontend now matches the backend's transactional constraints.
+- Single-run batch selections still support guideline attachment.
+- Mixed-run selections no longer present an invalid guideline-linking path.
+- TypeScript passed cleanly.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Guideline linking is stricter than feedback creation because guidelines are run-scoped artifacts, not selection-scoped artifacts.
+- A small amount of selection-derived frontend state can prevent a much uglier transactional backend failure.
+
+### What was tricky to build
+- The key design choice was whether to always pass some `agentRunId` or disable the feature in mixed-run mode. The latter is more correct because the review queue can legitimately mix annotations from unrelated runs.
+
+### What warrants a second pair of eyes
+- It would be worth manually verifying that the modal copy is understandable when a reviewer selects annotations from multiple runs.
+- If reviewers often want to attach guidelines across mixed-run selections, the product model may need a higher-level batch-linking concept later, but the current backend semantics are intentionally strict.
+
+### What should be done in the future
+- Consider surfacing a lightweight run-count hint in the batch bar or modal so users understand why guideline attachment is disabled.
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx` and inspect:
+  - `selectedAnnotations`
+  - `selectedRunIds`
+  - `singleSelectedRunId`
+  - the `batchReview(...)` payload in `handleCommentSubmit`
+- Then inspect `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx` for the new guideline-disable props.
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - manually select annotations from one run and confirm guideline attach still works
+  - manually select annotations from multiple runs and confirm guideline attach is disabled
+
+### Technical details
+- Old behavior:
+  - batch dismiss-with-feedback sent `guidelineIds` without `agentRunId`
+  - mixed-run selections could reach a backend rollback path
+- New behavior:
+  - single-run selections send `agentRunId`
+  - mixed-run selections can still submit comments, but guideline attachment is disabled in the modal
