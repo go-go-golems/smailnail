@@ -123,7 +123,9 @@ export function AnnotationTable({
                 <AnnotationDetail
                   annotation={ann}
                   isExpanded={isExpanded}
-                  relatedAnnotations={getRelated?.(ann) ?? []}
+                  relatedAnnotations={
+                    isExpanded ? (getRelated?.(ann) ?? []) : []
+                  }
                   onNavigateTarget={
                     onNavigateTarget
                       ? () =>

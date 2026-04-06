@@ -13,7 +13,7 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-04T19:00:00-04:00
+LastUpdated: 2026-04-06T12:05:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
@@ -876,3 +876,72 @@ Analyze the situation and the failures they encountered ,and tell me what should
 - Sender detail now selects `mailbox_name` in the messages query and exposes it via `MessagePreview.mailboxName`.
 - Docs commit recorded before code recovery: `cfbd212`.
 - Code commit after full validation: `0f62cb4`.
+
+---
+
+## Step 16: Review queue checkbox lag reduction
+
+This step addressed a UX/performance bug in the review queue: selecting a checkbox felt delayed, as if the Redux action were dispatched a second later. After inspecting the code path, the real problem was render work, not dispatch latency. The annotation table recomputed related-annotation lists for every row on every render, even though only the expanded row ever displays them.
+
+The fix was deliberately small and low-risk: only call `getRelated(ann)` for the currently expanded row. This preserves behavior while removing an unnecessary O(N²)-style hot path from normal selection toggles.
+
+### Prompt Context
+
+**User prompt (verbatim):** "why is there a delay when I select a checkbox in the review queue? The redux action is dispatched like a second later"
+
+**Assistant interpretation:** Investigate the perceived delay when toggling a row checkbox in the review queue and identify whether the issue is Redux dispatch, React rendering, or component structure.
+
+**Inferred user intent:** Make checkbox selection feel immediate in the review queue UI.
+
+### What I did
+- Inspected:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationRow.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/store/annotationUiSlice.ts`
+- Identified the hot path in `AnnotationTable.tsx`:
+  - `relatedAnnotations={getRelated?.(ann) ?? []}`
+  - this ran for every row on every render
+- Changed `AnnotationTable.tsx` so `getRelated?.(ann)` only runs when `isExpanded` is true.
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- Checkbox selection triggers a parent rerender, which rerendered the whole annotation table.
+- The original implementation was doing expensive related-annotation filtering for rows whose detail sections were collapsed and therefore could not show the computed data anyway.
+
+### What worked
+- The fix is minimal and localized to the table component.
+- TypeScript check passed immediately after the change.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- The perceived delay was likely not Redux dispatch latency at all. The action dispatch is cheap; the expensive work was the follow-on render path.
+- When a table renders both rows and hidden detail sections, it is easy to accidentally compute expanded-only data for every row.
+
+### What was tricky to build
+- The main subtlety was distinguishing between a delayed dispatch and a delayed paint. Redux DevTools can make it look like the action itself is late when the browser is actually busy rerendering a heavy component tree.
+
+### What warrants a second pair of eyes
+- If the queue still feels slow on large datasets, the next likely improvements are:
+  - memoizing row/detail components with `React.memo`
+  - precomputing a related-annotation map with `useMemo`
+  - reducing whole-table rerenders from selection changes
+
+### What should be done in the future
+- If this only partially improves the experience, profile `ReviewQueuePage` with React DevTools and consider memoizing `AnnotationRow` and `AnnotationDetail`.
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`.
+- Look at the `AnnotationDetail` props inside the `annotations.map(...)` loop.
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - then manually toggle checkboxes in `/annotations/review`
+
+### Technical details
+- Old behavior:
+  - every row called `getRelated?.(ann)` on every render
+- New behavior:
+  - only the expanded row calls `getRelated?.(ann)`
+  - collapsed rows get `relatedAnnotations={[]}`
