@@ -73,6 +73,10 @@ const annotationUiSlice = createSlice({
     setExpandedId(state, action: PayloadAction<string | null>) {
       state.reviewQueue.expandedId = action.payload;
     },
+    toggleExpandedId(state, action: PayloadAction<string>) {
+      state.reviewQueue.expandedId =
+        state.reviewQueue.expandedId === action.payload ? null : action.payload;
+    },
     openCommentDrawer(state) {
       state.reviewQueue.commentDrawerOpen = true;
     },
@@ -102,6 +106,7 @@ export const {
   setFilterSource,
   setFilterRunId,
   setExpandedId,
+  toggleExpandedId,
   openCommentDrawer,
   closeCommentDrawer,
   setFilterMailbox,

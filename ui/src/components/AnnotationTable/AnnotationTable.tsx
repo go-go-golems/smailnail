@@ -30,6 +30,8 @@ export interface AnnotationTableProps {
   onApprove: (id: string) => void;
   /** Dismiss a single annotation */
   onDismiss: (id: string) => void;
+  /** Dismiss a single annotation with a note */
+  onDismissExplain?: (id: string) => void;
   /** Navigate to an annotation's target */
   onNavigateTarget?: (targetType: string, targetId: string) => void;
   /** Find related annotations for the expanded row */
@@ -45,6 +47,7 @@ interface AnnotationTableItemProps {
   onToggleExpand: (id: string) => void;
   onApprove: (id: string) => void;
   onDismiss: (id: string) => void;
+  onDismissExplain?: (id: string) => void;
   onNavigateTarget?: (targetType: string, targetId: string) => void;
   columnCount: number;
 }
@@ -62,6 +65,7 @@ const AnnotationTableItem = memo(
     onToggleExpand,
     onApprove,
     onDismiss,
+    onDismissExplain,
     onNavigateTarget,
     columnCount,
   }: AnnotationTableItemProps) {
@@ -75,6 +79,9 @@ const AnnotationTableItem = memo(
           onToggleExpand={() => onToggleExpand(annotation.id)}
           onApprove={() => onApprove(annotation.id)}
           onDismiss={() => onDismiss(annotation.id)}
+          onDismissExplain={
+            onDismissExplain ? () => onDismissExplain(annotation.id) : undefined
+          }
           onNavigateTarget={
             onNavigateTarget
               ? () => onNavigateTarget(annotation.targetType, annotation.targetId)
@@ -102,8 +109,13 @@ const AnnotationTableItem = memo(
     prev.isSelected === next.isSelected &&
     prev.isExpanded === next.isExpanded &&
     prev.relatedAnnotations === next.relatedAnnotations &&
-    prev.columnCount === next.columnCount &&
-    Boolean(prev.onNavigateTarget) === Boolean(next.onNavigateTarget),
+    prev.onToggleSelect === next.onToggleSelect &&
+    prev.onToggleExpand === next.onToggleExpand &&
+    prev.onApprove === next.onApprove &&
+    prev.onDismiss === next.onDismiss &&
+    prev.onDismissExplain === next.onDismissExplain &&
+    prev.onNavigateTarget === next.onNavigateTarget &&
+    prev.columnCount === next.columnCount,
 );
 
 export function AnnotationTable({
@@ -115,6 +127,7 @@ export function AnnotationTable({
   onToggleExpand,
   onApprove,
   onDismiss,
+  onDismissExplain,
   onNavigateTarget,
   getRelated,
 }: AnnotationTableProps) {
@@ -194,6 +207,7 @@ export function AnnotationTable({
                 onToggleExpand={onToggleExpand}
                 onApprove={onApprove}
                 onDismiss={onDismiss}
+                onDismissExplain={onDismissExplain}
                 onNavigateTarget={onNavigateTarget}
                 columnCount={COLUMN_COUNT}
               />

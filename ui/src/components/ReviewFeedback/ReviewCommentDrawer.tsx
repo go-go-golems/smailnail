@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -7,6 +7,10 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Collapse from "@mui/material/Collapse";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
 import CancelIcon from "@mui/icons-material/Cancel";
 import SendIcon from "@mui/icons-material/Send";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -54,14 +58,29 @@ export function ReviewCommentDrawer({
   const [guidelineIds, setGuidelineIds] = useState<string[]>([]);
   const [guidelinesExpanded, setGuidelinesExpanded] = useState(false);
 
-  const handleSubmit = () => {
-    if (!title.trim()) return;
-    onSubmit({ feedbackKind, title, bodyMarkdown, guidelineIds });
-    // Reset form
+  const resetForm = () => {
+    setFeedbackKind(mode === "run" ? "comment" : "reject_request");
     setTitle("");
     setBodyMarkdown("");
     setGuidelineIds([]);
     setGuidelinesExpanded(false);
+  };
+
+  useEffect(() => {
+    if (open) {
+      resetForm();
+    }
+  }, [open, mode]);
+
+  const handleSubmit = () => {
+    if (!title.trim()) return;
+    onSubmit({ feedbackKind, title, bodyMarkdown, guidelineIds });
+    resetForm();
+  };
+
+  const handleCancel = () => {
+    resetForm();
+    onCancel();
   };
 
   const submitLabel =
@@ -85,114 +104,109 @@ export function ReviewCommentDrawer({
   };
 
   return (
-    <Collapse in={open}>
-      <Box
-        data-part={parts.commentDrawer}
-        sx={{
-          p: 2,
-          mt: 1,
-          border: 1,
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
-        }}
-      >
-        <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-          {headerLabel}
-        </Typography>
-
-        <Stack spacing={1.5}>
-          <TextField
-            select
-            label="Kind"
-            value={feedbackKind}
-            onChange={(e) => setFeedbackKind(e.target.value as FeedbackKind)}
-            size="small"
-            fullWidth
-          >
-            {FEEDBACK_KINDS.map((k) => (
-              <MenuItem key={k.value} value={k.value}>
-                {k.label}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            size="small"
-            fullWidth
-            required
-          />
-
-          <TextField
-            label="Explanation"
-            value={bodyMarkdown}
-            onChange={(e) => setBodyMarkdown(e.target.value)}
-            size="small"
-            fullWidth
-            multiline
-            minRows={3}
-            maxRows={8}
-            placeholder="Describe what was wrong or what should change..."
-          />
-
-          <Box>
-            <Button
+    <Dialog
+      open={open}
+      onClose={handleCancel}
+      fullWidth
+      maxWidth="sm"
+      scroll="paper"
+    >
+      <DialogTitle>{headerLabel}</DialogTitle>
+      <DialogContent dividers>
+        <Box data-part={parts.commentDrawer}>
+          <Stack spacing={1.5}>
+            <TextField
+              select
+              label="Kind"
+              value={feedbackKind}
+              onChange={(e) => setFeedbackKind(e.target.value as FeedbackKind)}
               size="small"
-              variant="text"
-              startIcon={
-                guidelinesExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />
-              }
-              onClick={() => setGuidelinesExpanded(!guidelinesExpanded)}
+              fullWidth
             >
-              Attach Guidelines
-              {guidelineIds.length > 0 && ` (${guidelineIds.length})`}
-            </Button>
-            <Collapse in={guidelinesExpanded}>
-              <Box sx={{ mt: 0.5 }}>
-                <GuidelinePicker
-                  selectedIds={guidelineIds}
-                  onToggle={toggleGuideline}
-                />
-              </Box>
-            </Collapse>
-          </Box>
+              {FEEDBACK_KINDS.map((k) => (
+                <MenuItem key={k.value} value={k.value}>
+                  {k.label}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          {mailboxName && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">
-                Mailbox:
-              </Typography>
-              <MailboxBadge mailboxName={mailboxName} variant="inline" />
+            <TextField
+              label="Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              size="small"
+              fullWidth
+              required
+              autoFocus
+            />
+
+            <TextField
+              label="Explanation"
+              value={bodyMarkdown}
+              onChange={(e) => setBodyMarkdown(e.target.value)}
+              size="small"
+              fullWidth
+              multiline
+              minRows={3}
+              maxRows={8}
+              placeholder="Describe what was wrong or what should change..."
+            />
+
+            <Box>
+              <Button
+                size="small"
+                variant="text"
+                startIcon={
+                  guidelinesExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />
+                }
+                onClick={() => setGuidelinesExpanded(!guidelinesExpanded)}
+              >
+                Attach Guidelines
+                {guidelineIds.length > 0 && ` (${guidelineIds.length})`}
+              </Button>
+              <Collapse in={guidelinesExpanded}>
+                <Box sx={{ mt: 0.5 }}>
+                  <GuidelinePicker
+                    selectedIds={guidelineIds}
+                    onToggle={toggleGuideline}
+                  />
+                </Box>
+              </Collapse>
             </Box>
-          )}
 
-          <Divider />
+            {mailboxName && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Mailbox:
+                </Typography>
+                <MailboxBadge mailboxName={mailboxName} variant="inline" />
+              </Box>
+            )}
 
-          <Stack direction="row" spacing={1} justifyContent="flex-end">
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<CancelIcon />}
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              color="error"
-              startIcon={<SendIcon />}
-              disabled={!title.trim()}
-              onClick={handleSubmit}
-            >
-              {submitLabel}
-            </Button>
+            <Divider />
           </Stack>
-        </Stack>
-      </Box>
-    </Collapse>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<CancelIcon />}
+          onClick={handleCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="small"
+          variant="contained"
+          color="error"
+          startIcon={<SendIcon />}
+          disabled={!title.trim()}
+          onClick={handleSubmit}
+        >
+          {submitLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

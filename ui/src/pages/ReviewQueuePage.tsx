@@ -9,7 +9,7 @@ import {
   setSelected,
   clearSelected,
   setFilterTag,
-  setExpandedId,
+  toggleExpandedId,
 } from "../store/annotationUiSlice";
 import {
   useListAnnotationsQuery,
@@ -120,9 +120,9 @@ export function ReviewQueuePage() {
 
   const handleToggleExpand = useCallback(
     (id: string) => {
-      dispatch(setExpandedId(expandedId === id ? null : id));
+      dispatch(toggleExpandedId(id));
     },
-    [dispatch, expandedId],
+    [dispatch],
   );
 
   const handleBatchApprove = useCallback(() => {

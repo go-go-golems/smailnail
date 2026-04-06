@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
+import SpeakerNotesIcon from "@mui/icons-material/SpeakerNotes";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import type { Annotation } from "../../types/annotations";
 import { TagChip, TargetLink, SourceBadge, ReviewStateBadge } from "../shared";
@@ -19,6 +20,7 @@ export interface AnnotationRowProps {
   onToggleExpand: () => void;
   onApprove: () => void;
   onDismiss: () => void;
+  onDismissExplain?: () => void;
   onNavigateTarget?: () => void;
 }
 
@@ -30,6 +32,7 @@ export function AnnotationRow({
   onToggleExpand,
   onApprove,
   onDismiss,
+  onDismissExplain,
   onNavigateTarget,
 }: AnnotationRowProps) {
   const date = new Date(annotation.createdAt);
@@ -123,6 +126,16 @@ export function AnnotationRow({
           >
             <CancelIcon fontSize="small" />
           </IconButton>
+          {onDismissExplain && (
+            <IconButton
+              size="small"
+              color="warning"
+              onClick={onDismissExplain}
+              title="Dismiss & Explain"
+            >
+              <SpeakerNotesIcon fontSize="small" />
+            </IconButton>
+          )}
           <IconButton
             size="small"
             onClick={onToggleExpand}

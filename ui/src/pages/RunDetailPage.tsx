@@ -19,8 +19,9 @@ import { AnnotationTable } from "../components/AnnotationTable";
 import { RunTimeline } from "../components/RunTimeline";
 import { GroupCard } from "../components/GroupCard";
 import { RunGuidelineSection } from "../components/RunGuideline";
-import { RunFeedbackSection } from "../components/ReviewFeedback";
+import { RunFeedbackSection, ReviewCommentDrawer } from "../components/ReviewFeedback";
 import type { Annotation } from "../types/annotations";
+import type { FeedbackKind } from "../types/reviewFeedback";
 
 export function RunDetailPage() {
   const { runId } = useParams<{ runId: string }>();
@@ -36,6 +37,7 @@ export function RunDetailPage() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [commentAnnotation, setCommentAnnotation] = useState<Annotation | null>(null);
 
   const annotations = run?.annotations ?? [];
   const logs = run?.logs ?? [];
@@ -89,6 +91,41 @@ export function RunDetailPage() {
       }
     },
     [navigate],
+  );
+
+  const handleDismissExplain = useCallback(
+    (id: string) => {
+      const annotation = annotations.find((item) => item.id === id) ?? null;
+      setCommentAnnotation(annotation);
+    },
+    [annotations],
+  );
+
+  const handleCommentSubmit = useCallback(
+    (payload: {
+      feedbackKind: FeedbackKind;
+      title: string;
+      bodyMarkdown: string;
+      guidelineIds: string[];
+    }) => {
+      if (!commentAnnotation) {
+        return;
+      }
+
+      void reviewAnnotation({
+        id: commentAnnotation.id,
+        reviewState: "dismissed",
+        comment: {
+          feedbackKind: payload.feedbackKind,
+          title: payload.title,
+          bodyMarkdown: payload.bodyMarkdown,
+        },
+        guidelineIds:
+          payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+      });
+      setCommentAnnotation(null);
+    },
+    [commentAnnotation, reviewAnnotation],
   );
 
   const pendingIds = useMemo(
@@ -244,8 +281,18 @@ export function RunDetailPage() {
         onToggleExpand={handleToggleExpand}
         onApprove={handleApprove}
         onDismiss={handleDismiss}
+        onDismissExplain={handleDismissExplain}
         onNavigateTarget={handleNavigateTarget}
         getRelated={getRelated}
+      />
+
+      <ReviewCommentDrawer
+        open={commentAnnotation !== null}
+        mode="single"
+        targetCount={1}
+        agentRunId={commentAnnotation?.agentRunId}
+        onSubmit={handleCommentSubmit}
+        onCancel={() => setCommentAnnotation(null)}
       />
     </Box>
   );

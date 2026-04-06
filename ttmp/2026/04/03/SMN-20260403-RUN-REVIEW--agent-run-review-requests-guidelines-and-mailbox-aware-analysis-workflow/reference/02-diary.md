@@ -13,7 +13,7 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-06T12:22:00-04:00
+LastUpdated: 2026-04-06T13:05:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
@@ -1025,3 +1025,85 @@ The new structure introduces a memoized `AnnotationTableItem` that owns both the
   - the expanded row's related annotations are memoized once
   - `AnnotationTableItem` can skip rerender when its visible state is unchanged
   - only the expanded detail row is mounted
+
+---
+
+## Step 18: Switch reject/explain to a modal and add per-row dismiss-with-note on detail pages
+
+This step addressed a UX issue discovered during manual use: the existing batch `Reject & Explain` flow rendered inline below the batch action bar, which forced the reviewer to scroll down to the form after clicking the action. The request was to turn that into a small modal instead. At the same time, the same explanatory-dismiss flow was added to detail-style pages such as sender detail, where a reviewer may want to reject a single annotation with context while inspecting one sender.
+
+### Prompt Context
+
+**User prompt (verbatim):** "reject & explain should open a little modal, because otherwise i have to scroll down all the way. Also add dismiss & explain to individaul pages like : http://localhost:5050/annotations/senders/no-reply%40strava.com"
+
+**Assistant interpretation:** Change the shared review-comment affordance from an inline drawer/collapse to a dialog-based modal, and expose a per-annotation dismiss-with-feedback action on sender detail and similar detail pages.
+
+**Inferred user intent:** Make reject/explain easier to use without scrolling and make single-item review feedback available while inspecting individual entities.
+
+### What I did
+- Reworked `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx`:
+  - switched from `Collapse` + inline box to MUI `Dialog`
+  - kept the existing form fields and guideline attachment flow
+  - added form reset on open/cancel/submit
+- Extended `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationRow.tsx`:
+  - added an optional `Dismiss & Explain` action button (`SpeakerNotesIcon`)
+- Extended `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`:
+  - added optional `onDismissExplain`
+  - forwarded it through the memoized table item to the row component
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/SenderDetailPage.tsx`:
+  - added per-row comment-dialog state
+  - wired `Dismiss & Explain` for single annotations
+  - passed `mailboxName` when the sender's recent messages resolve to a single mailbox
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`:
+  - added per-row `Dismiss & Explain` modal for run annotations
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/store/annotationUiSlice.ts` and `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`:
+  - added `toggleExpandedId` so the review queue's expand handler can stay stable after the earlier memoization work
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- The inline batch form was visually present but ergonomically poor once the table grew taller than the viewport.
+- Sender/run detail pages are where a reviewer often has the richest context for writing a useful explanation, so they needed the single-item feedback path too.
+
+### What worked
+- Using the shared `ReviewCommentDrawer` as a dialog preserved the existing submit payload and kept the change localized.
+- Making `onDismissExplain` optional on `AnnotationTable` allowed the new row action to appear only where needed.
+- TypeScript passed after the wiring changes.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Reusing the same form component across batch, single-item, and run-level flows works well, but the container interaction (inline vs modal) matters a lot for usability.
+- Memoized row components need stable callbacks; the earlier performance work made it worth tightening the review-queue expand action too.
+
+### What was tricky to build
+- The most subtle part was keeping the memoized table-item optimization correct while adding another row action. Callback stability matters more once `React.memo` is involved.
+- Sender detail does not expose annotation-level mailbox names directly, so the safest mailbox behavior was to pass a mailbox only when recent messages imply a single unique mailbox.
+
+### What warrants a second pair of eyes
+- If reviewers want the same `Dismiss & Explain` affordance on additional pages beyond sender/run detail, the shared table support is already in place and only page-level wiring remains.
+- The exact icon choice for the new row action may be worth quick UI feedback after manual use.
+
+### What should be done in the future
+- If desired, wire `onDismissExplain` into `ReviewQueuePage` too for per-row explanatory dismiss directly from the queue.
+- Add Storybook coverage for the row action if the table stories become part of UI review.
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx` and confirm it now renders a `Dialog`.
+- Then inspect `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationRow.tsx` for the optional row action button.
+- Finally inspect:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/SenderDetailPage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - manually open batch `Reject & Explain` in `/annotations/review`
+  - manually click the new per-row `Dismiss & Explain` action on a sender detail annotation
+
+### Technical details
+- Old behavior:
+  - batch `Reject & Explain` expanded inline below the page controls
+  - sender/run detail tables only supported immediate dismiss with no note dialog
+- New behavior:
+  - batch/single/run feedback entry uses a centered dialog
+  - sender and run annotation rows can open `Dismiss & Explain`
+  - review queue expansion toggling now has a stable Redux action via `toggleExpandedId`
