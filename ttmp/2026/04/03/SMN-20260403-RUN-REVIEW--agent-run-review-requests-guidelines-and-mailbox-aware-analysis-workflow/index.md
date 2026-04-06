@@ -45,6 +45,8 @@ This ticket is about turning the current annotation UI from a binary approval su
 
 The primary implementation guide is [design/01-agent-run-review-guidelines-and-mailbox-implementation-guide.md](./design/01-agent-run-review-guidelines-and-mailbox-implementation-guide.md). That document is written for a new intern and explains the current system, the product intent, the proposed schema and API changes, the UX affordances, and an implementation sequence.
 
+The complete UI design with screen-by-screen ASCII renders and React widget pseudo-DSL is in [design/02-ui-design-review-feedback-guidelines-mailbox.md](./design/02-ui-design-review-feedback-guidelines-mailbox.md).
+
 Use [reference/01-current-system-map.md](./reference/01-current-system-map.md) to understand which existing packages already contain the needed concepts, and [reference/02-diary.md](./reference/02-diary.md) for the investigation narrative and design decisions made while opening this ticket.
 
 The actionable checklist lives in [tasks.md](./tasks.md). The changelog for ticket-level decisions lives in [changelog.md](./changelog.md).

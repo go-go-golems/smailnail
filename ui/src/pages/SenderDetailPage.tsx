@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
@@ -16,7 +16,9 @@ import {
   MessagePreviewTable,
 } from "../components/SenderProfile";
 import { AnnotationTable } from "../components/AnnotationTable";
+import { ReviewCommentDrawer } from "../components/ReviewFeedback";
 import type { Annotation } from "../types/annotations";
+import type { FeedbackKind } from "../types/reviewFeedback";
 
 export function SenderDetailPage() {
   const { email } = useParams<{ email: string }>();
@@ -26,10 +28,22 @@ export function SenderDetailPage() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [commentAnnotation, setCommentAnnotation] = useState<Annotation | null>(null);
 
   const annotations = sender?.annotations ?? [];
   const logs = sender?.logs ?? [];
   const messages = sender?.recentMessages ?? [];
+
+  const senderMailboxName = useMemo(() => {
+    const mailboxNames = Array.from(
+      new Set(
+        messages
+          .map((message) => message.mailboxName)
+          .filter((mailboxName): mailboxName is string => mailboxName.length > 0),
+      ),
+    );
+    return mailboxNames.length === 1 ? mailboxNames[0] : undefined;
+  }, [messages]);
 
   const getRelated = useCallback(
     (ann: Annotation) =>
@@ -53,6 +67,60 @@ export function SenderDetailPage() {
       prev.length === annotations.length ? [] : annotations.map((a) => a.id),
     );
   }, [annotations]);
+
+  const handleToggleExpand = useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const handleApprove = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "reviewed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleDismiss = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "dismissed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleDismissExplain = useCallback(
+    (id: string) => {
+      const annotation = annotations.find((item) => item.id === id) ?? null;
+      setCommentAnnotation(annotation);
+    },
+    [annotations],
+  );
+
+  const handleCommentSubmit = useCallback(
+    (payload: {
+      feedbackKind: FeedbackKind;
+      title: string;
+      bodyMarkdown: string;
+      guidelineIds: string[];
+    }) => {
+      if (!commentAnnotation) {
+        return;
+      }
+
+      void reviewAnnotation({
+        id: commentAnnotation.id,
+        reviewState: "dismissed",
+        comment: {
+          feedbackKind: payload.feedbackKind,
+          title: payload.title,
+          bodyMarkdown: payload.bodyMarkdown,
+        },
+        guidelineIds:
+          payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+        mailboxName: senderMailboxName,
+      });
+      setCommentAnnotation(null);
+    },
+    [commentAnnotation, reviewAnnotation, senderMailboxName],
+  );
 
   if (isLoading) {
     return (
@@ -115,20 +183,25 @@ export function SenderDetailPage() {
             expandedId={expandedId}
             onToggleSelect={handleToggleSelect}
             onToggleAll={handleToggleAll}
-            onToggleExpand={(id) =>
-              setExpandedId((prev) => (prev === id ? null : id))
-            }
-            onApprove={(id) =>
-              void reviewAnnotation({ id, reviewState: "reviewed" })
-            }
-            onDismiss={(id) =>
-              void reviewAnnotation({ id, reviewState: "dismissed" })
-            }
+            onToggleExpand={handleToggleExpand}
+            onApprove={handleApprove}
+            onDismiss={handleDismiss}
+            onDismissExplain={handleDismissExplain}
             getRelated={getRelated}
           />
           <Divider sx={{ my: 3 }} />
         </>
       )}
+
+      <ReviewCommentDrawer
+        open={commentAnnotation !== null}
+        mode="single"
+        targetCount={1}
+        agentRunId={commentAnnotation?.agentRunId}
+        mailboxName={senderMailboxName}
+        onSubmit={handleCommentSubmit}
+        onCancel={() => setCommentAnnotation(null)}
+      />
 
       {/* Agent reasoning */}
       {logs.length > 0 && (

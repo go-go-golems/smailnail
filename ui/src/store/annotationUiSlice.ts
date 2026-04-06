@@ -7,6 +7,8 @@ interface ReviewQueueState {
   filterSource: string | null;
   filterRunId: string | null;
   expandedId: string | null;
+  commentDrawerOpen: boolean;
+  filterMailbox: string | null;
 }
 
 interface QueryEditorState {
@@ -27,6 +29,8 @@ const initialState: AnnotationUiState = {
     filterSource: null,
     filterRunId: null,
     expandedId: null,
+    commentDrawerOpen: false,
+    filterMailbox: null,
   },
   queryEditor: {
     sql: "",
@@ -69,6 +73,19 @@ const annotationUiSlice = createSlice({
     setExpandedId(state, action: PayloadAction<string | null>) {
       state.reviewQueue.expandedId = action.payload;
     },
+    toggleExpandedId(state, action: PayloadAction<string>) {
+      state.reviewQueue.expandedId =
+        state.reviewQueue.expandedId === action.payload ? null : action.payload;
+    },
+    openCommentDrawer(state) {
+      state.reviewQueue.commentDrawerOpen = true;
+    },
+    closeCommentDrawer(state) {
+      state.reviewQueue.commentDrawerOpen = false;
+    },
+    setFilterMailbox(state, action: PayloadAction<string | null>) {
+      state.reviewQueue.filterMailbox = action.payload;
+    },
 
     // ── Query editor ─────────────────────────────
     setSql(state, action: PayloadAction<string>) {
@@ -89,6 +106,10 @@ export const {
   setFilterSource,
   setFilterRunId,
   setExpandedId,
+  toggleExpandedId,
+  openCommentDrawer,
+  closeCommentDrawer,
+  setFilterMailbox,
   setSql,
   setActiveSourcePath,
 } = annotationUiSlice.actions;

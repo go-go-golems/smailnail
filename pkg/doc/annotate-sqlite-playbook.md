@@ -40,7 +40,7 @@ ShowPerDefault: true
 SectionType: Application
 ---
 
-This playbook shows how to use the SQLite-backed annotation workflow that now lives in `smailnail annotate`. The goal is to work against a local mirror database, not the live IMAP server. That distinction matters because annotations, groups, and logs are stored in the mirror SQLite file and can be inspected, copied, and versioned independently of any current IMAP session.
+This playbook shows how to use the SQLite-backed annotation workflow that lives in `smailnail annotate`. The goal is to work against a local mirror database, not the live IMAP server. That distinction matters because annotations, groups, and logs are stored in the mirror SQLite file and can be inspected, copied, and versioned independently of any current IMAP session.
 
 ## Why Use The Annotation CLI
 
@@ -111,7 +111,7 @@ export DB=/tmp/smailnail-annotate-demo.sqlite
 Start with the smallest useful operation: attach a tag and note to one target.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation add \
+smailnail annotate annotation add \
   --sqlite-path "$DB" \
   --target-type sender \
   --target-id notifications@github.com \
@@ -139,7 +139,7 @@ The fields matter:
 Once rows exist, query them by target, tag, review state, or source kind.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation list \
+smailnail annotate annotation list \
   --sqlite-path "$DB" \
   --target-type sender \
   --target-id notifications@github.com
@@ -154,7 +154,7 @@ This is the primary inspection command when you want to answer:
 To list only rows that still need attention:
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation list \
+smailnail annotate annotation list \
   --sqlite-path "$DB" \
   --review-state to_review \
   --source-kind agent
@@ -167,7 +167,7 @@ That query is the first usable review queue in the MVP.
 The first version does not have a separate decision engine. Review state is the lightweight workflow marker that tells you whether a row still needs human attention.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation review \
+smailnail annotate annotation review \
   --sqlite-path "$DB" \
   --id 4cc62d7e-e52c-4f49-95b8-bdea24d6af19 \
   --review-state dismissed
@@ -189,7 +189,7 @@ Recommended meanings:
 Groups are the right tool when analysis starts as a cluster rather than a final judgment.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate group create \
+smailnail annotate group create \
   --sqlite-path "$DB" \
   --name "Possible newsletters" \
   --description "Review these senders before muting them." \
@@ -210,7 +210,7 @@ Because groups have their own `review_state`, they can also function as a coarse
 After the group exists, attach one or more targets to it.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate group add-target \
+smailnail annotate group add-target \
   --sqlite-path "$DB" \
   --group-id cf87e5b4-2dca-4a27-a381-f946529883c2 \
   --target-type sender \
@@ -220,7 +220,7 @@ go run -tags sqlite_fts5 ./cmd/smailnail annotate group add-target \
 Then inspect the current membership:
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate group members \
+smailnail annotate group members \
   --sqlite-path "$DB" \
   --group-id cf87e5b4-2dca-4a27-a381-f946529883c2
 ```
@@ -235,7 +235,7 @@ This is useful when you want a fast answer to:
 Logs are the shared explanation layer. One log can later point at multiple targets.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate log add \
+smailnail annotate log add \
   --sqlite-path "$DB" \
   --title "April newsletter pass" \
   --body "Grouped likely newsletters based on list-unsubscribe and high sender volume." \
@@ -250,7 +250,7 @@ Logs are better than copying the same note into ten annotation rows when the rea
 Once the log exists, link it to one or more targets.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate log link-target \
+smailnail annotate log link-target \
   --sqlite-path "$DB" \
   --log-id 01228f9d-e717-4665-809c-23e25f011742 \
   --target-type sender \
@@ -260,12 +260,12 @@ go run -tags sqlite_fts5 ./cmd/smailnail annotate log link-target \
 Inspect the links with:
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate log targets \
+smailnail annotate log targets \
   --sqlite-path "$DB" \
   --log-id 01228f9d-e717-4665-809c-23e25f011742
 ```
 
-This is the practical answer to “one log entry, many things.”
+This is the practical answer to "one log entry, many things."
 
 ## Common Playbook Patterns
 
@@ -274,7 +274,7 @@ This is the practical answer to “one log entry, many things.”
 Use this when a sender clearly matters and you do not want later bulk-cleanup work to lose that context.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation add \
+smailnail annotate annotation add \
   --sqlite-path "$DB" \
   --target-type sender \
   --target-id person@example.com \
@@ -289,7 +289,7 @@ go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation add \
 Use this when an agent classifies rows but you still want a human pass afterward.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation add \
+smailnail annotate annotation add \
   --sqlite-path "$DB" \
   --target-type sender \
   --target-id promo@example.com \
@@ -303,7 +303,7 @@ go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation add \
 Then query unresolved rows:
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation list \
+smailnail annotate annotation list \
   --sqlite-path "$DB" \
   --source-kind agent \
   --review-state to_review
@@ -314,7 +314,7 @@ go run -tags sqlite_fts5 ./cmd/smailnail annotate annotation list \
 Use groups when you are not ready to stamp the same tag onto every target yet.
 
 ```bash
-go run -tags sqlite_fts5 ./cmd/smailnail annotate group create \
+smailnail annotate group create \
   --sqlite-path "$DB" \
   --name "Possible spam cluster" \
   --description "Needs manual pass before tagging or deleting anything." \
@@ -380,7 +380,7 @@ This first version is intentionally simple, which means some discipline is still
 - Use stable `target_id` values. If you annotate senders, always use the normalized sender email.
 - Prefer groups when the classification is still fuzzy. Do not rush uncertain clusters into definitive tags.
 - Keep human-created notes explicit. Free-form note quality matters more than clever schema in the MVP.
-- Do not treat `dismissed` as deletion. It means “keep history, remove from active review.”
+- Do not treat `dismissed` as deletion. It means "keep history, remove from active review."
 - Keep one SQLite path per mirror corpus. Mixing unrelated datasets into one DB makes review less legible.
 
 ## Troubleshooting
@@ -393,10 +393,12 @@ This first version is intentionally simple, which means some discipline is still
 | Agent rows never show up as `to_review` | You created them as `source-kind human` or overrode the review state | Use `--source-kind agent` and omit `--review-state` unless you mean to force it |
 | Group membership looks empty | The wrong group id was used | Run `smailnail annotate group list --sqlite-path "$DB"` and copy the correct `id` |
 | Log links look missing | You created a log but never linked it to targets | Run `smailnail annotate log link-target ...` and then `smailnail annotate log targets ...` |
+| Senders table is empty | Enrichment was not run before annotating | Run `smailnail enrich all --sqlite-path "$DB"` first |
 
 ## See Also
 
 - `smailnail help smailnail-mirror-overview` for the mirror DB model and build-tag requirement
 - `smailnail help smailnail-mirror-first-sync` for creating the mirror DB in the first place
+- `smailnail help smailnail-agent-annotation-handbook` for the full agent annotation workflow
 - `smailnail annotate --help` for the command tree
 - `smailnail annotate annotation --help` for annotation-specific flags

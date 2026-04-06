@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 	"github.com/pkg/errors"
 )
 
@@ -38,14 +39,18 @@ func (h *appHandler) handleListSenders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasAnnotations := false
+	req := &annotationuiv1.SenderListRequest{
+		Domain: strings.TrimSpace(r.URL.Query().Get("domain")),
+		Tag:    strings.TrimSpace(r.URL.Query().Get("tag")),
+		Limit:  int32(limit),
+	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("hasAnnotations")); raw != "" {
 		parsed, err := strconv.ParseBool(raw)
 		if err != nil {
 			writeMessageError(w, http.StatusBadRequest, "hasAnnotations must be a boolean")
 			return
 		}
-		hasAnnotations = parsed
+		req.HasAnnotations = &parsed
 	}
 
 	query := `
@@ -62,21 +67,21 @@ LEFT JOIN annotations a ON a.target_type = 'sender' AND a.target_id = s.email
 WHERE 1 = 1`
 
 	args := make([]any, 0, 4)
-	if domain := strings.TrimSpace(r.URL.Query().Get("domain")); domain != "" {
+	if req.GetDomain() != "" {
 		query += ` AND s.domain = ?`
-		args = append(args, domain)
+		args = append(args, req.GetDomain())
 	}
-	if tag := strings.TrimSpace(r.URL.Query().Get("tag")); tag != "" {
+	if req.GetTag() != "" {
 		query += ` AND a.tag = ?`
-		args = append(args, tag)
+		args = append(args, req.GetTag())
 	}
 	query += `
 GROUP BY s.email, s.display_name, s.domain, s.msg_count, s.has_list_unsubscribe`
-	if hasAnnotations {
+	if req.HasAnnotations != nil && req.GetHasAnnotations() {
 		query += ` HAVING COUNT(DISTINCT a.id) > 0`
 	}
 	query += ` ORDER BY s.msg_count DESC, s.email ASC LIMIT ?`
-	args = append(args, limit)
+	args = append(args, int(req.GetLimit()))
 
 	rows := []senderRowRecord{}
 	if err := h.db.SelectContext(r.Context(), &rows, h.db.Rebind(query), args...); err != nil {
@@ -97,7 +102,7 @@ GROUP BY s.email, s.display_name, s.domain, s.msg_count, s.has_list_unsubscribe`
 		})
 	}
 
-	writeJSON(w, http.StatusOK, ret)
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.SenderListResponse{Items: senderRowsToProto(ret)})
 }
 
 func (h *appHandler) handleGetSender(w http.ResponseWriter, r *http.Request) {
@@ -150,7 +155,8 @@ SELECT
 	uid,
 	subject,
 	COALESCE(NULLIF(sent_date, ''), NULLIF(internal_date, '')) AS date,
-	size_bytes
+	size_bytes,
+	mailbox_name
 FROM messages
 WHERE sender_email = ?
 ORDER BY COALESCE(NULLIF(sent_date, ''), NULLIF(internal_date, '')) DESC, uid DESC
@@ -175,7 +181,7 @@ LIMIT 20`)
 	}
 	sort.Strings(tags)
 
-	writeJSON(w, http.StatusOK, SenderDetail{
+	writeProtoJSON(w, http.StatusOK, senderDetailToProto(SenderDetail{
 		SenderRow: SenderRow{
 			Email:           record.Email,
 			DisplayName:     record.DisplayName,
@@ -190,7 +196,7 @@ LIMIT 20`)
 		Annotations:    annotations,
 		Logs:           logs,
 		RecentMessages: recentMessages,
-	})
+	}))
 }
 
 func (h *appHandler) listSenderLogs(ctx context.Context, email string) ([]annotate.AnnotationLog, error) {

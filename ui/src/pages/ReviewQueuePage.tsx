@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
@@ -9,7 +9,7 @@ import {
   setSelected,
   clearSelected,
   setFilterTag,
-  setExpandedId,
+  toggleExpandedId,
 } from "../store/annotationUiSlice";
 import {
   useListAnnotationsQuery,
@@ -22,7 +22,9 @@ import {
   CountSummaryBar,
   BatchActionBar,
 } from "../components/shared";
+import { ReviewCommentDrawer } from "../components/ReviewFeedback";
 import type { Annotation } from "../types/annotations";
+import type { FeedbackKind } from "../types/reviewFeedback";
 
 export function ReviewQueuePage() {
   const dispatch = useAppDispatch();
@@ -36,6 +38,27 @@ export function ReviewQueuePage() {
   );
   const [batchReview] = useBatchReviewMutation();
   const [reviewAnnotation] = useReviewAnnotationMutation();
+  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const selectedAnnotations = useMemo(
+    () => annotations.filter((annotation) => selectedSet.has(annotation.id)),
+    [annotations, selectedSet],
+  );
+  const selectedRunIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          selectedAnnotations
+            .map((annotation) => annotation.agentRunId)
+            .filter((runId) => runId.length > 0),
+        ),
+      ),
+    [selectedAnnotations],
+  );
+  const singleSelectedRunId =
+    selectedRunIds.length === 1 ? selectedRunIds[0] : undefined;
+  const guidelinesEnabled = selectedRunIds.length <= 1;
 
   // Compute tag counts for filter pills (always from unfiltered set)
   const { data: allAnnotations = [] } = useListAnnotationsQuery({});
@@ -67,7 +90,36 @@ export function ReviewQueuePage() {
     ];
   }, [annotations]);
 
-  const getRelated = useCallback(
+  const handleBatchRejectExplain = useCallback(() => {
+    setCommentDrawerOpen(true);
+  }, []);
+
+  const handleCommentSubmit = useCallback(
+    (payload: {
+      feedbackKind: FeedbackKind;
+      title: string;
+      bodyMarkdown: string;
+      guidelineIds: string[];
+    }) => {
+      void batchReview({
+        ids: selected,
+        reviewState: "dismissed",
+        comment: {
+          feedbackKind: payload.feedbackKind,
+          title: payload.title,
+          bodyMarkdown: payload.bodyMarkdown,
+        },
+        guidelineIds:
+          payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+        agentRunId: singleSelectedRunId,
+      });
+      dispatch(clearSelected());
+      setCommentDrawerOpen(false);
+    },
+    [batchReview, selected, singleSelectedRunId, dispatch],
+  );
+
+  const handleGetRelated = useCallback(
     (ann: Annotation) =>
       annotations.filter(
         (a) =>
@@ -78,6 +130,13 @@ export function ReviewQueuePage() {
     [annotations],
   );
 
+  const handleToggleSelect = useCallback(
+    (id: string) => {
+      dispatch(toggleSelected(id));
+    },
+    [dispatch],
+  );
+
   const handleToggleAll = useCallback(() => {
     if (selected.length === annotations.length) {
       dispatch(clearSelected());
@@ -85,6 +144,13 @@ export function ReviewQueuePage() {
       dispatch(setSelected(annotations.map((a) => a.id)));
     }
   }, [dispatch, selected.length, annotations]);
+
+  const handleToggleExpand = useCallback(
+    (id: string) => {
+      dispatch(toggleExpandedId(id));
+    },
+    [dispatch],
+  );
 
   const handleBatchApprove = useCallback(() => {
     void batchReview({ ids: selected, reviewState: "reviewed" });
@@ -100,6 +166,20 @@ export function ReviewQueuePage() {
     void batchReview({ ids: selected, reviewState: "to_review" });
     dispatch(clearSelected());
   }, [batchReview, selected, dispatch]);
+
+  const handleApprove = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "reviewed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleDismiss = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "dismissed" });
+    },
+    [reviewAnnotation],
+  );
 
   const handleNavigateTarget = useCallback(
     (targetType: string, targetId: string) => {
@@ -144,6 +224,7 @@ export function ReviewQueuePage() {
         onToggleAll={handleToggleAll}
         onApprove={handleBatchApprove}
         onDismiss={handleBatchDismiss}
+        onRejectExplain={handleBatchRejectExplain}
         onReset={handleBatchReset}
       />
 
@@ -151,19 +232,28 @@ export function ReviewQueuePage() {
         annotations={annotations}
         selected={selected}
         expandedId={expandedId}
-        onToggleSelect={(id) => dispatch(toggleSelected(id))}
+        onToggleSelect={handleToggleSelect}
         onToggleAll={handleToggleAll}
-        onToggleExpand={(id) =>
-          dispatch(setExpandedId(expandedId === id ? null : id))
-        }
-        onApprove={(id) =>
-          void reviewAnnotation({ id, reviewState: "reviewed" })
-        }
-        onDismiss={(id) =>
-          void reviewAnnotation({ id, reviewState: "dismissed" })
-        }
+        onToggleExpand={handleToggleExpand}
+        onApprove={handleApprove}
+        onDismiss={handleDismiss}
         onNavigateTarget={handleNavigateTarget}
-        getRelated={getRelated}
+        getRelated={handleGetRelated}
+      />
+
+      <ReviewCommentDrawer
+        open={commentDrawerOpen}
+        mode="batch"
+        targetCount={selected.length}
+        agentRunId={singleSelectedRunId}
+        guidelinesEnabled={guidelinesEnabled}
+        guidelinesDisabledReason={
+          selectedRunIds.length > 1
+            ? "Guidelines can only be attached when the selected annotations all come from the same run."
+            : undefined
+        }
+        onSubmit={handleCommentSubmit}
+        onCancel={() => setCommentDrawerOpen(false)}
       />
     </Box>
   );

@@ -6,3 +6,5 @@ export { SendersPage } from "./SendersPage";
 export { SenderDetailPage } from "./SenderDetailPage";
 export { GroupsPage } from "./GroupsPage";
 export { QueryEditorPage } from "./QueryEditorPage";
+export { GuidelinesListPage } from "./GuidelinesListPage";
+export { GuidelineDetailPage } from "./GuidelineDetailPage";

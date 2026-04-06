@@ -1,165 +1,132 @@
-/**
- * TypeScript types matching the Go backend annotation types.
- * Field names use camelCase (JSON tags from Go structs).
- */
+import type {
+  AgentRunDetail as GeneratedAgentRunDetail,
+  AgentRunSummary as GeneratedAgentRunSummary,
+  Annotation as GeneratedAnnotation,
+  AnnotationListRequest as GeneratedAnnotationListRequest,
+  AnnotationLog as GeneratedAnnotationLog,
+  ExecuteQueryRequest as GeneratedExecuteQueryRequest,
+  GroupDetail as GeneratedGroupDetail,
+  GroupListRequest as GeneratedGroupListRequest,
+  GroupMember as GeneratedGroupMember,
+  LogListRequest as GeneratedLogListRequest,
+  MessagePreview as GeneratedMessagePreview,
+  QueryResult as GeneratedQueryResult,
+  SavedQuery as GeneratedSavedQuery,
+  SaveQueryRequest as GeneratedSaveQueryRequest,
+  SenderDetail as GeneratedSenderDetail,
+  SenderListRequest as GeneratedSenderListRequest,
+  SenderRow as GeneratedSenderRow,
+  TargetGroup as GeneratedTargetGroup,
+} from "../gen/smailnail/annotationui/v1/annotation";
 
-// ── Source & Review constants ────────────────────────────────
+export const SOURCE_KIND_VALUES = ["human", "agent", "heuristic", "import"] as const;
+export type SourceKind = (typeof SOURCE_KIND_VALUES)[number];
 
-export type SourceKind = "human" | "agent" | "heuristic" | "import";
-export type ReviewState = "to_review" | "reviewed" | "dismissed";
+export const REVIEW_STATE_VALUES = ["to_review", "reviewed", "dismissed"] as const;
+export type ReviewState = (typeof REVIEW_STATE_VALUES)[number];
 
-// ── Core entities ────────────────────────────────────────────
-
-export interface Annotation {
-  id: string;
-  targetType: string;
-  targetId: string;
-  tag: string;
-  noteMarkdown: string;
+export type Annotation = Omit<GeneratedAnnotation, "sourceKind" | "reviewState"> & {
   sourceKind: SourceKind;
-  sourceLabel: string;
-  agentRunId: string;
   reviewState: ReviewState;
-  createdBy: string;
-  createdAt: string; // ISO 8601
-  updatedAt: string;
-}
+};
 
-export interface TargetGroup {
-  id: string;
-  name: string;
-  description: string;
+export type AnnotationListResponse = {
+  items: Annotation[];
+};
+
+export type TargetGroup = Omit<GeneratedTargetGroup, "sourceKind" | "reviewState"> & {
   sourceKind: SourceKind;
-  sourceLabel: string;
-  agentRunId: string;
   reviewState: ReviewState;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
+};
 
-export interface GroupMember {
-  groupId: string;
-  targetType: string;
-  targetId: string;
-  addedAt: string;
-}
+export type GroupListResponse = {
+  items: TargetGroup[];
+};
 
-export interface AnnotationLog {
-  id: string;
-  logKind: string;
-  title: string;
-  bodyMarkdown: string;
+export type GroupMember = GeneratedGroupMember;
+
+export type GroupDetail = Omit<
+  GeneratedGroupDetail,
+  "sourceKind" | "reviewState" | "members"
+> & {
   sourceKind: SourceKind;
-  sourceLabel: string;
-  agentRunId: string;
-  createdBy: string;
-  createdAt: string;
-}
+  reviewState: ReviewState;
+  members: GroupMember[];
+};
 
-export interface LogTarget {
-  logId: string;
-  targetType: string;
-  targetId: string;
-}
-
-// ── Aggregated / computed types (API responses) ──────────────
-
-export interface AgentRunSummary {
-  runId: string;
-  sourceLabel: string;
+export type AnnotationLog = Omit<GeneratedAnnotationLog, "sourceKind"> & {
   sourceKind: SourceKind;
-  annotationCount: number;
-  pendingCount: number;
-  reviewedCount: number;
-  dismissedCount: number;
-  logCount: number;
-  groupCount: number;
-  startedAt: string;
-  completedAt: string;
-}
+};
 
-export interface AgentRunDetail extends AgentRunSummary {
+export type LogListResponse = {
+  items: AnnotationLog[];
+};
+
+export type AgentRunSummary = Omit<GeneratedAgentRunSummary, "sourceKind"> & {
+  sourceKind: SourceKind;
+};
+
+export type AgentRunListResponse = {
+  items: AgentRunSummary[];
+};
+
+export type AgentRunDetail = Omit<
+  GeneratedAgentRunDetail,
+  "sourceKind" | "annotations" | "logs" | "groups"
+> & {
+  sourceKind: SourceKind;
   annotations: Annotation[];
   logs: AnnotationLog[];
   groups: TargetGroup[];
-}
+};
 
-export interface GroupDetail extends TargetGroup {
-  members: GroupMember[];
-}
+export type SenderRow = GeneratedSenderRow;
 
-export interface SenderRow {
-  email: string;
-  displayName: string;
-  domain: string;
-  messageCount: number;
-  annotationCount: number;
-  tags: string[];
-  hasUnsubscribe: boolean;
-}
+export type SenderListResponse = {
+  items: SenderRow[];
+};
 
-export interface SenderDetail extends SenderRow {
-  firstSeen: string;
-  lastSeen: string;
+export type MessagePreview = GeneratedMessagePreview;
+
+export type SenderDetail = Omit<GeneratedSenderDetail, "annotations" | "logs" | "recentMessages"> & {
   annotations: Annotation[];
   logs: AnnotationLog[];
   recentMessages: MessagePreview[];
-}
+};
 
-export interface MessagePreview {
-  uid: number;
-  subject: string;
-  date: string;
-  sizeBytes: number;
-}
-
-// ── Filter types ─────────────────────────────────────────────
-
-export interface AnnotationFilter {
-  targetType?: string;
-  targetId?: string;
-  tag?: string;
+export type AnnotationFilter = Partial<
+  Omit<GeneratedAnnotationListRequest, "reviewState" | "sourceKind">
+> & {
   reviewState?: ReviewState;
   sourceKind?: SourceKind;
-  agentRunId?: string;
-  limit?: number;
-}
+  mailboxName?: string;
+  feedbackStatus?: string;
+};
 
-export interface GroupFilter {
+export type GroupFilter = Partial<Omit<GeneratedGroupListRequest, "reviewState" | "sourceKind">> & {
   reviewState?: ReviewState;
   sourceKind?: SourceKind;
-  limit?: number;
-}
+};
 
-export interface LogFilter {
+export type LogFilter = Partial<Omit<GeneratedLogListRequest, "sourceKind">> & {
   sourceKind?: SourceKind;
-  agentRunId?: string;
-  limit?: number;
-}
+};
 
-export interface SenderFilter {
-  domain?: string;
-  hasAnnotations?: boolean;
-  tag?: string;
-  limit?: number;
-}
+export type SenderFilter = Partial<GeneratedSenderListRequest>;
 
-// ── Query editor types ───────────────────────────────────────
+export type SavedQuery = GeneratedSavedQuery;
 
-export interface SavedQuery {
-  name: string;
-  folder: string;
-  description: string;
-  sql: string;
-}
+export type SavedQueryListResponse = {
+  items: SavedQuery[];
+};
 
-export interface QueryResult {
-  columns: string[];
+export type ExecuteQueryRequest = GeneratedExecuteQueryRequest;
+
+export type SaveQueryRequest = GeneratedSaveQueryRequest;
+
+export type QueryResult = Omit<GeneratedQueryResult, "rows"> & {
   rows: Record<string, unknown>[];
-  durationMs: number;
-  rowCount: number;
-}
+};
 
 export interface QueryError {
   message: string;

@@ -20,7 +20,11 @@ type ThreadsCommand struct {
 }
 
 type threadsSettings struct {
-	enrichSettings
+	SQLitePath string `glazed:"sqlite-path"`
+	AccountKey string `glazed:"account-key"`
+	Mailbox    string `glazed:"mailbox"`
+	Rebuild    bool   `glazed:"rebuild"`
+	DryRun     bool   `glazed:"dry-run"`
 }
 
 func NewThreadsCommand() (*ThreadsCommand, error) {
@@ -68,7 +72,13 @@ func (c *ThreadsCommand) RunIntoGlazeProcessor(ctx context.Context, parsedValues
 	}
 	defer cleanup()
 
-	report, err := (&enrichpkg.ThreadEnricher{}).Enrich(ctx, db, toOptions(settings.enrichSettings))
+	report, err := (&enrichpkg.ThreadEnricher{}).Enrich(ctx, db, toOptions(enrichSettings{
+		SQLitePath: settings.SQLitePath,
+		AccountKey: settings.AccountKey,
+		Mailbox:    settings.Mailbox,
+		Rebuild:    settings.Rebuild,
+		DryRun:     settings.DryRun,
+	}))
 	if err != nil {
 		return err
 	}

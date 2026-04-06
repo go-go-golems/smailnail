@@ -1,0 +1,12 @@
+version: v2
+modules:
+  - path: proto
+    name: buf.build/local/smailnail
+
+lint:
+  use:
+    - STANDARD
+
+breaking:
+  use:
+    - FILE
