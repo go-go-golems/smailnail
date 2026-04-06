@@ -13,7 +13,7 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-04T18:00:00-04:00
+LastUpdated: 2026-04-04T18:35:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
@@ -684,3 +684,78 @@ Added two new fields to the `ReviewQueueState` slice: `commentDrawerOpen` (boole
 ### Code review instructions
 - `git diff d2f25df..473439e` — one file changed.
 - Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 14: Backend Phase 2 recovery analysis and execution plan
+
+Before changing more backend code, I stopped to analyze the half-finished Phase 2 worktree and the exact failures from the earlier attempt. The immediate problem was not just a lint error: the implementation drifted away from the design intent by splitting review-state updates from optional feedback/guideline artifacts and then ignoring errors from those later operations.
+
+This step documents the recovery plan before implementation so the rest of the work can proceed in a controlled loop: clean up the duplicated handler/type surface, move review-with-artifacts into transactional repository methods, rewire handlers to call those methods, validate with `gofmt`, `go test`, and `make lint`, and only then commit the backend Phase 2 changes.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Ok, add detailed tasks for these steps to the ticket, then do them task by task. commit at appropriate intervals, and keep your diary. In fact, enter a detailed diary entry now b efore working so that keep track of what is happening."
+
+**Assistant interpretation:** Record the current backend recovery situation in the ticket docs first, then execute the backend cleanup and completion work one task at a time with disciplined commits.
+
+**Inferred user intent:** Prevent more thrashing by explicitly documenting the failure state and recovery plan before continuing implementation.
+
+### What I did
+- Inspected the current dirty backend files:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_annotations.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_feedback.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_senders.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/server.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/types.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/types_feedback.go`
+- Confirmed the already-committed backend state: `15de236` (Phase 1 only).
+- Confirmed the Vite proxy was already present in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/vite.config.ts` for `/api` and `/auth`.
+- Added a new `2R. Backend recovery & hardening` subsection to `tasks.md` to track the recovery work explicitly.
+
+### Why
+- The backend worktree already contained useful code, but it was in an unstable intermediate state. Continuing to pile on changes without first documenting the failure modes would make it easier to repeat the same mistakes.
+- The design guide explicitly requires review-state update + optional feedback creation + optional guideline linking to succeed or fail together when triggered by one user action.
+
+### What worked
+- The inspection clarified that the Vite proxy work was already complete and did not need additional changes.
+- The route additions, mailbox propagation, and standalone feedback/guideline handlers are directionally correct and worth preserving.
+
+### What didn't work
+- The earlier Phase 2 attempt introduced redundant request types and helper handlers, which caused `unused` lint failures.
+- More importantly, `handleReviewAnnotation` and `handleBatchReview` were extended by updating review state first and then doing optional feedback/guideline work with ignored errors (`_ = ...`). That violates the transactional shape described in the design doc.
+- The worktree therefore became "compilable in parts" but not ready to commit safely.
+
+### What I learned
+- The real bug was semantic, not cosmetic. The lint failures were just a symptom. Even if the earlier code had been cleaned enough to compile, it still would have returned success for partially-applied review actions.
+- The correct recovery path is to push the combined operation into the repository layer, not to keep layering conditional logic in handlers.
+
+### What was tricky to build
+- The sharp edge here is that the frontend contract and the design doc both treat review + comment + guideline links as one logical action, but the old repository surface only had `UpdateAnnotationReviewState` and `BatchUpdateReviewState`. Extending handlers directly is tempting, but it creates ordering and error-propagation problems immediately.
+
+### What warrants a second pair of eyes
+- The transactional repository API shape for single-review vs batch-review artifact creation. The implementation should be reviewed for correctness around failure handling and backward compatibility, not just successful-path behavior.
+
+### What should be done in the future
+- After Phase 2 is complete, add repository and handler tests that explicitly simulate failure in feedback creation or guideline linking and verify that review state is not committed independently.
+
+### Code review instructions
+- Start with the new recovery checklist in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ttmp/2026/04/03/SMN-20260403-RUN-REVIEW--agent-run-review-requests-guidelines-and-mailbox-aware-analysis-workflow/tasks.md` under `2R. Backend recovery & hardening`.
+- Compare the dirty worktree against commit `15de236` to understand what Phase 2 is trying to add.
+- Review the design section `11. Pseudocode For A Combined Batch Review Flow` in `design/01-agent-run-review-guidelines-and-mailbox-implementation-guide.md` before reviewing the repository refactor.
+
+### Technical details
+- Existing committed backend baseline: `15de236` — schema/types/repository only.
+- Current dirty worktree already contains:
+  - standalone feedback handlers
+  - standalone guideline handlers
+  - run-guideline link handlers
+  - sender-detail mailbox propagation
+  - non-transactional extensions to review handlers
+- Recovery plan:
+  1. remove duplicate / unused request types and helper handlers
+  2. add transactional repository methods for single + batch review with artifacts
+  3. rewire review handlers to call those repository methods
+  4. keep standalone endpoints and sender mailbox support
+  5. validate with `gofmt`, `go test -tags sqlite_fts5 ./...`, and `make lint`
+  6. commit Phase 2 only after all three succeed

@@ -240,6 +240,44 @@ WhenToUse: Open this before starting any implementation work on this ticket.
   - Add route groups for feedback, guidelines, run-guideline links
   - Test: server starts, routes respond
 
+### 2R. Backend recovery & hardening (added after first incomplete attempt)
+
+- [ ] 2R.1 Confirm Vite dev proxy already exists in `ui/vite.config.ts`
+  - Verify `/api` and `/auth` proxy to backend target
+  - Do not add duplicate proxy logic unless a real gap is found
+
+- [ ] 2R.2 Remove duplicate / unused Phase 2 request types and handlers
+  - Keep one source of truth for extended review payloads
+  - Remove dead `extendedReviewRequest`, `extendedBatchReviewRequest`, and any unused helper handlers/imports
+  - Verify `make lint` passes with zero `unused` findings
+
+- [ ] 2R.3 Move review-state update + optional feedback creation + optional guideline linking into one repository transaction
+  - Add a repository method for single-review actions with artifacts
+  - Add a repository method for batch-review actions with artifacts
+  - Stop ignoring errors from feedback creation and guideline linking
+  - Verify partial failure cannot return success after only the review-state update succeeds
+
+- [ ] 2R.4 Rewire `handleReviewAnnotation` and `handleBatchReview` to call the transactional repository methods
+  - Preserve backward compatibility when `comment`, `guidelineIds`, `agentRunId`, and `mailboxName` are absent
+  - Return proper HTTP errors when artifact creation/linking fails
+
+- [ ] 2R.5 Keep standalone feedback/guideline/run-link endpoints, but validate them end-to-end
+  - `GET/POST/PATCH /api/review-feedback`
+  - `GET/POST/PATCH /api/review-guidelines`
+  - `GET/POST/DELETE /api/annotation-runs/:id/guidelines`
+  - Verify route registration matches frontend RTK Query paths exactly
+
+- [ ] 2R.6 Validate sender mailbox propagation after backend changes
+  - `pkg/annotationui/types.go` → `MessagePreview.mailboxName`
+  - `pkg/annotationui/handlers_senders.go` query selects `mailbox_name`
+  - Verify response shape matches frontend `MessagePreview`
+
+- [ ] 2R.7 Run backend validation loop before commit
+  - `gofmt -w pkg/annotate/*.go pkg/annotationui/*.go`
+  - `go test -tags sqlite_fts5 ./...`
+  - `make lint`
+  - Only commit Phase 2 when all three succeed
+
 ---
 
 ## Phase 3 — TypeScript Types & RTK Query Contract
