@@ -18,8 +18,14 @@ RelatedFiles:
       Note: Diary records the added contract tests
     - Path: pkg/doc/annotationui-contract-codegen-playbook.md
       Note: Diary step for the reusable Glazed help-style playbook
+    - Path: pkg/smailnaild/http_integration_test.go
+      Note: Diary step for hosted API integration test migration to protojson responses
+    - Path: pkg/smailnaild/http_test.go
+      Note: Diary step for hosted API generated-wire test coverage
     - Path: proto/smailnail/annotationui/v1/annotation.proto
       Note: Diary step for phase-2 annotation UI contract expansion
+    - Path: proto/smailnail/app/v1/hosted.proto
+      Note: Diary step for hosted web API contract migration
     - Path: ui/src/mocks/handlers.ts
       Note: Diary records the mock/stories contract migration
 ExternalSources: []
@@ -28,6 +34,7 @@ LastUpdated: 2026-04-06T21:20:00Z
 WhatFor: Capture what was implemented, how generation was wired, what broke during validation, and how it was fixed.
 WhenToUse: Read this when reviewing or continuing the shared contract codegen work.
 ---
+
 
 
 
@@ -357,6 +364,82 @@ This step also opened the implementation path for the hosted web API (`/api/me`,
 - Start with:
   - `design-doc/02-repo-wide-wire-contract-unification-spec.md`
   - `tasks.md`
+
+## Step 6: Migrate the hosted web API to generated protobuf contracts
+
+With the repo-wide spec written, I moved on to the last major handwritten frontend/backend DTO surface used by the current UI: the hosted web API served from `pkg/smailnaild/http.go`. The target was to preserve the existing `data` + `meta` success envelope and `error` envelope in v1, but make those envelopes explicit protobuf contracts shared by Go and TypeScript.
+
+### What I did
+- Added `proto/smailnail/app/v1/hosted.proto`.
+- Added `pkg/smailnaild/generate.go` so the hosted API slice is also covered by the repo-local `go generate` workflow.
+- Generated:
+  - `pkg/gen/smailnail/app/v1/hosted.pb.go`
+  - `ui/src/gen/smailnail/app/v1/hosted.ts`
+- Added hosted mapper/helpers:
+  - `pkg/smailnaild/protojson.go`
+  - `pkg/smailnaild/contracts_hosted.go`
+- Migrated `pkg/smailnaild/http.go` to generated request/response types for:
+  - `/api/info`
+  - `/api/me`
+  - `/api/accounts/*`
+  - `/api/accounts/{id}/mailboxes`
+  - `/api/accounts/{id}/messages`
+  - `/api/rules/*`
+- Updated frontend hosted API usage:
+  - `ui/src/api/client.ts`
+  - `ui/src/api/types.ts`
+  - small compatibility fixes in `ui/src/features/accounts/TestResultView.tsx` and `ui/src/features/mailbox/mailboxSlice.ts`
+- Updated hosted tests:
+  - `pkg/smailnaild/http_test.go`
+  - `pkg/smailnaild/http_integration_test.go`
+
+### Why
+- The annotation UI was no longer the only API surface used by the frontend. The hosted web API still carried handwritten DTO drift risk.
+- Preserving the hosted `data` + `meta` envelope kept the migration compatible with the existing frontend flow while still moving the source of truth into protobuf.
+
+### What worked
+- The same pattern used in `annotationui` translated cleanly to `smailnaild`: generated contract messages at the transport edge, handwritten domain/service types below.
+- Explicit response-envelope messages solved the “protobuf has no nice generics” issue without changing the existing API contract shape.
+- The frontend could adopt generated hosted types with relatively small changes because the envelope shape stayed familiar.
+
+### What didn't work
+- The first pass exposed a few cleanup issues during validation:
+  - the old hosted JSON decode helpers became unused once handlers switched to `protojson`
+  - one test logged a generated proto struct by value, which tripped `govet`’s lock-copy warning
+  - the frontend still expected `detailsJson` in the account test result view even though the actual hosted service payload is a structured details object
+
+Fixes:
+- removed the unused JSON decode helpers
+- changed the test assertion to log scalar fields instead of copying the generated proto message
+- updated `TestResultView` to use `testResult.details`
+
+### What I learned
+- Once envelope conventions are made explicit in the schema, protobuf works just fine for JSON-over-HTTP APIs that are not RPC-shaped.
+- The hosted `data` + `meta` convention and the annotation `items` convention can coexist cleanly as long as each is documented and generated consistently.
+
+### What was tricky to build
+- The trickiest part was not the schema itself; it was carefully preserving the current hosted JSON contract while swapping the implementation underneath to generated protobuf types.
+- The second tricky part was keeping the frontend response wrappers ergonomic even though generated message fields often become optional at the TypeScript level.
+
+### What warrants a second pair of eyes
+- Whether the repository wants to eventually rename the repo-local generator command now that it covers more than the annotation UI.
+- Whether any future hosted endpoints should move to `items`-style wrappers, or whether `data` + `meta` should remain the stable hosted convention indefinitely.
+
+### What should be done in the future
+- If new hosted endpoints are added, they should start in `proto/smailnail/app/v1/` rather than adding new handwritten DTOs.
+- The next likely cleanup is consolidating genuinely shared response-envelope or database-info messages once the shapes settle.
+
+**Commit (hosted API slice):** `HostedAPI: add shared protobuf wire contracts`
+
+### Code review instructions
+- Start with:
+  - `proto/smailnail/app/v1/hosted.proto`
+  - `pkg/smailnaild/contracts_hosted.go`
+  - `pkg/smailnaild/protojson.go`
+  - `pkg/smailnaild/http.go`
+  - `ui/src/api/types.ts`
+  - `ui/src/api/client.ts`
+  - `pkg/smailnaild/http_test.go`
 
 ## Related
 

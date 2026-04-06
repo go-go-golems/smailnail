@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"io/fs"
 
+	appv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/app/v1"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
 	hostedauth "github.com/go-go-golems/smailnail/pkg/smailnaild/auth"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/identity"
@@ -68,13 +68,6 @@ type HandlerOptions struct {
 	PublicFS     fs.FS
 }
 
-type infoResponse struct {
-	Service   string       `json:"service"`
-	Version   string       `json:"version"`
-	StartedAt time.Time    `json:"startedAt"`
-	Database  DatabaseInfo `json:"database"`
-}
-
 type appHandler struct {
 	db           *sqlx.DB
 	dbInfo       DatabaseInfo
@@ -84,16 +77,6 @@ type appHandler struct {
 	accounts     AccountAPI
 	rules        RuleAPI
 	webAuth      hostedauth.WebHandler
-}
-
-type errorEnvelope struct {
-	Error apiError `json:"error"`
-}
-
-type apiError struct {
-	Code    string         `json:"code"`
-	Message string         `json:"message"`
-	Details map[string]any `json:"details,omitempty"`
 }
 
 func NewHTTPServer(options ServerOptions) *http.Server {
@@ -162,11 +145,11 @@ func (h *appHandler) registerHealthRoutes(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, infoResponse{
+		writeProtoJSON(w, http.StatusOK, &appv1.InfoResponse{
 			Service:   "smailnaild",
 			Version:   "dev",
-			StartedAt: h.startedAt,
-			Database:  h.dbInfo,
+			StartedAt: formatHostedProtoTime(h.startedAt),
+			Database:  databaseInfoToProto(h.dbInfo),
 		})
 	})
 	mux.HandleFunc("GET /api/me", h.handleGetMe)
@@ -212,7 +195,10 @@ func (h *appHandler) handleListAccounts(w http.ResponseWriter, r *http.Request) 
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, items, map[string]any{"count": len(items)})
+	writeProtoJSON(w, http.StatusOK, &appv1.ListAccountsResponse{
+		Data: accountsListToProto(items),
+		Meta: &appv1.ListAccountsMeta{Count: int32(len(items))},
+	})
 }
 
 func (h *appHandler) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
@@ -221,10 +207,11 @@ func (h *appHandler) handleCreateAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var input accounts.CreateInput
-	if !decodeJSONBody(w, r, &input) {
+	req := &appv1.CreateAccountRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
+	input := createAccountRequestToDomain(req)
 
 	userID, ok := h.requireUserID(w, r)
 	if !ok {
@@ -236,7 +223,7 @@ func (h *appHandler) handleCreateAccount(w http.ResponseWriter, r *http.Request)
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusCreated, account, nil)
+	writeProtoJSON(w, http.StatusCreated, &appv1.AccountResponse{Data: accountToProto(account)})
 }
 
 func (h *appHandler) handleGetAccount(w http.ResponseWriter, r *http.Request) {
@@ -250,14 +237,15 @@ func (h *appHandler) handleGetAccount(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, account, nil)
+	writeProtoJSON(w, http.StatusOK, &appv1.AccountResponse{Data: accountToProto(account)})
 }
 
 func (h *appHandler) handleUpdateAccount(w http.ResponseWriter, r *http.Request) {
-	var input accounts.UpdateInput
-	if !decodeJSONBody(w, r, &input) {
+	req := &appv1.UpdateAccountRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
+	input := updateAccountRequestToDomain(req)
 
 	userID, ok := h.requireUserID(w, r)
 	if !ok {
@@ -269,7 +257,7 @@ func (h *appHandler) handleUpdateAccount(w http.ResponseWriter, r *http.Request)
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, account, nil)
+	writeProtoJSON(w, http.StatusOK, &appv1.AccountResponse{Data: accountToProto(account)})
 }
 
 func (h *appHandler) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
@@ -286,10 +274,11 @@ func (h *appHandler) handleDeleteAccount(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *appHandler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
-	var input accounts.TestInput
-	if !decodeJSONBodyAllowEmpty(w, r, &input) {
+	req := &appv1.TestAccountRequest{}
+	if !decodeProtoJSONBodyAllowEmpty(w, r, req) {
 		return
 	}
+	input := testAccountRequestToDomain(req)
 
 	userID, ok := h.requireUserID(w, r)
 	if !ok {
@@ -301,7 +290,12 @@ func (h *appHandler) handleTestAccount(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, result, nil)
+	payload, err := testResultToProto(result)
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", err.Error(), nil)
+		return
+	}
+	writeProtoJSON(w, http.StatusOK, &appv1.TestAccountResponse{Data: payload})
 }
 
 func (h *appHandler) handleListMailboxes(w http.ResponseWriter, r *http.Request) {
@@ -315,15 +309,19 @@ func (h *appHandler) handleListMailboxes(w http.ResponseWriter, r *http.Request)
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, mailboxes, map[string]any{"count": len(mailboxes)})
+	writeProtoJSON(w, http.StatusOK, &appv1.ListMailboxesResponse{
+		Data: mailboxesToProto(mailboxes),
+		Meta: &appv1.ListMailboxesMeta{Count: int32(len(mailboxes))},
+	})
 }
 
 func (h *appHandler) handleListMessages(w http.ResponseWriter, r *http.Request) {
-	input, err := parseListMessagesInput(r)
+	req, err := parseListMessagesRequest(r)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, "invalid-query", err.Error(), nil)
 		return
 	}
+	input := listMessagesRequestToDomain(req)
 
 	userID, ok := h.requireUserID(w, r)
 	if !ok {
@@ -341,12 +339,15 @@ func (h *appHandler) handleListMessages(w http.ResponseWriter, r *http.Request) 
 		totalCount = int(messages[0].TotalCount)
 	}
 
-	writeDataJSON(w, http.StatusOK, messages, map[string]any{
-		"mailbox":    mailbox,
-		"count":      len(messages),
-		"limit":      effectiveLimit(input.Limit),
-		"offset":     max(input.Offset, 0),
-		"totalCount": totalCount,
+	writeProtoJSON(w, http.StatusOK, &appv1.ListMessagesResponse{
+		Data: messagesToProto(messages),
+		Meta: &appv1.ListMessagesMeta{
+			Mailbox:    mailbox,
+			Count:      int32(len(messages)),
+			Limit:      int32(effectiveLimit(input.Limit)),
+			Offset:     int32(max(input.Offset, 0)),
+			TotalCount: int32(totalCount),
+		},
 	})
 }
 
@@ -373,7 +374,10 @@ func (h *appHandler) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, message, map[string]any{"mailbox": mailbox})
+	writeProtoJSON(w, http.StatusOK, &appv1.GetMessageResponse{
+		Data: messageViewToProto(*message),
+		Meta: &appv1.GetMessageMeta{Mailbox: mailbox},
+	})
 }
 
 func (h *appHandler) handleListRules(w http.ResponseWriter, r *http.Request) {
@@ -387,14 +391,18 @@ func (h *appHandler) handleListRules(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, items, map[string]any{"count": len(items)})
+	writeProtoJSON(w, http.StatusOK, &appv1.ListRulesResponse{
+		Data: rulesToProto(items),
+		Meta: &appv1.ListRulesMeta{Count: int32(len(items))},
+	})
 }
 
 func (h *appHandler) handleCreateRule(w http.ResponseWriter, r *http.Request) {
-	var input rules.CreateInput
-	if !decodeJSONBody(w, r, &input) {
+	req := &appv1.CreateRuleRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
+	input := createRuleRequestToDomain(req)
 
 	userID, ok := h.requireUserID(w, r)
 	if !ok {
@@ -406,7 +414,7 @@ func (h *appHandler) handleCreateRule(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusCreated, record, nil)
+	writeProtoJSON(w, http.StatusCreated, &appv1.RuleResponse{Data: ruleRecordToProto(record)})
 }
 
 func (h *appHandler) handleGetRule(w http.ResponseWriter, r *http.Request) {
@@ -420,14 +428,15 @@ func (h *appHandler) handleGetRule(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, record, nil)
+	writeProtoJSON(w, http.StatusOK, &appv1.RuleResponse{Data: ruleRecordToProto(record)})
 }
 
 func (h *appHandler) handleUpdateRule(w http.ResponseWriter, r *http.Request) {
-	var input rules.UpdateInput
-	if !decodeJSONBody(w, r, &input) {
+	req := &appv1.UpdateRuleRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
+	input := updateRuleRequestToDomain(req)
 
 	userID, ok := h.requireUserID(w, r)
 	if !ok {
@@ -439,7 +448,7 @@ func (h *appHandler) handleUpdateRule(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, record, nil)
+	writeProtoJSON(w, http.StatusOK, &appv1.RuleResponse{Data: ruleRecordToProto(record)})
 }
 
 func (h *appHandler) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
@@ -456,10 +465,11 @@ func (h *appHandler) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *appHandler) handleDryRunRule(w http.ResponseWriter, r *http.Request) {
-	var input rules.DryRunInput
-	if !decodeJSONBodyAllowEmpty(w, r, &input) {
+	req := &appv1.DryRunRuleRequest{}
+	if !decodeProtoJSONBodyAllowEmpty(w, r, req) {
 		return
 	}
+	input := dryRunRuleRequestToDomain(req)
 
 	userID, ok := h.requireUserID(w, r)
 	if !ok {
@@ -471,7 +481,12 @@ func (h *appHandler) handleDryRunRule(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
-	writeDataJSON(w, http.StatusOK, result, nil)
+	payload, err := dryRunResultToProto(result)
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "internal-error", err.Error(), nil)
+		return
+	}
+	writeProtoJSON(w, http.StatusOK, &appv1.DryRunRuleResponse{Data: payload})
 }
 
 func (h *appHandler) writeServiceError(w http.ResponseWriter, err error) {
@@ -494,13 +509,13 @@ func (h *appHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.identityRepo == nil {
-		writeDataJSON(w, http.StatusOK, map[string]any{"id": userID}, nil)
+		writeProtoJSON(w, http.StatusOK, &appv1.CurrentUserResponse{Data: &appv1.CurrentUser{Id: userID}})
 		return
 	}
 
 	user, err := h.identityRepo.GetUserByID(r.Context(), userID)
 	if errors.Is(err, identity.ErrNotFound) {
-		writeDataJSON(w, http.StatusOK, map[string]any{"id": userID}, nil)
+		writeProtoJSON(w, http.StatusOK, &appv1.CurrentUserResponse{Data: &appv1.CurrentUser{Id: userID}})
 		return
 	}
 	if err != nil {
@@ -508,7 +523,7 @@ func (h *appHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeDataJSON(w, http.StatusOK, user, nil)
+	writeProtoJSON(w, http.StatusOK, &appv1.CurrentUserResponse{Data: currentUserToProto(user)})
 }
 
 func (h *appHandler) userID(r *http.Request) (string, error) {
@@ -590,25 +605,32 @@ func shouldSkipHostedRequestDebugLogging(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/readyz"
 }
 
-func parseListMessagesInput(r *http.Request) (accounts.ListMessagesInput, error) {
+func parseListMessagesRequest(r *http.Request) (*appv1.ListMessagesRequest, error) {
 	query := r.URL.Query()
 	limit, err := parseOptionalInt(query.Get("limit"), 20)
 	if err != nil {
-		return accounts.ListMessagesInput{}, fmt.Errorf("limit must be a valid integer")
+		return nil, fmt.Errorf("limit must be a valid integer")
 	}
 	offset, err := parseOptionalInt(query.Get("offset"), 0)
 	if err != nil {
-		return accounts.ListMessagesInput{}, fmt.Errorf("offset must be a valid integer")
+		return nil, fmt.Errorf("offset must be a valid integer")
 	}
 
-	return accounts.ListMessagesInput{
+	limit32 := int32(limit)
+	offset32 := int32(offset)
+	queryText := strings.TrimSpace(query.Get("query"))
+	contentType := strings.TrimSpace(query.Get("content_type"))
+	unreadOnly := parseBoolQuery(query.Get("unread_only"))
+	includeContent := parseBoolQuery(query.Get("include_content"))
+
+	return &appv1.ListMessagesRequest{
 		Mailbox:        strings.TrimSpace(query.Get("mailbox")),
-		Limit:          limit,
-		Offset:         offset,
-		Query:          strings.TrimSpace(query.Get("query")),
-		UnreadOnly:     parseBoolQuery(query.Get("unread_only")),
-		IncludeContent: parseBoolQuery(query.Get("include_content")),
-		ContentType:    strings.TrimSpace(query.Get("content_type")),
+		Limit:          &limit32,
+		Offset:         &offset32,
+		Query:          optionalStringPointer(queryText),
+		UnreadOnly:     &unreadOnly,
+		IncludeContent: &includeContent,
+		ContentType:    optionalStringPointer(contentType),
 	}, nil
 }
 
@@ -643,42 +665,6 @@ func effectiveLimit(limit int) int {
 	}
 }
 
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, target any) bool {
-	if r.Body == nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid-body", "Request body is required.", nil)
-		return false
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid-body", fmt.Sprintf("Invalid JSON body: %v", err), nil)
-		return false
-	}
-	return true
-}
-
-func decodeJSONBodyAllowEmpty(w http.ResponseWriter, r *http.Request, target any) bool {
-	if r.Body == nil {
-		return true
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		if errors.Is(err, context.Canceled) {
-			writeAPIError(w, http.StatusBadRequest, "invalid-body", "Request body could not be read.", nil)
-			return false
-		}
-		if errors.Is(err, io.EOF) {
-			return true
-		}
-		writeAPIError(w, http.StatusBadRequest, "invalid-body", fmt.Sprintf("Invalid JSON body: %v", err), nil)
-		return false
-	}
-	return true
-}
-
 func ShutdownServer(ctx context.Context, server *http.Server) error {
 	if server == nil {
 		return nil
@@ -692,20 +678,6 @@ func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func writeDataJSON(w http.ResponseWriter, statusCode int, data any, meta map[string]any) {
-	payload := map[string]any{"data": data}
-	if len(meta) > 0 {
-		payload["meta"] = meta
-	}
-	writeJSON(w, statusCode, payload)
-}
-
 func writeAPIError(w http.ResponseWriter, statusCode int, code, message string, details map[string]any) {
-	writeJSON(w, statusCode, errorEnvelope{
-		Error: apiError{
-			Code:    code,
-			Message: message,
-			Details: details,
-		},
-	})
+	writeProtoAPIError(w, statusCode, code, message, details)
 }

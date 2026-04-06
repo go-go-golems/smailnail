@@ -60,8 +60,7 @@ export const fetchMessages = createAsyncThunk(
       includeContent: true,
       contentType: "text/plain",
     });
-    const totalCount =
-      (res.meta?.["totalCount"] as number | undefined) ?? 0;
+    const totalCount = res.meta?.totalCount ?? 0;
     return { messages: res.data ?? [], totalCount, mailbox };
   },
 );

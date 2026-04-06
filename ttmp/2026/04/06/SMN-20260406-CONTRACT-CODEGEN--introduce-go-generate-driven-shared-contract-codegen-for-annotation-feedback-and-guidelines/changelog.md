@@ -20,3 +20,9 @@
 - Added `pkg/doc/annotationui-contract-codegen-playbook.md` as the operator/developer playbook for future protobuf contract additions
 - Added a repo-wide wire-contract unification specification covering all frontend/backend DTO surfaces and the hosted web API rollout plan
 - Updated the playbook with repo-wide response-envelope guidance (`items` vs `data` + `meta`) and hosted-API migration conventions
+- Added `proto/smailnail/app/v1/hosted.proto` for hosted web API info, identity, accounts, mailboxes/messages, rules, dry-run, and error envelopes
+- Added generated hosted API outputs under `pkg/gen/smailnail/app/v1/` and `ui/src/gen/smailnail/app/v1/`
+- Migrated `pkg/smailnaild/http.go` to generated hosted request/response contracts + `protojson`
+- Migrated `ui/src/api/client.ts` and `ui/src/api/types.ts` to generated hosted API contracts
+- Updated hosted HTTP tests and integration tests to decode generated wire shapes
+- Created focused follow-up commit `HostedAPI: add shared protobuf wire contracts`

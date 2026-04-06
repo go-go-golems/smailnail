@@ -1,0 +1,290 @@
+syntax = "proto3";
+
+package smailnail.app.v1;
+
+option go_package = "github.com/go-go-golems/smailnail/pkg/gen/smailnail/app/v1;appv1";
+
+import "google/protobuf/struct.proto";
+
+message DatabaseInfo {
+  string driver = 1;
+  string target = 2;
+  string mode = 3;
+}
+
+message InfoResponse {
+  string service = 1;
+  string version = 2;
+  string started_at = 3;
+  DatabaseInfo database = 4;
+}
+
+message ApiError {
+  string code = 1;
+  string message = 2;
+  google.protobuf.Struct details = 3;
+}
+
+message ErrorResponse {
+  ApiError error = 1;
+}
+
+message CurrentUser {
+  string id = 1;
+  optional string primary_email = 2;
+  optional string display_name = 3;
+  optional string avatar_url = 4;
+  optional string created_at = 5;
+  optional string updated_at = 6;
+}
+
+message CurrentUserResponse {
+  CurrentUser data = 1;
+}
+
+message Account {
+  string id = 1;
+  string user_id = 2;
+  string label = 3;
+  string provider_hint = 4;
+  string server = 5;
+  int32 port = 6;
+  string username = 7;
+  string mailbox_default = 8;
+  bool insecure = 9;
+  string auth_kind = 10;
+  string secret_key_id = 11;
+  bool is_default = 12;
+  bool mcp_enabled = 13;
+  string created_at = 14;
+  string updated_at = 15;
+}
+
+message LatestTestSummary {
+  bool success = 1;
+  optional string warning_code = 2;
+  optional string error_code = 3;
+  string created_at = 4;
+}
+
+message AccountListItem {
+  string id = 1;
+  string user_id = 2;
+  string label = 3;
+  string provider_hint = 4;
+  string server = 5;
+  int32 port = 6;
+  string username = 7;
+  string mailbox_default = 8;
+  bool insecure = 9;
+  string auth_kind = 10;
+  string secret_key_id = 11;
+  bool is_default = 12;
+  bool mcp_enabled = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  LatestTestSummary latest_test = 16;
+}
+
+message ListAccountsMeta {
+  int32 count = 1;
+}
+
+message ListAccountsResponse {
+  repeated AccountListItem data = 1;
+  ListAccountsMeta meta = 2;
+}
+
+message AccountResponse {
+  Account data = 1;
+}
+
+message CreateAccountRequest {
+  string label = 1;
+  string provider_hint = 2;
+  string server = 3;
+  int32 port = 4;
+  string username = 5;
+  string password = 6;
+  string mailbox_default = 7;
+  bool insecure = 8;
+  string auth_kind = 9;
+  bool is_default = 10;
+  bool mcp_enabled = 11;
+}
+
+message UpdateAccountRequest {
+  optional string label = 1;
+  optional string provider_hint = 2;
+  optional string server = 3;
+  optional int32 port = 4;
+  optional string username = 5;
+  optional string password = 6;
+  optional string mailbox_default = 7;
+  optional bool insecure = 8;
+  optional string auth_kind = 9;
+  optional bool is_default = 10;
+  optional bool mcp_enabled = 11;
+}
+
+message TestAccountRequest {
+  optional string mode = 1;
+}
+
+message TestResult {
+  string id = 1;
+  string imap_account_id = 2;
+  string test_mode = 3;
+  bool success = 4;
+  bool tcp_ok = 5;
+  bool login_ok = 6;
+  bool mailbox_select_ok = 7;
+  bool list_ok = 8;
+  bool sample_fetch_ok = 9;
+  optional bool write_probe_ok = 10;
+  optional string warning_code = 11;
+  optional string error_code = 12;
+  optional string error_message = 13;
+  google.protobuf.Struct details = 14;
+  string created_at = 15;
+}
+
+message TestAccountResponse {
+  TestResult data = 1;
+}
+
+message MailboxInfo {
+  string name = 1;
+  string path = 2;
+}
+
+message ListMailboxesMeta {
+  int32 count = 1;
+}
+
+message ListMailboxesResponse {
+  repeated MailboxInfo data = 1;
+  ListMailboxesMeta meta = 2;
+}
+
+message AddressView {
+  optional string name = 1;
+  string address = 2;
+}
+
+message MimePartView {
+  optional string type = 1;
+  optional string subtype = 2;
+  optional uint32 size = 3;
+  optional string content = 4;
+  optional string filename = 5;
+  optional string charset = 6;
+}
+
+message MessageView {
+  uint32 uid = 1;
+  uint32 seq_num = 2;
+  optional string subject = 3;
+  repeated AddressView from = 4;
+  repeated AddressView to = 5;
+  optional string date = 6;
+  repeated string flags = 7;
+  uint32 size = 8;
+  repeated MimePartView mime_parts = 9;
+  optional uint32 total_count = 10;
+}
+
+message ListMessagesRequest {
+  string mailbox = 1;
+  optional int32 limit = 2;
+  optional int32 offset = 3;
+  optional string query = 4;
+  optional bool unread_only = 5;
+  optional bool include_content = 6;
+  optional string content_type = 7;
+}
+
+message ListMessagesMeta {
+  string mailbox = 1;
+  int32 count = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+  int32 total_count = 5;
+}
+
+message ListMessagesResponse {
+  repeated MessageView data = 1;
+  ListMessagesMeta meta = 2;
+}
+
+message GetMessageMeta {
+  string mailbox = 1;
+}
+
+message GetMessageResponse {
+  MessageView data = 1;
+  GetMessageMeta meta = 2;
+}
+
+message RuleRecord {
+  string id = 1;
+  string user_id = 2;
+  string imap_account_id = 3;
+  string name = 4;
+  string description = 5;
+  string status = 6;
+  string source_kind = 7;
+  string rule_yaml = 8;
+  int32 last_preview_count = 9;
+  optional string last_run_at = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+message ListRulesMeta {
+  int32 count = 1;
+}
+
+message ListRulesResponse {
+  repeated RuleRecord data = 1;
+  ListRulesMeta meta = 2;
+}
+
+message RuleResponse {
+  RuleRecord data = 1;
+}
+
+message CreateRuleRequest {
+  string imap_account_id = 1;
+  string name = 2;
+  string description = 3;
+  string status = 4;
+  string source_kind = 5;
+  string rule_yaml = 6;
+}
+
+message UpdateRuleRequest {
+  optional string imap_account_id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional string status = 4;
+  optional string source_kind = 5;
+  optional string rule_yaml = 6;
+}
+
+message DryRunRuleRequest {
+  optional string imap_account_id = 1;
+}
+
+message DryRunResult {
+  string rule_id = 1;
+  string imap_account_id = 2;
+  int32 matched_count = 3;
+  google.protobuf.Struct action_plan = 4;
+  repeated MessageView sample_rows = 5;
+  string created_at = 6;
+}
+
+message DryRunRuleResponse {
+  DryRunResult data = 1;
+}

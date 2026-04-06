@@ -11,13 +11,28 @@ DocType: design-doc
 Intent: long-term
 Owners:
     - manuel
-RelatedFiles: []
+RelatedFiles:
+    - Path: pkg/doc/annotationui-contract-codegen-playbook.md
+      Note: Repo-wide playbook updated with hosted API envelope conventions
+    - Path: pkg/smailnaild/contracts_hosted.go
+      Note: Mapper helpers between hosted domain/service structs and generated protobuf wire types
+    - Path: pkg/smailnaild/http.go
+      Note: Hosted HTTP handlers migrated to generated protobuf wire contracts
+    - Path: pkg/smailnaild/protojson.go
+      Note: Hosted API protojson encode/decode helpers and typed error envelope writer
+    - Path: proto/smailnail/app/v1/hosted.proto
+      Note: Hosted web API contract schema for current user
+    - Path: ui/src/api/client.ts
+      Note: Frontend hosted API client updated to generated request/response contracts
+    - Path: ui/src/api/types.ts
+      Note: Frontend hosted API wrapper types derived from generated contracts
 ExternalSources: []
 Summary: Specify how all frontend/backend wire DTOs in smailnail should converge on protobuf-defined shared contracts, generated for Go and TypeScript, while keeping domain/storage structs handwritten.
 LastUpdated: 2026-04-06T22:40:00Z
 WhatFor: Provide the target architecture, conventions, rollout plan, and implementation scope for repo-wide DTO unification.
 WhenToUse: Read before extending shared contract codegen beyond the current annotation UI and hosted web API slices.
 ---
+
 
 # Repo-wide wire contract unification spec
 

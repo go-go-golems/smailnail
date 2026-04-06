@@ -13,9 +13,9 @@ Owners:
     - manuel
 RelatedFiles: []
 ExternalSources: []
-Summary: Implemented shared contract codegen for the annotation review feedback/guideline wire layer, driven by go generate and a repo-local Go generator command.
-LastUpdated: 2026-04-06T21:20:00Z
-WhatFor: Track the shared IDL/codegen implementation and resulting contract migration work.
+Summary: Implemented shared contract codegen for the annotation UI wire layer and the hosted web API wire layer, driven by go generate and repo-local generator entrypoints.
+LastUpdated: 2026-04-06T23:10:00Z
+WhatFor: Track the shared IDL/codegen implementation, repo-wide contract spec, and resulting migration work.
 WhenToUse: Start here to find the implementation plan, diary, task list, and validation notes.
 ---
 
@@ -23,7 +23,7 @@ WhenToUse: Start here to find the implementation plan, diary, task list, and val
 
 ## Overview
 
-This ticket implements a shared IDL and code generation pipeline for the annotation review feedback/guideline slice. The goal was to remove Go/TypeScript drift in the HTTP wire contract while keeping the current REST shape recognizable and integrating generation into the normal `go generate` workflow.
+This ticket implements a shared IDL and code generation pipeline first for the annotation UI wire layer and then for the hosted web API wire layer. The goal was to remove Go/TypeScript drift in the HTTP contract while keeping existing REST JSON shapes recognizable and integrating generation into the normal `go generate` workflow.
 
 ## Primary Documents
 
@@ -40,18 +40,21 @@ This ticket implements a shared IDL and code generation pipeline for the annotat
 - Backend migration to generated wire types: **done**
 - Frontend migration to generated wire types: **done**
 - Validation: **done**
-- Focused git commit: **done** (`AnnotationUI: add shared feedback contract codegen`)
+- Focused implementation commits: **done**
 
 ## Main Outcomes
 
 - Added protobuf IDL for feedback/guideline/review-action payloads
 - Added protobuf IDL for the rest of the annotation UI wire layer (annotations, groups, logs, runs, senders, info, query payloads)
+- Added protobuf IDL for the hosted web API (`/api/info`, `/api/me`, `/api/accounts/*`, `/api/rules/*`)
 - Added Go-command-driven `go generate` workflow for contract generation
-- Generated and committed Go + TS contract code
+- Generated and committed Go + TS contract code across both API surfaces
 - Standardized create-feedback payloads on `targets`
 - Standardized list endpoints across the annotation UI contract on wrapper responses with `items`
 - Switched backend feedback/guideline endpoints to generated wire types + `protojson`
 - Switched backend annotation/list/detail/query endpoints to generated wire types + `protojson`
 - Switched frontend type layer and RTK Query usage to generated contract types
+- Switched hosted frontend client/types to generated contract types
 - Updated mocks and stories to the same shared contract
+- Added a repo-wide wire-contract unification spec
 - Added a `pkg/doc` playbook for future contract-codegen work
