@@ -18,3 +18,5 @@
 - Migrated backend list/detail/query handlers to generated annotation contract types + `protojson`
 - Migrated frontend annotation types, RTK Query list unwrapping, and MSW mocks to the generated annotation contract
 - Added `pkg/doc/annotationui-contract-codegen-playbook.md` as the operator/developer playbook for future protobuf contract additions
+- Added a repo-wide wire-contract unification specification covering all frontend/backend DTO surfaces and the hosted web API rollout plan
+- Updated the playbook with repo-wide response-envelope guidance (`items` vs `data` + `meta`) and hosted-API migration conventions

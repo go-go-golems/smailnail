@@ -331,6 +331,33 @@ cd ui
 pnpm run check
 ```
 
+## Step 5: Specify the repo-wide target and start the hosted API contract migration
+
+After the annotation UI slice was in place, the remaining question was whether the same pattern should become the standard for the rest of the repo. I wrote a repo-wide specification answering that question: yes, but at the wire-contract boundary, not by replacing every internal struct with generated protobuf code.
+
+This step also opened the implementation path for the hosted web API (`/api/me`, `/api/accounts/*`, `/api/rules/*`), which was the last major handwritten frontend/backend DTO surface used by the current UI.
+
+### What I did
+- Added a repo-wide spec in `design-doc/02-repo-wide-wire-contract-unification-spec.md`.
+- Expanded the ticket task list with a hosted-API migration phase.
+- Planned the hosted-API schema around explicit generated response envelopes so the current `data` + `meta` shape can remain stable in v1.
+- Started the implementation batch for shared hosted contracts and the associated frontend/backend migration.
+
+### Why
+- Without a written spec, the repo would have multiple partial protobuf islands and no agreed long-term model.
+- The hosted web API is the main remaining handwritten DTO surface the current frontend still depends on.
+
+### What worked
+- The annotation UI work gave a clear template for how to do the next subsystem without re-litigating the architecture.
+
+### What was tricky to build
+- The hosted API uses a `data` + `meta` envelope rather than the annotation UI `items` convention, so the schema has to preserve that intentionally rather than flattening it away by accident.
+
+### Code review instructions
+- Start with:
+  - `design-doc/02-repo-wide-wire-contract-unification-spec.md`
+  - `tasks.md`
+
 ## Related
 
 - Design doc: `../design-doc/01-implementation-plan-for-shared-feedback-and-guideline-contract-codegen.md`

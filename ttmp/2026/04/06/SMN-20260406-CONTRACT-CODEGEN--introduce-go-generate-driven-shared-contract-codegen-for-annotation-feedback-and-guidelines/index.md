@@ -28,6 +28,7 @@ This ticket implements a shared IDL and code generation pipeline for the annotat
 ## Primary Documents
 
 - [Implementation plan](./design-doc/01-implementation-plan-for-shared-feedback-and-guideline-contract-codegen.md)
+- [Repo-wide wire contract unification spec](./design-doc/02-repo-wide-wire-contract-unification-spec.md)
 - [Diary](./reference/01-diary.md)
 - [Tasks](./tasks.md)
 - [Changelog](./changelog.md)

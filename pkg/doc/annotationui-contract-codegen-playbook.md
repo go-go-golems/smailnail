@@ -19,7 +19,7 @@ ShowPerDefault: true
 SectionType: Application
 ---
 
-This playbook explains how to add new annotation UI HTTP contracts to the shared protobuf code generation pipeline. The goal is not to replace repository or database structs wholesale. The goal is to make the wire layer explicit, generated, and shared between Go and TypeScript so that backend handlers, frontend RTK Query code, mocks, and tests stop drifting apart.
+This playbook explains how to add new HTTP wire contracts to the shared protobuf code generation pipeline used in smailnail. It started in the annotation UI, but the same workflow also applies to the hosted web API and future UI-visible wire surfaces. The goal is not to replace repository or database structs wholesale. The goal is to make the wire layer explicit, generated, and shared between Go and TypeScript so that backend handlers, frontend API code, mocks, and tests stop drifting apart.
 
 ## Why Use The Shared Contract Workflow
 
@@ -37,10 +37,19 @@ The protobuf + Buf + `go generate` workflow fixes that by giving the project one
 Use this workflow when you need to:
 
 - add a new annotation UI endpoint payload,
+- add a new hosted web API payload (`/api/me`, `/api/accounts/*`, `/api/rules/*`, etc.),
 - migrate an existing handwritten JSON DTO to generated code,
 - add a new list wrapper response with `items`,
+- add a hosted-API response envelope with `data` + `meta`,
 - add a new request body for a POST or PATCH endpoint,
-- extend the frontend types in `ui/src/types/*` without duplicating the raw contract shape.
+- extend frontend wrapper types without duplicating the raw contract shape.
+
+The project currently uses two response-envelope conventions:
+
+- annotation UI endpoints generally return wrapper responses with `items`
+- hosted web API endpoints generally return wrapper responses with `data` and optional `meta`
+
+Both conventions are acceptable as long as they are expressed explicitly in protobuf and preserved consistently through backend handlers, frontend clients, mocks, and tests.
 
 Do not use this workflow to:
 
@@ -133,7 +142,34 @@ That means:
 
 For example, this project intentionally standardized list endpoints around wrapper responses with `items`. Once that decision is made, update all consumers in the same change set rather than trying to carry both shapes indefinitely.
 
-## Step 4: Regenerate Go And TypeScript Types
+## Step 4: Choose The Right Response Envelope
+
+Before you regenerate code, decide which response-envelope convention the endpoint belongs to.
+
+Use `items` wrappers when you are working in the annotation UI family and the endpoint is already aligned with that style:
+
+```proto
+message AnnotationListResponse {
+  repeated Annotation items = 1;
+}
+```
+
+Use explicit `data` + `meta` wrappers when you are working in the hosted web API family and the frontend already expects that envelope:
+
+```proto
+message ListAccountsMeta {
+  int32 count = 1;
+}
+
+message ListAccountsResponse {
+  repeated AccountListItem data = 1;
+  ListAccountsMeta meta = 2;
+}
+```
+
+Do not silently flatten a long-standing hosted endpoint from `data` into bare arrays or `items` unless you are deliberately doing a breaking API migration and updating all callers in the same change.
+
+## Step 5: Regenerate Go And TypeScript Types
 
 After editing the proto files, regenerate everything through the repo-local workflow:
 
@@ -151,7 +187,7 @@ Generated outputs should land here:
 
 If you add `google.protobuf.Struct` or other well-known types, expect extra generated TypeScript support files such as `ui/src/gen/google/protobuf/struct.ts`.
 
-## Step 5: Update Backend Handler Mappers
+## Step 6: Update Backend Handler Mappers
 
 Generated messages should not leak straight into repository code. Add or extend mapper helpers in `pkg/annotationui/contracts_*.go`.
 
@@ -189,7 +225,7 @@ func annotateAnnotationToProto(annotation *annotate.Annotation) *annotationuiv1.
 
 The key idea is that protobuf belongs at the transport edge, not at the center of the application.
 
-## Step 6: Use `protojson` At The HTTP Boundary
+## Step 7: Use `protojson` At The HTTP Boundary
 
 When a handler reads or writes generated protobuf messages, use the shared helpers in `pkg/annotationui/protojson.go`.
 
@@ -219,7 +255,7 @@ writeProtoJSON(w, http.StatusOK, payload)
 
 For GET endpoints, parse query params manually and then map them into generated request/filter messages if that improves consistency.
 
-## Step 7: Update Frontend Wrapper Types Instead Of Re-Handwriting DTOs
+## Step 8: Update Frontend Wrapper Types Instead Of Re-Handwriting DTOs
 
 Do not scatter raw generated types through every React component unless they already fit perfectly. The preferred pattern in this repo is:
 
@@ -242,13 +278,14 @@ export type Annotation = Omit<GeneratedAnnotation, "sourceKind" | "reviewState">
 
 This is the right compromise when the wire contract says `string` but the UI benefits from narrower literal unions.
 
-## Step 8: Update RTK Query And Mock Handlers Together
+## Step 9: Update Frontend API Clients, RTK Query, And Mock Handlers Together
 
-Whenever a response shape changes, update these files in the same pass:
+Whenever a response shape changes, update the relevant frontend API layer in the same pass:
 
-- `ui/src/api/annotations.ts`
+- `ui/src/api/annotations.ts` for annotation UI RTK Query endpoints
+- `ui/src/api/client.ts` and `ui/src/api/types.ts` for the hosted web API
 - `ui/src/mocks/handlers.ts`
-- any stories or fixtures that bypass the RTK Query transform layer
+- any stories or fixtures that bypass the main API layer
 
 This matters especially for wrapper list responses. When the backend returns `{ items: [...] }`, the API layer should usually unwrap it with `transformResponse`, and the MSW mocks must return the same wrapper.
 
@@ -263,7 +300,7 @@ listAnnotations: builder.query<Annotation[], AnnotationFilter>({
 
 If you forget to update mocks, Storybook or local dev can continue “working” while production code and tests silently diverge.
 
-## Step 9: Add Or Update Backend Contract Tests
+## Step 10: Add Or Update Backend Contract Tests
 
 Every migrated endpoint should have a backend test that validates the generated contract shape. The current contract tests live in:
 
@@ -279,7 +316,7 @@ Good test targets include:
 - query endpoints with dynamic rows,
 - end-to-end artifact creation when a request fans out into feedback/guideline side effects.
 
-## Step 10: Validate The Whole Contract Loop
+## Step 11: Validate The Whole Contract Loop
 
 Run the full validation loop before committing:
 
@@ -295,7 +332,7 @@ pnpm run check
 
 If the repo hook runs broader checks on commit, let it. The explicit validation above gives you fast feedback, while the commit hook catches repo-wide fallout.
 
-## Step 11: Document The Migration
+## Step 12: Document The Migration
 
 When the contract surface changes, update the active ticket diary and changelog so future work can answer:
 
@@ -309,20 +346,20 @@ This is especially important when introducing wrapper responses or dynamic `Stru
 
 ## Recommended File Checklist
 
-For a typical annotation UI contract extension, expect to touch some subset of these files:
+For a typical contract extension, expect to touch some subset of these files:
 
 | Area | Typical Files |
 |------|---------------|
-| Schema | `proto/smailnail/annotationui/v1/*.proto` |
-| Generation | `buf.yaml`, `buf.gen.yaml`, `pkg/annotationui/generate.go` |
-| Go mappers | `pkg/annotationui/contracts_*.go` |
-| Go handlers | `pkg/annotationui/handlers_*.go`, `pkg/annotationui/server.go` |
-| Generated Go | `pkg/gen/smailnail/annotationui/v1/*.pb.go` |
-| TS wrappers | `ui/src/types/*.ts` |
-| TS API | `ui/src/api/annotations.ts` |
-| Generated TS | `ui/src/gen/smailnail/annotationui/v1/*.ts` |
+| Schema | `proto/smailnail/annotationui/v1/*.proto`, `proto/smailnail/app/v1/*.proto` |
+| Generation | `buf.yaml`, `buf.gen.yaml`, repo-local `go generate` entrypoints |
+| Go mappers | `pkg/annotationui/contracts_*.go`, `pkg/smailnaild/contracts_*.go` |
+| Go handlers | `pkg/annotationui/handlers_*.go`, `pkg/annotationui/server.go`, `pkg/smailnaild/http.go` |
+| Generated Go | `pkg/gen/smailnail/.../*.pb.go` |
+| TS wrappers | `ui/src/types/*.ts`, `ui/src/api/types.ts` |
+| TS API | `ui/src/api/annotations.ts`, `ui/src/api/client.ts` |
+| Generated TS | `ui/src/gen/smailnail/.../*.ts` |
 | Mocks/Stories | `ui/src/mocks/*.ts`, affected story files |
-| Validation | `pkg/annotationui/server_test.go` |
+| Validation | `pkg/annotationui/server_test.go`, `pkg/smailnaild/http_test.go`, integration tests as needed |
 
 ## Troubleshooting
 
@@ -341,5 +378,6 @@ For a typical annotation UI contract extension, expect to touch some subset of t
 - [Annotate And Query The Mirror SQLite DB](./annotate-sqlite-playbook.md) — operational playbook for the underlying annotation data model and CLI workflow.
 - `proto/smailnail/annotationui/v1/review.proto` — example of the first contract slice migrated to generated code.
 - `proto/smailnail/annotationui/v1/annotation.proto` — example of the broader annotation UI read/query contract slice.
+- `proto/smailnail/app/v1/*.proto` — hosted web API contract slices once that migration is in place.
 - `pkg/annotationui/protojson.go` — shared HTTP encode/decode helpers for generated protobuf JSON.
 - `pkg/annotationui/contracts_annotation.go` and `pkg/annotationui/contracts_review.go` — mapper pattern for keeping protobuf at the transport edge.
