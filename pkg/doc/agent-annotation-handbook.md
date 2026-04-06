@@ -40,7 +40,47 @@ This handbook tells agents how to produce clean, auditable annotation work in th
 
 The goal is that every piece of agent work is traceable: who did it, when, why, what it touched, and how to undo or extend it.
 
-## Before You Start: Generate An Agent Run ID
+## Phase 0: Prepare The Database
+
+Before you can annotate senders, the mirror database must have enriched sender and thread data. If the database was just synced, run enrichment first:
+
+```bash
+export DB=/path/to/mirror.sqlite
+
+smailnail enrich all --sqlite-path "$DB"
+```
+
+This produces three enrichment passes in sequence:
+
+1. **Senders** — normalizes sender emails from `from_summary`, populates the `senders` table with `email`, `display_name`, `domain`, `msg_count`
+2. **Threads** — reconstructs message threads from `In-Reply-To`/`References` headers, populates the `threads` table
+3. **Unsubscribe** — extracts `List-Unsubscribe` headers into `unsubscribe_mailto`, `unsubscribe_http`, `has_list_unsubscribe` on the `senders`
+
+After enrichment, verify the results:
+
+```bash
+sqlite3 "$DB" "
+SELECT
+  (SELECT COUNT(*) FROM senders) as sender_count,
+  (SELECT COUNT(*) FROM messages WHERE sender_email != '') as tagged_msgs,
+  (SELECT COUNT(*) FROM messages WHERE sender_email = '')as untagged_msgs,
+  (SELECT COUNT(*) FROM threads)as thread_count
+FROM senders LIMIT 1;
+"
+```
+
+### What to do with untagged messages
+
+Messages with empty `sender_email` cannot be annotated by sender. Log these as a finding. Common causes:
+
+- Bot senders with complex `From` headers that normalization misses (e.g., `chatgpt-codex-connector[bot] <notifications@github.com>`)
+- Legitimate senders with non-standard address formatting
+
+```bash
+sqlite3 "$DB" "SELECT id, subject, from_summary FROM messages WHERE sender_email = '' LIMIT 10;"
+```
+
+## Phase 1: Generate An Agent Run ID
 
 Every annotation session needs a unique `agent_run_id`. Generate it before your first write and pass it to every command in the session.
 
@@ -55,7 +95,76 @@ export CREATED_BY="pi-agent"
 
 Use these variables consistently in every command. Never leave `--agent-run-id` empty. If you forget, you lose the ability to query "what did this run do?" and your work becomes an orphaned mess in the database.
 
-## Step 1: Log The Run Start
+## Phase 2: Investigate Before Annotating
+
+Before writing any annotations, run investigation queries to understand the inbox composition. This phase produces the evidence that drives your classifications.
+
+### Essential investigation queries
+
+Run these in order and save findings as `note` log entries:
+
+```bash
+# 1. Overall stats
+sqlite3 "$DB" "
+SELECT COUNT(*) as total_msgs,
+       MIN(internal_date) as earliest,
+       MAX(internal_date) as latest
+FROM messages;
+"
+
+# 2. Top senders by volume
+sqlite3 "$DB" -column -header "
+SELECT email, display_name, domain, msg_count,
+       has_list_unsubscribe, first_seen_date, last_seen_date
+FROM senders
+ORDER BY msg_count DESC;
+"
+
+# 3. Domain distribution
+sqlite3 "$DB" -column -header "
+SELECT domain, COUNT(*) as sender_cnt, SUM(msg_count) as total_msgs
+FROM senders
+GROUP BY domain
+ORDER BY total_msgs DESC
+LIMIT 20;
+"
+
+# 4. Messages without sender_email
+sqlite3 "$DB" -column -header "
+SELECT id, subject, from_summary
+FROM messages
+WHERE sender_email = '';
+"
+
+# 5. Subject patterns (duplicates = bulk mail)
+sqlite3 "$DB" -column -header "
+SELECT subject, COUNT(*) as cnt
+FROM messages
+GROUP BY subject
+HAVING cnt > 1
+ORDER BY cnt DESC
+LIMIT 30;
+"
+```
+
+### Log findings as notes
+
+Record each interesting finding as a `note` log entry:
+
+```bash
+smailnail annotate log add \
+  --sqlite-path "$DB" \
+  --log-kind note \
+  --title "Finding: N messages have empty sender_email" \
+  --body "Description of what you found and why it matters." \
+  --source-kind agent \
+  --source-label "$SOURCE_LABEL" \
+  --agent-run-id "$AGENT_RUN_ID" \
+  --created-by "$CREATED_BY" \
+  --output json > /dev/null 2>&1
+```
+
+## Phase 3: Log The Run Start
 
 Before annotating anything, create a log entry that records what you are about to do, why, and what strategy you chose.
 
@@ -64,7 +173,7 @@ START_LOG_ID=$(smailnail annotate log add \
   --sqlite-path "$DB" \
   --log-kind decision \
   --title "Run started — triage batch" \
-  --body "Starting triage run for 23 unclassified senders. Using volume heuristics + content analysis. Will check message counts, List-Unsubscribe headers, subject line patterns, and body structure to classify each sender." \
+  --body "Starting triage run for N unclassified senders. Using volume heuristics + content analysis. Will check message counts, List-Unsubscribe headers, subject line patterns, and body structure to classify each sender." \
   --source-kind agent \
   --source-label "$SOURCE_LABEL" \
   --agent-run-id "$AGENT_RUN_ID" \
@@ -91,22 +200,73 @@ Use `--log-kind` to communicate intent:
 | `summary` | End-of-run summary with counts, outcomes, and what to review | 1 per run |
 | `note` | Observations during investigation — interesting findings, data quality issues, things that surprised you | As many as needed |
 
-## Step 2: Create Annotations With Full Metadata
+## Phase 4: Classify And Annotate Senders
 
-Every annotation must include all metadata fields. Never rely on defaults.
+This is the core work. For each sender, produce an annotation AND a reasoning log.
+
+### The annotate_sender helper function
+
+Define this shell function early in your session to avoid repetitive errors:
 
 ```bash
-smailnail annotate annotation add \
-  --sqlite-path "$DB" \
-  --target-type sender \
-  --target-id "news@techcrunch.com" \
-  --tag "newsletter" \
-  --note "Analyzed 47 messages from this sender. All have identical HTML structure with unsubscribe headers. Subject lines follow pattern: TechCrunch Daily - {date}. Classified as newsletter." \
-  --source-kind agent \
-  --source-label "$SOURCE_LABEL" \
-  --agent-run-id "$AGENT_RUN_ID" \
-  --created-by "$CREATED_BY" \
-  --output json > /dev/null 2>&1
+annotate_sender() {
+  local email="$1"
+  local tag="$2"
+  local note="$3"
+  local reasoning="$4"
+
+  # Idempotency check — always check before inserting
+  local existing
+  existing=$(sqlite3 "$DB" "SELECT COUNT(*) FROM annotations WHERE target_type='sender' AND target_id='$email' AND tag='$tag' AND agent_run_id='$AGENT_RUN_ID';")
+  if [ "$existing" -gt 0 ]; then
+    echo "SKIP: $email already has tag $tag"
+    return
+  fi
+
+  # Add annotation
+  smailnail annotate annotation add \
+    --sqlite-path "$DB" \
+    --target-type sender \
+    --target-id "$email" \
+    --tag "$tag" \
+    --note "$note" \
+    --source-kind agent \
+    --source-label "$SOURCE_LABEL" \
+    --agent-run-id "$AGENT_RUN_ID" \
+    --created-by "$CREATED_BY" \
+    --output json > /dev/null 2>&1
+
+  # Add reasoning log
+  local LOG_ID
+  LOG_ID=$(smailnail annotate log add \
+    --sqlite-path "$DB" \
+    --log-kind reasoning \
+    --title "Sender classification: $email" \
+    --body "$reasoning" \
+    --source-kind agent \
+    --source-label "$SOURCE_LABEL" \
+    --agent-run-id "$AGENT_RUN_ID" \
+    --created-by "$CREATED_BY" \
+    --select id)
+
+  # Link log to target — NEVER skip this step
+  smailnail annotate log link-target \
+    --sqlite-path "$DB" \
+    --log-id "$LOG_ID" \
+    --target-type sender \
+    --target-id "$email" \
+    --output json > /dev/null 2>&1
+
+  echo "OK: $email -> $tag"
+}
+```
+
+Usage:
+
+```bash
+annotate_sender "news@techcrunch.com" "newsletter/tech" \
+  "Analyzed 47 messages from this sender. All have identical HTML structure with unsubscribe headers." \
+  "47 messages. Identical HTML structure. Unsubscribe headers. Subject pattern: TechCrunch Daily - {date}. Classified as **newsletter/tech**."
 ```
 
 ### Required fields checklist
@@ -119,88 +279,24 @@ smailnail annotate annotation add \
 | `--note` | Your reasoning: what you observed, why you chose this tag, key evidence | Leave empty or write "classified" |
 | `--source-kind` | `agent` for automated work, `heuristic` for rule-based | Use `human` (that is for human-created annotations) |
 | `--source-label` | Your agent name and version, e.g., `triage-agent-v2` | Leave empty |
-| `--agent-run-id` | The run ID you generated in step 0 | Leave empty |
+| `--agent-run-id` | The run ID you generated in phase 1 | Leave empty |
 | `--created-by` | Your identity, e.g., `pi-agent` | Leave empty |
 
-### Writing good notes
+### Writing good notes and reasoning
 
-The note is the most important field for reviewers. Write it as if explaining your classification to a skeptical human who cannot see the raw data.
+The note is for the annotation row. The reasoning is for the timeline log. Both matter for reviewers.
 
-Good note:
-> Analyzed 47 messages from this sender. All have identical HTML structure with unsubscribe headers. Subject lines follow pattern: `TechCrunch Daily - {date}`. Classified as **newsletter**.
+Good reasoning:
+> 47 messages from this sender. All have identical HTML structure with unsubscribe headers. Subject lines follow pattern: `TechCrunch Daily - {date}`. Classified as **newsletter/tech**.
 
-Bad note:
+Bad reasoning:
 > newsletter
 
-Good note:
-> GitHub notifications sender. 312 messages in archive. Mix of PR reviews, issue updates, and CI notifications. Tagged as **notification** rather than bulk-sender because content is personalized.
+Good reasoning:
+> GitHub notifications sender. 312 messages in archive. Mix of PR reviews, issue updates, and CI notifications. Tagged as **work** because GitHub is a primary work tool.
 
-Bad note:
+Bad reasoning:
 > lots of github emails
-
-### Multiple tags on the same target
-
-You can and should add multiple annotations to the same target when it has multiple roles. Each annotation is its own row with its own review state.
-
-```bash
-# Kryzak is both a personal contact AND a lawyer
-smailnail annotate annotation add ... --target-id "kryzak@yahoo.com" --tag "personal" --note "..." ...
-smailnail annotate annotation add ... --target-id "kryzak@yahoo.com" --tag "important/legal" --note "..." ...
-```
-
-### Idempotency
-
-Before adding an annotation, check if one already exists with the same tag on the same target. Do not create duplicates.
-
-```bash
-existing=$(sqlite3 "$DB" "SELECT COUNT(*) FROM annotations WHERE target_type='sender' AND target_id='$email' AND tag='$tag';")
-if [ "$existing" -gt 0 ]; then
-  echo "SKIP: $email already has tag $tag"
-  return
-fi
-```
-
-## Step 3: Log Your Reasoning Per Target
-
-Create a reasoning log entry for **every target you classify**. This is the most important part of the handbook. Each reasoning entry appears in the annotation UI timeline with its timestamp, author badge, and log-kind chip — it is what makes agent work reviewable.
-
-```bash
-# Create the reasoning log
-LOG_ID=$(smailnail annotate log add \
-  --sqlite-path "$DB" \
-  --log-kind reasoning \
-  --title "Sender classification: news@techcrunch.com" \
-  --body "Analyzed 47 messages from this sender. All have identical HTML structure with unsubscribe headers. Subject lines follow pattern: \`TechCrunch Daily - {date}\`. Classified as **newsletter**." \
-  --source-kind agent \
-  --source-label "$SOURCE_LABEL" \
-  --agent-run-id "$AGENT_RUN_ID" \
-  --created-by "$CREATED_BY" \
-  --select id)
-
-# Link to the target — NEVER skip this step
-smailnail annotate log link-target \
-  --sqlite-path "$DB" \
-  --log-id "$LOG_ID" \
-  --target-type sender \
-  --target-id "news@techcrunch.com" \
-  --output json > /dev/null 2>&1
-```
-
-### The default is one reasoning log per target
-
-This is not optional. Every sender, domain, or message you annotate should have a reasoning log linked to it. The reviewer sees a timeline like:
-
-```
-06:29:00  [decision]  Run started — triage batch             🤖 triage-agent-v2
-06:30:00  [reasoning] Sender classification: news@tc.com     🤖 triage-agent-v2
-06:31:00  [reasoning] Sender classification: noreply@gh.com  🤖 triage-agent-v2
-06:32:00  [reasoning] Sender classification: promo@x.com     🤖 triage-agent-v2
-06:40:00  [summary]   Run complete — 23 senders classified   🤖 triage-agent-v2
-```
-
-Without per-target reasoning entries, the timeline is just two bookend entries and the reviewer has no idea why any individual classification was made.
-
-### What to include in reasoning logs
 
 Every reasoning log body should contain:
 
@@ -209,17 +305,15 @@ Every reasoning log body should contain:
 3. **Your classification** — the tag you chose, bolded
 4. **Why this tag and not another** — especially for borderline cases
 
-Examples of good reasoning:
+### Multiple tags on the same target
 
-> Analyzed 47 messages from this sender. All have identical HTML structure with unsubscribe headers. Subject lines follow pattern: `TechCrunch Daily - {date}`. Classified as **newsletter**.
+You can and should add multiple annotations to the same target when it has multiple roles. Each annotation is its own row with its own review state.
 
-> GitHub notifications sender. 312 messages in archive. Mix of PR reviews, issue updates, and CI notifications. Tagged as **notification** rather than bulk-sender because content is personalized.
-
-> Only 3 messages from this sender, all with personal greetings and unique content. Last message was a reply to Manuel's email about camera repair. Classified as **personal**.
-
-> CPA firm — David Miller. 11 messages about 2024 tax returns, stock option exercise questions, invoices via QuickBooks. Tagged as **important/tax** because tax correspondence has real deadlines and financial consequences.
-
-> 55 messages from various senders at costsoldier.com. All subjects are B2B software marketing ("QuickBooks alternatives", "The Ultimate Contractor Software"). No legitimate business relationship. Tagged as **noise/spam**.
+```bash
+# Kryzak is both a personal contact AND a lawyer
+annotate_sender "kryzak@yahoo.com" "personal" "..." "Personal contact — real human, personal correspondence. Classified as **personal**."
+annotate_sender "kryzak@yahoo.com" "important/legal" "..." "Lawyer. Legal correspondence with deadlines. Classified as **important/legal**."
+```
 
 ### Batch reasoning for obvious groups
 
@@ -230,15 +324,29 @@ BATCH_LOG_ID=$(smailnail annotate log add \
   --sqlite-path "$DB" \
   --log-kind reasoning \
   --title "Batch classification: costsoldier.com — 14 senders" \
-  --body "All 14 senders at costsoldier.com send B2B software marketing spam. Same domain, same subject patterns (\`QuickBooks\`, \`Netsuite\`, \`Payroll\`), no business relationship. Classified all as **noise/spam**." \
+  --body "All 14 senders at costsoldier.com send B2B software marketing spam. Same domain, same subject patterns, no business relationship. Classified all as **noise/spam**." \
   --source-kind agent \
   --source-label "$SOURCE_LABEL" \
   --agent-run-id "$AGENT_RUN_ID" \
   --created-by "$CREATED_BY" \
   --select id)
 
-# Link to ALL senders in the batch
-for email in concur@costsoldier.com netsuite@costsoldier.com payroll@costsoldier.com ...; do
+# Create annotations individually, but link ONE reasoning log to ALL senders
+for email in concur@costsoldier.com netsuite@costsoldier.com payroll@costsoldier.com; do
+  # Create annotation per sender
+  smailnail annotate annotation add \
+    --sqlite-path "$DB" \
+    --target-type sender \
+    --target-id "$email" \
+    --tag "noise/spam" \
+    --note "B2B marketing spam from costsoldier.com" \
+    --source-kind agent \
+    --source-label "$SOURCE_LABEL" \
+    --agent-run-id "$AGENT_RUN_ID" \
+    --created-by "$CREATED_BY" \
+    --output json > /dev/null 2>&1
+
+  # Link shared reasoning to each sender
   smailnail annotate log link-target \
     --sqlite-path "$DB" \
     --log-id "$BATCH_LOG_ID" \
@@ -250,36 +358,6 @@ done
 
 But use batch reasoning only when the evidence genuinely is the same for all targets. If you had to think differently about any target in the batch, give it its own reasoning log.
 
-### Investigation notes along the way
-
-During your investigation (before you start annotating), log interesting findings as `note` entries. These are valuable context for reviewers even if they do not directly produce annotations.
-
-```bash
-smailnail annotate log add \
-  --sqlite-path "$DB" \
-  --log-kind note \
-  --title "Finding: 1,523 messages have empty sender_email" \
-  --body "All 1,523 empty-sender messages are from chatgpt-codex-connector[bot] via GitHub notifications. The from_summary shows the sender but sender normalization did not extract an email. These messages cannot be annotated by sender — would need message-level or thread-level annotations." \
-  --source-kind agent \
-  --source-label "$SOURCE_LABEL" \
-  --agent-run-id "$AGENT_RUN_ID" \
-  --created-by "$CREATED_BY" \
-  --output json > /dev/null 2>&1
-```
-
-```bash
-smailnail annotate log add \
-  --sqlite-path "$DB" \
-  --log-kind note \
-  --title "Finding: GitHub CI failures are 12% of entire inbox" \
-  --body "4,003 messages match subject patterns 'PR run failed' or 'Run failed'. This is the single largest noise category and a strong candidate for Sieve filtering at the IMAP level." \
-  --source-kind agent \
-  --source-label "$SOURCE_LABEL" \
-  --agent-run-id "$AGENT_RUN_ID" \
-  --created-by "$CREATED_BY" \
-  --output json > /dev/null 2>&1
-```
-
 ### Decision logs when you change strategy mid-run
 
 If you discover something during the run that changes your approach, log it as a `decision`:
@@ -289,7 +367,7 @@ smailnail annotate log add \
   --sqlite-path "$DB" \
   --log-kind decision \
   --title "Strategy change: adding important/* tags on top of base categories" \
-  --body "Realized that volume-based triage misses high-consequence senders. A CPA sending 11 messages is low-volume but critical. Adding a second pass with important/* tags for tax, legal, equity, housing, health, and conference senders. These will be added as additional annotations alongside the base category tags." \
+  --body "Realized that volume-based triage misses high-consequence senders. A CPA sending 11 messages is low-volume but critical. Adding a second pass with important/* tags for tax, legal, equity, housing, health, and conference senders." \
   --source-kind agent \
   --source-label "$SOURCE_LABEL" \
   --agent-run-id "$AGENT_RUN_ID" \
@@ -297,7 +375,7 @@ smailnail annotate log add \
   --output json > /dev/null 2>&1
 ```
 
-## Step 4: Create Groups For Review Clusters
+## Phase 5: Create Groups For Review Clusters
 
 When you identify a set of targets that belong together for review, create a group. Always include `--agent-run-id`.
 
@@ -313,61 +391,66 @@ GROUP_ID=$(smailnail annotate group create \
   --select id)
 ```
 
-Then add targets. **Important:** capture the group ID cleanly. Do not let `echo` output contaminate the variable.
+**Important:** capture the group ID cleanly with `--select id`. Do not let `echo` output contaminate the variable.
+
+Add members programmatically:
 
 ```bash
-# CORRECT: use --select id to get just the UUID
-GROUP_ID=$(smailnail annotate group create ... --select id)
-
-# WRONG: parsing from table output will include echo noise
-GROUP_ID=$(smailnail annotate group create ...)  # includes table headers
+# Example: add all noise/* senders that have unsubscribe headers
+sqlite3 "$DB" "
+SELECT DISTINCT s.email
+FROM senders s
+JOIN annotations a ON a.target_id = s.email AND a.target_type = 'sender'
+WHERE s.has_list_unsubscribe = 1
+  AND a.tag LIKE 'noise/%'
+  AND a.agent_run_id = '$AGENT_RUN_ID';
+" | while read -r email; do
+  smailnail annotate group add-target \
+    --sqlite-path "$DB" \
+    --group-id "$GROUP_ID" \
+    --target-type sender \
+    --target-id "$email" \
+    --output json > /dev/null 2>&1
+done
 ```
 
-Add members:
-
-```bash
-smailnail annotate group add-target \
-  --sqlite-path "$DB" \
-  --group-id "$GROUP_ID" \
-  --target-type sender \
-  --target-id "news@techcrunch.com" \
-  --output json > /dev/null 2>&1
-```
-
-## Step 5: Log The Run Completion
+## Phase 6: Log The Run Completion
 
 After all annotations are created, log a summary with counts, outcomes, and anything the reviewer should pay attention to. Link it to all targets processed in the run.
 
 ```bash
+# Get tag counts for the summary body
+sqlite3 "$DB" -column -header "
+SELECT tag, COUNT(*) as cnt FROM annotations
+WHERE agent_run_id = '$AGENT_RUN_ID'
+GROUP BY tag ORDER BY cnt DESC;
+"
+
 SUMMARY_LOG_ID=$(smailnail annotate log add \
   --sqlite-path "$DB" \
   --log-kind summary \
-  --title "Run complete — 23 senders classified" \
-  --body "Classified 23 senders:
-- 8 newsletters
-- 6 notifications
-- 5 bulk-sender
-- 3 transactional
-- 1 important
+  --title "Run complete — N senders classified" \
+  --body "Classified N senders:
+- tag1: X senders
+- tag2: Y senders
+...
 
 All annotations created with review_state=to_review.
 
 **Needs human attention:**
-- dave@davemillercpa.com has a past-due invoice from Dec 2025
-- kryzaklaw@yahoo.com — separation agreement may need follow-up
+- specific items that need review
 
 **Data quality issues found:**
-- 1,523 messages have empty sender_email (all GitHub bot notifications)
-- Experian alerts tagged financial but are mostly marketing
+- messages with empty sender_email
 
-**Created 1 group:** Unsubscribe Candidates (86 members)" \
+**Created groups:** Group Name (N members)" \
   --source-kind agent \
   --source-label "$SOURCE_LABEL" \
   --agent-run-id "$AGENT_RUN_ID" \
   --created-by "$CREATED_BY" \
   --select id)
 
-# Link to ALL targets processed in this run — not just representative ones
+# Link to ALL targets processed in this run
 sqlite3 "$DB" "
 SELECT DISTINCT target_id FROM annotations
 WHERE agent_run_id = '$AGENT_RUN_ID' AND target_type = 'sender';" | while read -r email; do
@@ -378,6 +461,14 @@ WHERE agent_run_id = '$AGENT_RUN_ID' AND target_type = 'sender';" | while read -
     --target-id "$email" \
     --output json > /dev/null 2>&1
 done
+
+# Also link to the account
+smailnail annotate log link-target \
+  --sqlite-path "$DB" \
+  --log-id "$SUMMARY_LOG_ID" \
+  --target-type account \
+  --target-id manuel \
+  --output json > /dev/null 2>&1
 ```
 
 The summary body should include:
@@ -386,70 +477,79 @@ The summary body should include:
 2. **Items needing human attention** — anything time-sensitive or ambiguous
 3. **Data quality issues** — things you noticed but could not fix
 4. **Groups created** — what review clusters exist
-5. **What was NOT classified** — targets you skipped and why (e.g., "skipped 8,767 messages from senders with <10 messages")
+5. **What was NOT classified** — targets you skipped and why (e.g., "skipped messages with empty sender_email")
+
+## Phase 7: Verify The Run
+
+After your run, verify it looks correct. Run all four verification queries:
+
+```bash
+echo "=== Tag counts ==="
+sqlite3 "$DB" -column -header "
+SELECT tag, COUNT(*) as cnt FROM annotations
+WHERE agent_run_id = '$AGENT_RUN_ID'
+GROUP BY tag ORDER BY cnt DESC;"
+
+echo "=== Log entries ==="
+sqlite3 "$DB" -column -header "
+SELECT log_kind, COUNT(*) as cnt FROM annotation_logs
+WHERE agent_run_id = '$AGENT_RUN_ID'
+GROUP BY log_kind ORDER BY cnt DESC;"
+
+echo "=== Any logs with zero links? (must be empty) ==="
+sqlite3 "$DB" -column -header "
+SELECT l.id, l.title FROM annotation_logs l
+WHERE l.agent_run_id = '$AGENT_RUN_ID'
+  AND NOT EXISTS (SELECT 1 FROM annotation_log_targets lt WHERE lt.log_id = l.id);"
+
+echo "=== Group membership ==="
+sqlite3 "$DB" -column -header "
+SELECT g.name, COUNT(gm.target_id) as member_count
+FROM target_groups g
+LEFT JOIN target_group_members gm ON gm.group_id = g.id
+WHERE g.agent_run_id = '$AGENT_RUN_ID'
+GROUP BY g.id;"
+```
+
+Expected verification results:
+- Tag counts: should show all categories you classified
+- Log entries: should show ~4 log kinds (decision, note, reasoning, summary) with reasoning count matching annotation count
+- Zero-link logs: **must be empty** — if any appear, link them to targets immediately
+- Group membership: should show created groups with expected member counts
 
 ## The Complete Agent Run Structure
 
-A well-formed agent run produces a dense, reviewable timeline in the database. For a run that classifies 23 senders, you should see roughly 28+ log entries:
+A well-formed agent run produces a dense, reviewable timeline in the database. For a run that classifies 91 senders, you should see roughly 95+ log entries:
 
 ```
 Agent Run: triage-agent-v2-20260403
 │
 ├── Log [decision]: "Run started — triage batch"
-│   body: "Starting triage run for 23 unclassified senders. Using volume
+│   body: "Starting triage run for 91 unclassified senders. Using volume
 │          heuristics + content analysis."
 │   └── linked to: account:manuel
 │
-├── Log [note]: "Finding: 48% of inbox is automated noise"
-│   body: "GitHub CI failures alone are 4,003 messages (12%). Newsletters
-│          are 11%. Commerce/transactional 6%."
+├── Log [note]: "Finding: 23 messages have empty sender_email"
+     body: "All are from chatgpt-codex-connector[bot]. Cannot annotate by sender."
 │   └── linked to: account:manuel
 │
-├── Annotation: sender:news@techcrunch.com → tag:newsletter
-│   └── Log [reasoning]: "Sender classification: news@techcrunch.com"
-│       body: "47 messages. Identical HTML structure. Unsubscribe headers.
-│              Subject pattern: TechCrunch Daily - {date}. → newsletter."
-│       └── linked to: sender:news@techcrunch.com
+├── Annotation: sender:notifications@github.com → tag:work
+│   └── Log [reasoning]: "Sender classification: notifications@github.com"
+│       body: "234 messages (58.5% of total). All GitHub notifications.
+│              Tagged as **work** because GitHub is a primary work tool."
+│       └── linked to: sender:notifications@github.com
 │
-├── Annotation: sender:noreply@github.com → tag:notification
-│   └── Log [reasoning]: "Sender classification: noreply@github.com"
-│       body: "312 messages. Mix of PR reviews, issue updates, CI. Tagged
-│              notification not bulk-sender — content is personalized."
-│       └── linked to: sender:noreply@github.com
+├── ... (one reasoning log per sender) ...
 │
-├── Annotations: 14 senders at costsoldier.com → tag:noise/spam
-│   └── Log [reasoning]: "Batch classification: costsoldier.com — 14 senders"
-│       body: "All B2B software marketing spam. Same patterns."
-│       └── linked to: all 14 senders at costsoldier.com
+├── Group: "Unsubscribe Candidates" (15 members)
+│   └── linked to: all 15 noise/* senders with List-Unsubscribe
 │
-├── Log [decision]: "Strategy change: adding important/* tags"
-│   body: "Realized volume-based triage misses high-consequence senders.
-│          Adding second pass with important/* for tax, legal, equity."
-│   └── linked to: account:manuel
-│
-├── Annotation: sender:dave@davemillercpa.com → tag:important/tax
-│   └── Log [reasoning]: "Sender classification: dave@davemillercpa.com"
-│       body: "CPA firm. 11 messages about 2024 tax returns, stock option
-│              exercise questions. Invoices via QuickBooks. Past-due invoice
-│              from Dec 2025. → important/tax."
-│       └── linked to: sender:dave@davemillercpa.com
-│
-├── Group: "Unsubscribe Candidates" (86 members)
-│   └── Log [reasoning]: "Group creation: Unsubscribe Candidates"
-│       body: "Created group of 86 noise senders that have List-Unsubscribe
-│              headers. All tagged noise/*. Ready for human review before
-│              actually unsubscribing."
-│       └── linked to: all 86 members
-│
-└── Log [summary]: "Run complete — 23 senders classified"
-    body: "Classified 23 senders:
-           • 8 newsletters
-           • 6 notifications
-           • 5 bulk-sender
-           • 3 transactional
-           • 1 important
-           All annotations created with review_state=to_review."
-    └── linked to: all 23 senders
+└── Log [summary]: "Run complete — 91 senders classified"
+    body: "Classified 91 senders:
+           • noise/marketing: 16
+ services: 15, community: 13
+ newsletter/tech: 11. ..."
+    └── linked to: all 91 senders + account:manuel
 ```
 
 The rule of thumb: **if you made a decision or observed something interesting, it should be a log entry**. A reviewer scrolling the timeline should be able to reconstruct your entire reasoning process without looking at any external notes.
@@ -459,7 +559,7 @@ Every row has the same `agent_run_id`, `source_label`, and `created_by`. A revie
 ```sql
 -- Full timeline for this run
 SELECT l.created_at, l.log_kind, l.title, l.body_markdown
-FROM annotation_logs l
+ FROM annotation_logs l
 WHERE l.agent_run_id = 'triage-agent-v2-20260403'
 ORDER BY l.created_at;
 
@@ -470,39 +570,11 @@ GROUP BY tag ORDER BY COUNT(*) DESC;
 
 -- What does a specific target's timeline look like?
 SELECT l.created_at, l.log_kind, l.title, l.body_markdown
-FROM annotation_logs l
+ FROM annotation_logs l
 JOIN annotation_log_targets lt ON lt.log_id = l.id
 WHERE lt.target_type = 'sender'
-  AND lt.target_id = 'dave@davemillercpa.com'
+  AND lt.target_id = 'notifications@github.com'
 ORDER BY l.created_at;
-```
-
-## Querying Your Own Run
-
-After your run, verify it looks correct:
-
-```sql
--- What did this run create?
-SELECT tag, COUNT(*) as cnt FROM annotations
-WHERE agent_run_id = 'triage-agent-v2-20260403'
-GROUP BY tag ORDER BY cnt DESC;
-
--- What logs were written?
-SELECT id, log_kind, title, created_at FROM annotation_logs
-WHERE agent_run_id = 'triage-agent-v2-20260403'
-ORDER BY created_at;
-
--- Are all logs linked to targets?
-SELECT l.title, COUNT(lt.target_id) as linked_targets
-FROM annotation_logs l
-LEFT JOIN annotation_log_targets lt ON lt.log_id = l.id
-WHERE l.agent_run_id = 'triage-agent-v2-20260403'
-GROUP BY l.id;
-
--- Any logs with zero links? (bad — fix these)
-SELECT l.id, l.title FROM annotation_logs l
-WHERE l.agent_run_id = 'triage-agent-v2-20260403'
-  AND NOT EXISTS (SELECT 1 FROM annotation_log_targets lt WHERE lt.log_id = l.id);
 ```
 
 ## Tag Taxonomy
@@ -515,14 +587,14 @@ Use the established tag hierarchy. Do not invent new top-level categories withou
 | `noise/marketing` | Marketing, sales, promotions |
 | `noise/transactional` | Order confirmations, shipping, receipts |
 | `noise/social-notif` | Social platform notifications |
-| `noise/spam` | Outright junk |
+| `noise/spam` | Outright junk, unsolicited cold outreach |
 | `newsletter/tech` | Tech newsletters worth reading |
 | `newsletter/culture` | Non-tech culture newsletters |
 | `newsletter/creative` | Music, photography, film, art |
 | `personal` | Real humans writing directly |
 | `work` | Work-related (employer, work tools) |
 | `community` | Mailing lists, hackerspaces, meetups |
-| `financial` | Banking, payments, credit |
+| `financial` | Banking, payments, credit, billing |
 | `services` | Services the user uses (hosting, apps, etc.) |
 | `hobby` | Personal interests (3D printing, gaming, fitness) |
 | `important/tax` | Tax/CPA correspondence |
@@ -534,6 +606,34 @@ Use the established tag hierarchy. Do not invent new top-level categories withou
 | `important/conferences` | Conference invitations, CFPs, speaking |
 
 If you need a new tag, document it in the summary log with a clear definition and examples.
+
+### Classification decision guide
+
+When classifying a sender, use these signals in priority order:
+
+1. **Is it a real human writing to Manuel personally?** → `personal` (look for personal greetings, replies to Manuel's emails, unique content)
+2. **Is it work tooling/infrastructure?** → `work` (GitHub, Slack, Rollbar, CI systems the user actively uses for work)
+3. **Does it have financial/legal/tax consequences?** → `important/*` or `financial` (CPA, lawyer, bank, payment processor, billing)
+4. **Is it a service Manuel actively uses?** → `services` (hosting providers, app subscriptions, domain registrars, tools with active accounts)
+5. **Is it a community/mailing list Manuel participates in?** → `community` (mailing lists with `pro-leave` in unsubscribe, hackerspaces, meetups, professional groups)
+6. **Is it a hobby/interest?** → `hobby` (fitness, gaming, photography galleries, maker spaces)
+7. **Is it a newsletter Manuel subscribed to?** → `newsletter/*` (has List-Unsubscribe, consistent format, regular cadence)
+8. **Is it automated noise?** → `noise/*`:
+   - `noise/social-notif` — social platform notifications (Facebook, Instagram, Twitch, SoundCloud)
+   - `noise/marketing` — B2B outreach, retail promos, product announcements
+   - `noise/transactional` — order confirmations, shipping updates
+   - `noise/ci` — CI/build failure notifications
+   - `noise/spam` — outright junk, unsolicited email from unknown senders
+
+**Borderline cases:**
+
+| Sender type | Tag as | Not |
+|---|---|---|
+| Credit monitoring service (Experian) | `financial` | `noise/marketing` (even if some messages are marketing, the service has financial relevance) |
+| Photography gallery announcements | `hobby` | `newsletter/creative` (it's a personal interest, not a newsletter) |
+| Event platform (Meetup) for a tech group | `community` | `noise/social-notif` (the user chose to join the group) |
+| Amazon order confirmation | `noise/transactional` | `services` (the user doesn't need to track these) |
+| Notification from a service the user pays for | `services` | `noise/*` (active paid service) |
 
 ## Saving Investigation Queries
 
@@ -548,7 +648,7 @@ Name pattern: `{NN}-{verb}-{what}.{sql|sh}`
 
 Examples:
 - `09-investigate-schema.sql`
-- `15-investigate-recent-messages.sql`
+- `15-investigate-top-senders.sql`
 - `30-investigate-tax-emails.sql`
 - `01-categorize-noise-senders.sh`
 
@@ -564,6 +664,8 @@ This creates a full audit trail that a human (or future agent) can replay step b
 | Duplicate annotations on same target+tag | Missing idempotency check | Always check before inserting: `SELECT COUNT(*) FROM annotations WHERE target_type=? AND target_id=? AND tag=?` |
 | Review state is `reviewed` instead of `to_review` for agent work | Used `--source-kind human` or defaulted | Always use `--source-kind agent` for automated work; the system defaults agent rows to `to_review` |
 | Cannot query run because multiple runs share the same run ID | Reused the run ID across sessions | Always include the date (and sequence number if needed) in the run ID |
+| `sqlite-path is required` but you passed the flag | Embedded struct fields not decoded by glazed | Check that settings structs use direct fields with `glazed` tags, not embedded anonymous structs |
+| Senders table is empty | Enrichment was not run | Run `smailnail enrich all --sqlite-path "$DB"` before annotating |
 
 ## See Also
 

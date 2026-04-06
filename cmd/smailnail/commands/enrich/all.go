@@ -20,7 +20,11 @@ type AllCommand struct {
 }
 
 type allSettings struct {
-	enrichSettings
+	SQLitePath string `glazed:"sqlite-path"`
+	AccountKey string `glazed:"account-key"`
+	Mailbox    string `glazed:"mailbox"`
+	Rebuild    bool   `glazed:"rebuild"`
+	DryRun     bool   `glazed:"dry-run"`
 }
 
 func NewAllCommand() (*AllCommand, error) {
@@ -62,7 +66,13 @@ func (c *AllCommand) RunIntoGlazeProcessor(ctx context.Context, parsedValues *va
 		return err
 	}
 
-	report, err := enrichpkg.RunAll(ctx, settings.SQLitePath, toOptions(settings.enrichSettings))
+	report, err := enrichpkg.RunAll(ctx, settings.SQLitePath, toOptions(enrichSettings{
+		SQLitePath: settings.SQLitePath,
+		AccountKey: settings.AccountKey,
+		Mailbox:    settings.Mailbox,
+		Rebuild:    settings.Rebuild,
+		DryRun:     settings.DryRun,
+	}))
 	if err != nil {
 		return err
 	}
