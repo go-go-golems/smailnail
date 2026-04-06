@@ -13,7 +13,7 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-04T18:35:00-04:00
+LastUpdated: 2026-04-04T19:00:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
@@ -759,3 +759,120 @@ This step documents the recovery plan before implementation so the rest of the w
   4. keep standalone endpoints and sender mailbox support
   5. validate with `gofmt`, `go test -tags sqlite_fts5 ./...`, and `make lint`
   6. commit Phase 2 only after all three succeed
+
+---
+
+## Step 15: Backend Phase 2 implementation and cleanup
+
+**Commit (code):** `0f62cb4` — "feat(backend): Phase 2 — transactional review handlers, feedback/guideline endpoints, mailbox sender detail"
+
+This step completed the backend HTTP layer and fixed the core semantic bug from the earlier attempt. The crucial change was moving review-state update + optional feedback creation + optional run-guideline linking into transactional repository methods, then rewiring the existing review handlers to call those methods instead of chaining best-effort side effects in the handler layer.
+
+The work also kept the useful parts of the half-finished Phase 2 branch: standalone feedback endpoints, standalone guideline endpoints, run-guideline link endpoints, and sender-detail mailbox propagation. The cleanup focused on removing duplicate handler/type scaffolding and getting the tree back to a state where `gofmt`, `go test`, and `make lint` all pass together.
+
+### Prompt Context
+
+**User prompt (verbatim):** "continue, our previous buddy had issues getting things done and seems to have lost the sauve. You should be able to help at this point. 
+
+Analyze the situation and the failures they encountered ,and tell me what should be done next."
+
+**Assistant interpretation:** Recover the backend Phase 2 work, fix the broken/duplicated implementation approach, and continue from the current dirty state with a sound plan.
+
+**Inferred user intent:** Get the backend unstuck and back onto a disciplined implementation path instead of continuing ad hoc edits.
+
+**Commit (docs):** `cfbd212` — "docs(ticket): add backend Phase 2 recovery checklist and diary step"
+
+### What I did
+- Added repository-level transactional methods in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotate/repository_feedback.go`:
+  - `ReviewAnnotationWithArtifacts(...)`
+  - `BatchReviewWithArtifacts(...)`
+- Added internal transaction helpers:
+  - `getAnnotationTx(...)`
+  - `updateAnnotationReviewStateTx(...)`
+  - `batchUpdateReviewStateTx(...)`
+  - `createReviewFeedbackTx(...)`
+  - `linkGuidelineToRunTx(...)`
+  - `inferSingleRunIDForAnnotationsTx(...)`
+- Added new backend input types in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotate/types.go`:
+  - `ReviewCommentInput`
+  - `ReviewAnnotationActionInput`
+  - `BatchReviewActionInput`
+- Rewired `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_annotations.go`:
+  - `handleReviewAnnotation` now calls `ReviewAnnotationWithArtifacts`
+  - `handleBatchReview` now calls `BatchReviewWithArtifacts`
+  - added `toAnnotateReviewComment(...)` mapper
+- Kept and finalized new standalone endpoint handlers in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_feedback.go`:
+  - feedback CRUD-ish endpoints
+  - guideline list/get/create/update
+  - run-guideline list/link/unlink
+- Registered the new routes in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/server.go`.
+- Added `mailboxName` to sender-detail message previews in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/types.go` and `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_senders.go`.
+- Removed redundant/unused Phase 2 scaffolding from `types_feedback.go` and `handlers_feedback.go`.
+- Validated with:
+  - `gofmt -w pkg/annotate/types.go pkg/annotate/repository_feedback.go pkg/annotationui/handlers_annotations.go pkg/annotationui/handlers_feedback.go pkg/annotationui/handlers_senders.go pkg/annotationui/server.go pkg/annotationui/types.go pkg/annotationui/types_feedback.go`
+  - `go test -tags sqlite_fts5 ./...`
+  - `make lint`
+
+### Why
+- The design doc requires combined review actions to be atomic. A handler that updates review state first and then does best-effort feedback/guideline work is incorrect because it can return success after a partial failure.
+- The repository layer is the right place for that transaction boundary because it already owns SQL, IDs, and DB transactions.
+
+### What worked
+- The transactional repository approach cleaned up both correctness and linting at the same time.
+- `inferSingleRunIDForAnnotationsTx(...)` gives batch review a way to link guidelines when `agentRunId` is omitted but all selected annotations belong to the same run.
+- Final validation succeeded: `go test -tags sqlite_fts5 ./...` and `make lint` both passed before the code commit.
+
+### What didn't work
+- The first docs-only commit attempt failed because older staged versions of backend files were still in the index. Pre-commit ran tests against the stale staged copy, not the cleaned working tree.
+- An earlier handler attempt imported `strconv` in `handlers_feedback.go` for a helper that had already been removed, which caused both `go test` and `golangci-lint` to fail with an `unused import` error.
+- The previous Phase 2 draft also introduced duplicate extended request types that were no longer needed once `handlers_annotations.go` became the single source of truth for extended review payload parsing.
+
+### What I learned
+- When a staged index contains stale Go files, fixing the working tree is not enough — you must restage or explicitly unstage those files before retrying a commit.
+- The cleanest boundary for this ticket is:
+  - repository owns transaction shape and SQL
+  - handlers own JSON parsing and HTTP error mapping
+  - shared HTTP DTO types live in `pkg/annotationui/types*.go`
+
+### What was tricky to build
+- The hardest part was batch guideline linking semantics. `guidelineIds` apply to a run, but a batch of annotation IDs may span multiple runs. The solution was:
+  - use explicit `agentRunId` if provided
+  - otherwise infer a single run ID from the selected annotations
+  - return an error if guideline linking is requested across multiple runs
+
+### What warrants a second pair of eyes
+- Review the behavior of `BatchReviewWithArtifacts(...)` when `guidelineIds` are present but annotation IDs span multiple runs. The current behavior is intentionally strict and returns an error instead of guessing.
+- Review whether standalone feedback/guideline create endpoints should start populating `created_by` once authentication/user identity is threaded into the sqlite annotation server.
+
+### What should be done in the future
+- Add explicit repository + handler tests for transaction rollback cases:
+  - feedback creation fails after review-state update attempt
+  - guideline linking fails after feedback creation attempt
+  - multi-run batch guideline linking returns an error and does not commit partial changes
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotate/repository_feedback.go` and read the two new public methods first:
+  - `ReviewAnnotationWithArtifacts`
+  - `BatchReviewWithArtifacts`
+- Then review `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_annotations.go` to confirm the handler layer is now thin.
+- Then review `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_feedback.go` and `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/server.go` for endpoint wiring.
+- Validate with:
+  - `go test -tags sqlite_fts5 ./...`
+  - `make lint`
+
+### Technical details
+- New routes registered:
+  - `GET /api/review-feedback`
+  - `GET /api/review-feedback/{id}`
+  - `POST /api/review-feedback`
+  - `PATCH /api/review-feedback/{id}`
+  - `GET /api/review-guidelines`
+  - `GET /api/review-guidelines/{id}`
+  - `POST /api/review-guidelines`
+  - `PATCH /api/review-guidelines/{id}`
+  - `GET /api/annotation-runs/{id}/guidelines`
+  - `POST /api/annotation-runs/{id}/guidelines`
+  - `DELETE /api/annotation-runs/{id}/guidelines/{guidelineId}`
+- Sender detail now selects `mailbox_name` in the messages query and exposes it via `MessagePreview.mailboxName`.
+- Docs commit recorded before code recovery: `cfbd212`.
+- Code commit after full validation: `0f62cb4`.
