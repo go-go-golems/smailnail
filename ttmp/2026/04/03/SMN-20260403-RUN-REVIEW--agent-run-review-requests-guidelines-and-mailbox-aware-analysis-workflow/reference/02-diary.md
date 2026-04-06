@@ -13,7 +13,7 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-06T12:05:00-04:00
+LastUpdated: 2026-04-06T12:22:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
@@ -945,3 +945,83 @@ The fix was deliberately small and low-risk: only call `getRelated(ann)` for the
 - New behavior:
   - only the expanded row calls `getRelated?.(ann)`
   - collapsed rows get `relatedAnnotations={[]}`
+
+---
+
+## Step 17: Reduce whole-table rerenders during selection and expansion
+
+This step applied the broader performance fix for the review queue and run-detail annotation tables. The previous optimization removed one hot path, but the table architecture still encouraged unnecessary rerender work: each selection update re-executed the parent map, recreated per-row closures, and rendered a hidden detail row for every annotation.
+
+The new structure introduces a memoized `AnnotationTableItem` that owns both the visible row and the optional detail row. The table now derives a `selectedSet` with `useMemo`, computes the expanded row's related annotations once, and only mounts `AnnotationDetail` for the expanded row instead of rendering a collapsed detail component for every annotation.
+
+### Prompt Context
+
+**User prompt (verbatim):** "what's the best fix overall?"
+
+**Assistant interpretation:** Implement the most effective medium-sized frontend fix for review-queue checkbox lag, not just a micro-optimization.
+
+**Inferred user intent:** Make selection feel immediate by reducing unnecessary rerender work and commit the result with diary documentation.
+
+### What I did
+- Reworked `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`:
+  - added `selectedSet = useMemo(() => new Set(selected), [selected])`
+  - added `expandedAnnotation` and `expandedRelated` memoization
+  - added memoized `AnnotationTableItem`
+  - stopped rendering `AnnotationDetail` for collapsed rows
+- Stabilized handlers passed into `AnnotationTable` from:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- The original shape meant that selection changes were disproportionately expensive relative to the small UI change being made.
+- Rendering hidden detail rows for every annotation adds work and component churn with no user-visible benefit.
+- Per-row closure creation made it harder for memoization to help.
+
+### What worked
+- The table now has a clearer separation between row-level updates and table-level bookkeeping.
+- TypeScript passed without follow-up fixes.
+- The change benefits both `ReviewQueuePage` and `RunDetailPage`, since both share `AnnotationTable`.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- In data tables, avoiding a heavy computation is good, but avoiding whole-subtree rerenders is usually better.
+- It is often cheaper to render nothing than to render many collapsed components.
+
+### What was tricky to build
+- The main design choice was where to put memoization. Memoizing `AnnotationRow` alone would not have been enough because the table was still constructing per-row props and detail rows on every pass.
+- The comparator for `AnnotationTableItem` was intentionally focused on stable visual state (`annotation`, `isSelected`, `isExpanded`, `relatedAnnotations`, `columnCount`, presence of navigation support) rather than raw callback identity.
+
+### What warrants a second pair of eyes
+- If there are still noticeable slowdowns with very large annotation sets, the next likely candidate is table virtualization.
+- If behavior around row actions ever becomes more dynamic, the memo comparator should be revisited to ensure ignoring callback identity remains safe.
+
+### What should be done in the future
+- Profile with React DevTools on a large dataset.
+- Consider `react-window`/virtualization if the queue regularly renders hundreds or thousands of rows.
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`.
+- Confirm:
+  - `selectedSet` is memoized
+  - only one expanded detail row is mounted
+  - `AnnotationTableItem` is wrapped in `React.memo`
+- Then inspect handler stabilization in:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - manually toggle row checkboxes in `/annotations/review`
+
+### Technical details
+- Old behavior:
+  - `selected.includes(ann.id)` ran for every row
+  - row/detail JSX and per-row closures were rebuilt for every annotation
+  - collapsed `AnnotationDetail` rows were still mounted
+- New behavior:
+  - `selectedSet.has(annotation.id)` handles selection lookup
+  - the expanded row's related annotations are memoized once
+  - `AnnotationTableItem` can skip rerender when its visible state is unchanged
+  - only the expanded detail row is mounted

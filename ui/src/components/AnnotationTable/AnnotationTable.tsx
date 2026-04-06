@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, memo, useMemo } from "react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -36,7 +36,75 @@ export interface AnnotationTableProps {
   getRelated?: (annotation: Annotation) => Annotation[];
 }
 
+interface AnnotationTableItemProps {
+  annotation: Annotation;
+  isSelected: boolean;
+  isExpanded: boolean;
+  relatedAnnotations: Annotation[];
+  onToggleSelect: (id: string) => void;
+  onToggleExpand: (id: string) => void;
+  onApprove: (id: string) => void;
+  onDismiss: (id: string) => void;
+  onNavigateTarget?: (targetType: string, targetId: string) => void;
+  columnCount: number;
+}
+
 const COLUMN_COUNT = 8;
+const EMPTY_RELATED: Annotation[] = [];
+
+const AnnotationTableItem = memo(
+  function AnnotationTableItem({
+    annotation,
+    isSelected,
+    isExpanded,
+    relatedAnnotations,
+    onToggleSelect,
+    onToggleExpand,
+    onApprove,
+    onDismiss,
+    onNavigateTarget,
+    columnCount,
+  }: AnnotationTableItemProps) {
+    return (
+      <Fragment>
+        <AnnotationRow
+          annotation={annotation}
+          isSelected={isSelected}
+          isExpanded={isExpanded}
+          onToggleSelect={() => onToggleSelect(annotation.id)}
+          onToggleExpand={() => onToggleExpand(annotation.id)}
+          onApprove={() => onApprove(annotation.id)}
+          onDismiss={() => onDismiss(annotation.id)}
+          onNavigateTarget={
+            onNavigateTarget
+              ? () => onNavigateTarget(annotation.targetType, annotation.targetId)
+              : undefined
+          }
+        />
+        {isExpanded ? (
+          <AnnotationDetail
+            annotation={annotation}
+            isExpanded={true}
+            relatedAnnotations={relatedAnnotations}
+            onNavigateTarget={
+              onNavigateTarget
+                ? () => onNavigateTarget(annotation.targetType, annotation.targetId)
+                : undefined
+            }
+            columnCount={columnCount}
+          />
+        ) : null}
+      </Fragment>
+    );
+  },
+  (prev, next) =>
+    prev.annotation === next.annotation &&
+    prev.isSelected === next.isSelected &&
+    prev.isExpanded === next.isExpanded &&
+    prev.relatedAnnotations === next.relatedAnnotations &&
+    prev.columnCount === next.columnCount &&
+    Boolean(prev.onNavigateTarget) === Boolean(next.onNavigateTarget),
+);
 
 export function AnnotationTable({
   annotations,
@@ -50,9 +118,22 @@ export function AnnotationTable({
   onNavigateTarget,
   getRelated,
 }: AnnotationTableProps) {
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
   const allSelected =
     annotations.length > 0 && selected.length === annotations.length;
   const someSelected = selected.length > 0 && !allSelected;
+
+  const expandedAnnotation = useMemo(
+    () => annotations.find((annotation) => annotation.id === expandedId) ?? null,
+    [annotations, expandedId],
+  );
+
+  const expandedRelated = useMemo(() => {
+    if (!expandedAnnotation || !getRelated) {
+      return EMPTY_RELATED;
+    }
+    return getRelated(expandedAnnotation);
+  }, [expandedAnnotation, getRelated]);
 
   if (annotations.length === 0) {
     return (
@@ -99,42 +180,23 @@ export function AnnotationTable({
           </TableRow>
         </TableHead>
         <TableBody>
-          {annotations.map((ann) => {
-            const isSelected = selected.includes(ann.id);
-            const isExpanded = expandedId === ann.id;
+          {annotations.map((annotation) => {
+            const isExpanded = expandedId === annotation.id;
 
             return (
-              <Fragment key={ann.id}>
-                <AnnotationRow
-                  annotation={ann}
-                  isSelected={isSelected}
-                  isExpanded={isExpanded}
-                  onToggleSelect={() => onToggleSelect(ann.id)}
-                  onToggleExpand={() => onToggleExpand(ann.id)}
-                  onApprove={() => onApprove(ann.id)}
-                  onDismiss={() => onDismiss(ann.id)}
-                  onNavigateTarget={
-                    onNavigateTarget
-                      ? () =>
-                          onNavigateTarget(ann.targetType, ann.targetId)
-                      : undefined
-                  }
-                />
-                <AnnotationDetail
-                  annotation={ann}
-                  isExpanded={isExpanded}
-                  relatedAnnotations={
-                    isExpanded ? (getRelated?.(ann) ?? []) : []
-                  }
-                  onNavigateTarget={
-                    onNavigateTarget
-                      ? () =>
-                          onNavigateTarget(ann.targetType, ann.targetId)
-                      : undefined
-                  }
-                  columnCount={COLUMN_COUNT}
-                />
-              </Fragment>
+              <AnnotationTableItem
+                key={annotation.id}
+                annotation={annotation}
+                isSelected={selectedSet.has(annotation.id)}
+                isExpanded={isExpanded}
+                relatedAnnotations={isExpanded ? expandedRelated : EMPTY_RELATED}
+                onToggleSelect={onToggleSelect}
+                onToggleExpand={onToggleExpand}
+                onApprove={onApprove}
+                onDismiss={onDismiss}
+                onNavigateTarget={onNavigateTarget}
+                columnCount={COLUMN_COUNT}
+              />
             );
           })}
         </TableBody>

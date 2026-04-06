@@ -64,6 +64,33 @@ export function RunDetailPage() {
     );
   }, [annotations]);
 
+  const handleToggleExpand = useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const handleApprove = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "reviewed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleDismiss = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "dismissed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleNavigateTarget = useCallback(
+    (targetType: string, targetId: string) => {
+      if (targetType === "sender") {
+        navigate(`/annotations/senders/${encodeURIComponent(targetId)}`);
+      }
+    },
+    [navigate],
+  );
+
   const pendingIds = useMemo(
     () =>
       annotations
@@ -214,22 +241,10 @@ export function RunDetailPage() {
         expandedId={expandedId}
         onToggleSelect={handleToggleSelect}
         onToggleAll={handleToggleAll}
-        onToggleExpand={(id) =>
-          setExpandedId((prev) => (prev === id ? null : id))
-        }
-        onApprove={(id) =>
-          void reviewAnnotation({ id, reviewState: "reviewed" })
-        }
-        onDismiss={(id) =>
-          void reviewAnnotation({ id, reviewState: "dismissed" })
-        }
-        onNavigateTarget={(targetType, targetId) => {
-          if (targetType === "sender") {
-            navigate(
-              `/annotations/senders/${encodeURIComponent(targetId)}`,
-            );
-          }
-        }}
+        onToggleExpand={handleToggleExpand}
+        onApprove={handleApprove}
+        onDismiss={handleDismiss}
+        onNavigateTarget={handleNavigateTarget}
         getRelated={getRelated}
       />
     </Box>

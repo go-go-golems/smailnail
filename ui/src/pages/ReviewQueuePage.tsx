@@ -103,6 +103,13 @@ export function ReviewQueuePage() {
     [annotations],
   );
 
+  const handleToggleSelect = useCallback(
+    (id: string) => {
+      dispatch(toggleSelected(id));
+    },
+    [dispatch],
+  );
+
   const handleToggleAll = useCallback(() => {
     if (selected.length === annotations.length) {
       dispatch(clearSelected());
@@ -110,6 +117,13 @@ export function ReviewQueuePage() {
       dispatch(setSelected(annotations.map((a) => a.id)));
     }
   }, [dispatch, selected.length, annotations]);
+
+  const handleToggleExpand = useCallback(
+    (id: string) => {
+      dispatch(setExpandedId(expandedId === id ? null : id));
+    },
+    [dispatch, expandedId],
+  );
 
   const handleBatchApprove = useCallback(() => {
     void batchReview({ ids: selected, reviewState: "reviewed" });
@@ -125,6 +139,20 @@ export function ReviewQueuePage() {
     void batchReview({ ids: selected, reviewState: "to_review" });
     dispatch(clearSelected());
   }, [batchReview, selected, dispatch]);
+
+  const handleApprove = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "reviewed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleDismiss = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "dismissed" });
+    },
+    [reviewAnnotation],
+  );
 
   const handleNavigateTarget = useCallback(
     (targetType: string, targetId: string) => {
@@ -177,17 +205,11 @@ export function ReviewQueuePage() {
         annotations={annotations}
         selected={selected}
         expandedId={expandedId}
-        onToggleSelect={(id) => dispatch(toggleSelected(id))}
+        onToggleSelect={handleToggleSelect}
         onToggleAll={handleToggleAll}
-        onToggleExpand={(id) =>
-          dispatch(setExpandedId(expandedId === id ? null : id))
-        }
-        onApprove={(id) =>
-          void reviewAnnotation({ id, reviewState: "reviewed" })
-        }
-        onDismiss={(id) =>
-          void reviewAnnotation({ id, reviewState: "dismissed" })
-        }
+        onToggleExpand={handleToggleExpand}
+        onApprove={handleApprove}
+        onDismiss={handleDismiss}
         onNavigateTarget={handleNavigateTarget}
         getRelated={handleGetRelated}
       />
