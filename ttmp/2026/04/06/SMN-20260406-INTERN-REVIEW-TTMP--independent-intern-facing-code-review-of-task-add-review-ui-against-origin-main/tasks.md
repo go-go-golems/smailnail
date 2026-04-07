@@ -13,7 +13,7 @@
 - [x] Re-upload the updated review bundle to reMarkable
 - [x] Follow-up finding 3: align Go/TypeScript feedback and guideline contracts via shared protobuf codegen (`SMN-20260406-CONTRACT-CODEGEN`)
 
-## Current Follow-up Plan
+## Completed Follow-up Work
 
 ### Phase 1 — Ship finding 5 fully: guideline detail linked runs
 
@@ -34,16 +34,46 @@
 - [x] Re-run frontend validation for the cleanup slice (`cd ui && pnpm run check`)
 - [x] Commit phase 2 as a focused review-UI cleanup change
 
-### Phase 3 — Ticket hygiene and handoff
+## Current Follow-up Plan
 
-- [x] Update the ticket diary with exact commands, validation, and any pitfalls from phases 1-2
+### Phase 3 — Fix finding 1: make the Review Queue actually behave like a queue
+
+- [x] Update `ReviewQueuePage` to query only pending-review annotations (`reviewState=to_review`)
+- [x] Make review-queue tag counts derive from the same pending-review population instead of all annotations
+- [x] Update review-queue stories/mocks affected by the queue-only semantics
+- [x] Validate phase 3 (`cd ui && pnpm run check`)
+- [x] Commit phase 3 as a focused Review Queue semantics change
+
+### Phase 4 — Fix finding 2: add `scopeKind` filtering for run feedback
+
+- [x] Extend backend feedback list filtering with `scopeKind`
+- [x] Extend frontend feedback filter types and RTK Query usage with `scopeKind`
+- [x] Update `RunDetailPage` to request only run-scoped feedback
+- [x] Update MSW mocks / stories to respect `scopeKind` filtering
+- [x] Add focused backend coverage for scope-filtered feedback listing
+- [x] Validate phase 4 (`go test -tags sqlite_fts5 ./pkg/annotationui ./pkg/annotate -count=1`, `cd ui && pnpm run check`)
+- [x] Commit phase 4 together with phase 5, because the pre-commit full-repo test path stashes unstaged changes and the new audit test depends on the same handler files
+
+### Phase 5 — Fix finding 4: make audit metadata real
+
+- [x] Add a request-scoped review actor helper for the annotation UI handlers
+- [x] Populate `CreatedBy` in feedback creation, guideline creation, review-with-artifacts, and batch-review-with-artifacts handlers
+- [x] Populate `LinkedBy` in explicit run-guideline link handlers
+- [x] Add focused backend coverage proving created/linked audit fields are no longer empty
+- [x] Validate phase 5 (`go test -tags sqlite_fts5 ./pkg/annotationui ./pkg/annotate -count=1`)
+- [x] Commit phase 5 together with phase 4 as one focused feedback-integrity / audit-metadata change
+
+### Phase 6 — Ticket hygiene and handoff for findings 1/2/4
+
+- [x] Update the ticket diary with exact commands, validation, and any pitfalls from phases 3-5
 - [x] Update the ticket changelog and index status for the implemented follow-up work
 - [x] Relate changed code files to the ticket docs with `docmgr`
 - [x] Run `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
+- [ ] Commit the ticket-doc updates for findings 1/2/4
 
 ## Explicitly Deferred For Now
 
 - [ ] Finding 7: settle the `/` vs `/annotations` transitional app architecture
-- [ ] Finding 8: broader feedback/guideline performance/test cleanup beyond the targeted coverage needed for phase 1
+- [ ] Finding 8: broader feedback/guideline performance/test cleanup beyond the targeted coverage needed for phase 4
 - [ ] Finding 6: await guideline-link mutations and surface failures more explicitly in the UI
 - [ ] Package-manager / embed-asset policy cleanup outside the targeted review-queue state cleanup

@@ -13,6 +13,8 @@ Intent: long-term
 Owners:
     - manuel
 RelatedFiles:
+    - Path: pkg/annotationui/server.go
+      Note: Diary context for request-scoped review actor helper
     - Path: pkg/annotationui/server_test.go
       Note: |-
         Validation context and existing server test coverage baseline
@@ -25,14 +27,19 @@ RelatedFiles:
       Note: Cleanup of fake linked run count prop usage
     - Path: ui/src/pages/GuidelinesListPage.tsx
       Note: Removal of fake linkedRunCount wiring from the live guideline list
+    - Path: ui/src/pages/stories/ReviewQueuePage.stories.tsx
+      Note: Diary context for pending-only Review Queue story updates
     - Path: ui/src/types/reviewFeedback.ts
-      Note: Diary evidence for TS/Go contract drift
+      Note: |-
+        Diary evidence for TS/Go contract drift
+        Diary context for scopeKind frontend feedback filter support
 ExternalSources: []
 Summary: Chronological diary of the independent code review, including the initial docmgr/root mistakes, investigation commands, validation runs, and handoff notes.
 LastUpdated: 2026-04-06T20:10:00Z
 WhatFor: Capture how the review was produced so another engineer can reproduce or continue it.
 WhenToUse: Read this when you want the exact commands, errors, and reasoning behind the review report.
 ---
+
 
 
 
@@ -542,6 +549,165 @@ pnpm run check
   - `4250dee` — `AnnotationUI: clean dead review UI state`
 
 - Ticket hygiene command:
+
+```bash
+cd smailnail
+docmgr --root /home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ttmp doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30
+```
+
+## Step 7: Fix finding 1 by making Review Queue actually pending-only
+
+After the earlier findings 5 and 9 follow-up work, I moved to the next high-priority semantic issue from the original report: the Review Queue was still querying all annotations instead of only pending-review items.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok what about 1,2 4? Add tasks for those and then work on them in the same fashion"
+
+**Assistant interpretation:** Add new phased tasks for findings 1, 2, and 4, then implement them with the same ticket/diary/commit discipline used for findings 5 and 9.
+
+**Inferred user intent:** Continue treating the review ticket as a living implementation plan and land the remaining high-value findings incrementally.
+
+### What I did
+- Updated `tasks.md` to add new phases for findings 1, 2, and 4.
+- Changed `ReviewQueuePage` so the main annotation query always includes `reviewState: "to_review"`.
+- Changed the queue’s tag-count query to derive from the same pending-review population rather than all annotations in the database.
+- Updated `ui/src/pages/stories/ReviewQueuePage.stories.tsx` so the queue stories return wrapper responses and respect the queue semantics more honestly.
+
+### Why
+- The page is literally named “Review Queue,” so loading reviewed and dismissed rows by default was one of the most misleading semantics in the UI.
+- Fixing the queue query at the page boundary was much cheaper and clearer than trying to explain the mismatch away in docs.
+
+### What worked
+- The backend already supported `reviewState` filtering, so the fix was mostly frontend query hygiene.
+- The MSW handler already understood `reviewState`, which kept the runtime mock path consistent once the page started sending that filter.
+
+### What didn't work
+- Some of the existing stories were still returning raw arrays instead of the wrapper response shape expected by the live API layer. I fixed that while touching the queue stories so they stopped silently depending on outdated mock behavior.
+
+### What I learned
+- Semantic bugs are often “cheap” to fix once the contract layer is already explicit.
+
+### What was tricky to build
+- The main judgment call was whether tag-count pills should continue to represent all annotations or only queue-eligible annotations. I chose the latter because the page is specifically a review queue, not a generic annotation browser.
+
+### Code review instructions
+- Start with:
+  - `ui/src/pages/ReviewQueuePage.tsx`
+  - `ui/src/pages/stories/ReviewQueuePage.stories.tsx`
+
+### Technical details
+- Validation command:
+
+```bash
+cd smailnail/ui
+pnpm run check
+```
+
+- Focused commit:
+  - `8fc85a4` — `AnnotationUI: make review queue pending-only`
+
+## Step 8: Fix finding 2 and finding 4 together because the full-repo pre-commit path forced them to land as one slice
+
+The next two findings were conceptually separate but mechanically adjacent: finding 2 (run feedback should filter by `scopeKind`) and finding 4 (audit metadata should actually be populated). I initially attempted to stage and commit the scope-filtering slice by itself, but the repository’s pre-commit hook runs full-repo tests and stashes unstaged changes. That mattered because I had already added a new audit-focused test in the working tree, and the hook temporarily hid the matching handler changes.
+
+### What I tried first
+I tried to isolate the scope-filtering change into its own commit.
+
+### What didn't work
+The isolated commit attempt failed during pre-commit because the hook stashed the unstaged audit-handler changes while still running the new audit test, which then failed against the older staged code.
+
+The key failure looked like this:
+
+```text
+--- FAIL: TestHandlerPopulatesAuditMetadata (0.06s)
+    audit_test.go:47: feedback createdBy = ""
+```
+
+That was not a product bug in the final implementation; it was a staging/verification artifact caused by trying to split two touching handler changes while the hook tested the full repo state.
+
+### Fix / approach change
+- I kept finding 1 as its own commit.
+- I then combined findings 2 and 4 into one focused backend/frontend integrity slice so the hook-tested tree was internally consistent.
+
+### What I did
+For **finding 2**:
+- Extended `annotate.ListFeedbackFilter` with `ScopeKind`.
+- Added `scopeKind` filtering in `Repository.ListReviewFeedback(...)`.
+- Threaded `scopeKind` through `handleListFeedback(...)`.
+- Extended frontend `FeedbackFilter` and updated `RunDetailPage` to call:
+  - `useListReviewFeedbackQuery({ agentRunId: runId, scopeKind: "run" })`
+- Updated MSW feedback handlers to honor `scopeKind`.
+- Added focused backend coverage proving `GET /api/review-feedback?...&scopeKind=run` excludes annotation-scoped feedback.
+
+For **finding 4**:
+- Added a request-scoped actor helper in the annotation UI HTTP layer.
+- Populated `CreatedBy` in:
+  - feedback creation,
+  - guideline creation,
+  - review-with-artifacts,
+  - batch-review-with-artifacts.
+- Populated `LinkedBy` in explicit run-guideline link handlers.
+- Added a dedicated backend audit test that verifies authored feedback, authored guidelines, review-created feedback artifacts, and explicit guideline links all carry the request actor.
+
+### Why
+- Finding 2 fixes a real semantics bug in the run detail page.
+- Finding 4 makes the schema’s authorship fields honest instead of decorative.
+- Landing them together avoided fragile hook behavior and produced a cleaner commit boundary around “feedback integrity + audit metadata.”
+
+### What worked
+- The backend and frontend changes for `scopeKind` were small and aligned naturally.
+- The request-scoped actor helper gave the local annotation UI a practical short-term answer without forcing a broader auth redesign.
+- The dedicated audit test now protects the new authorship behavior from regressing silently.
+
+### What I learned
+- In repos with full-tree pre-commit validation, the technically “smallest” commit is not always the best commit if the hook stashes related changes and tests the rest of the tree.
+
+### What was tricky to build
+- The trickiest part was not the code; it was the sequencing. I had to adapt the commit plan to the repository’s verification model rather than forcing a too-granular split.
+
+### Code review instructions
+- Start with:
+  - `pkg/annotate/types.go`
+  - `pkg/annotate/repository_feedback.go`
+  - `pkg/annotationui/handlers_feedback.go`
+  - `pkg/annotationui/handlers_annotations.go`
+  - `pkg/annotationui/server.go`
+  - `pkg/annotationui/server_test.go`
+  - `pkg/annotationui/audit_test.go`
+  - `ui/src/types/reviewFeedback.ts`
+  - `ui/src/pages/RunDetailPage.tsx`
+  - `ui/src/mocks/handlers.ts`
+
+### Technical details
+- Validation commands:
+
+```bash
+cd smailnail
+go test -tags sqlite_fts5 ./pkg/annotate ./pkg/annotationui -count=1
+
+cd smailnail/ui
+pnpm run check
+```
+
+- Combined focused commit:
+  - `991e0f7` — `AnnotationUI: scope run feedback and populate audit fields`
+
+## Step 9: Refresh the ticket docs and handoff state after findings 1, 2, and 4
+
+After the code landed, I updated the ticket docs again so the intern-review workspace remained a trustworthy source of truth rather than a stale historical artifact.
+
+### What I did
+- Marked phases 3, 4, and 5 complete in `tasks.md`.
+- Updated `changelog.md` with the new commits and behavior changes.
+- Updated `index.md` so it now reflects that findings 1, 2, 4, 5, and 9 are implemented, with 3 completed in the separate protobuf contract ticket.
+- Related the newly changed code files to the ticket docs via `docmgr`.
+- Ran `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`.
+
+### Why
+- The user explicitly asked for phased ticket tracking and a detailed diary, so the docs needed to stay synchronized with the implementation work.
+
+### Technical details
+- Ticket doctor command:
 
 ```bash
 cd smailnail

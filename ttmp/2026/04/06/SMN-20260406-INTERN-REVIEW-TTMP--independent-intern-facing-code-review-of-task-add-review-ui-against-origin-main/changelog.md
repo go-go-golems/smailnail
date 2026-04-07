@@ -21,6 +21,11 @@
 - Removed fake `linkedRunCount={0}` wiring from the guideline list page until the backend exposes real count data
 - Created focused cleanup commit `4250dee` (`AnnotationUI: clean dead review UI state`)
 - Related follow-up implementation files to the ticket docs and verified ticket health with `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
+- Made the Review Queue actually query pending-review annotations only and updated review-queue stories to match the queue semantics
+- Created focused commit `8fc85a4` (`AnnotationUI: make review queue pending-only`)
+- Added `scopeKind` filtering to feedback listing, wired run detail feedback to request only run-scoped feedback, and added focused backend coverage for the filtered list
+- Populated review audit metadata (`CreatedBy` / `LinkedBy`) through annotation UI handlers with a request-scoped actor helper and added focused backend audit coverage
+- Created focused combined commit `991e0f7` (`AnnotationUI: scope run feedback and populate audit fields`)
 
 ## 2026-04-06
 

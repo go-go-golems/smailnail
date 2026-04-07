@@ -15,20 +15,27 @@ Owners:
 RelatedFiles:
     - Path: pkg/annotate/repository_feedback.go
       Note: Follow-up implementation for guideline-linked runs repository query
+    - Path: pkg/annotationui/audit_test.go
+      Note: Focused audit metadata coverage for finding 4 follow-up work
     - Path: pkg/annotationui/handlers_feedback.go
       Note: Follow-up implementation for guideline-linked runs HTTP endpoint
     - Path: pkg/annotationui/server.go
       Note: Route registration for guideline-linked runs endpoint
     - Path: ui/src/pages/GuidelineDetailPage.tsx
       Note: Frontend detail-page wiring for live linked runs
+    - Path: ui/src/pages/ReviewQueuePage.tsx
+      Note: Finding 1 follow-up implementation making Review Queue query only pending-review items
+    - Path: ui/src/pages/RunDetailPage.tsx
+      Note: Finding 2 follow-up implementation filtering run feedback by scopeKind
     - Path: ui/src/store/annotationUiSlice.ts
       Note: Cleanup of dead review-queue Redux state from finding 9
 ExternalSources: []
-Summary: Independent code review ticket for the review UI branch, now also tracking follow-up implementation work for selected findings after the original review.
-LastUpdated: 2026-04-06T23:55:00Z
+Summary: Independent code review ticket for the review UI branch, now also tracking and documenting the targeted follow-up implementation work executed from the review findings.
+LastUpdated: 2026-04-07T00:05:00Z
 WhatFor: Track and publish an independent code review of the task/add-review-ui branch and the targeted follow-up work executed from that review.
 WhenToUse: Start here to find the main report, diary, validation notes, and follow-up tasks.
 ---
+
 
 
 # Independent intern-facing code review of task/add-review-ui against origin/main
@@ -50,12 +57,15 @@ I intentionally did **not** use the existing review ticket contents as source ma
 
 - Ticket status: **active**
 - Review report: **written and later revised after meta-review of the intern ticket**
+- Follow-up finding 1: **implemented** by making Review Queue queries pending-only
+- Follow-up finding 2: **implemented** by adding `scopeKind` filtering for run feedback
 - Follow-up finding 3: **completed elsewhere** via shared protobuf contract work
+- Follow-up finding 4: **implemented** by populating review audit metadata through handlers
 - Follow-up finding 5: **implemented** via guideline-linked-runs backend/frontend wiring
 - Follow-up finding 9: **implemented as targeted cleanup** via review-queue state cleanup and fake guideline-count removal
-- Findings 7 and 8: **explicitly deferred for now**
+- Findings 6, 7, and 8: **explicitly deferred for now**
 - Diary: **updated with implementation follow-up steps**
-- Validation: **completed for the landed follow-up slices** (`go test -tags sqlite_fts5 ./pkg/annotate ./pkg/annotationui -count=1`, `pnpm run check`)
+- Validation: **completed for the landed follow-up slices** (`go test -tags sqlite_fts5 ./pkg/annotate ./pkg/annotationui -count=1`, `pnpm run check`, full pre-commit repo `go test ./...`, `golangci-lint`)
 - Delivery to reMarkable: **completed (updated bundle re-uploaded)**
 
 ## Main Conclusions
@@ -67,8 +77,11 @@ I intentionally did **not** use the existing review ticket contents as source ma
   2. add `scopeKind` filtering so run-level feedback is not mixed with selection/annotation feedback,
   3. align TypeScript and Go feedback payload contracts,
   4. restore authorship/audit metadata.
-- Since the original review, selected follow-up work has started:
+- Since the original review, selected follow-up work has now been implemented:
+  - finding 1 was fixed by making Review Queue queries pending-only,
+  - finding 2 was fixed by adding `scopeKind` filtering so run feedback is no longer mixed with annotation/selection feedback,
   - finding 3 was addressed through shared protobuf wire contracts,
+  - finding 4 was fixed by populating review authorship/link metadata at the handler boundary,
   - finding 5 was shipped properly with a real linked-runs endpoint and UI wiring,
   - part of finding 9 was cleaned by removing dead review-queue state and fake guideline count wiring.
 
