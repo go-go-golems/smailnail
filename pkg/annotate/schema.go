@@ -1,12 +1,8 @@
 package annotate
 
-// SchemaMigrationV3Statements returns the schema additions used by the
-// annotation MVP. Mirror bootstrapping owns applying them.
+// SchemaMigrationV3Statements returns the annotation MVP schema additions.
 func SchemaMigrationV3Statements() []string {
-	return append(
-		SchemaMigrationV3CoreStatements(),
-		SchemaMigrationV4Statements()...,
-	)
+	return SchemaMigrationV3CoreStatements()
 }
 
 func SchemaMigrationV3CoreStatements() []string {
