@@ -13,12 +13,22 @@ Intent: long-term
 Owners:
     - manuel
 RelatedFiles:
+    - Path: pkg/annotate/schema.go
+      Note: Diary context for splitting annotation v3 tables from review v4 tables
     - Path: pkg/annotationui/server.go
       Note: Diary context for request-scoped review actor helper
     - Path: pkg/annotationui/server_test.go
       Note: |-
         Validation context and existing server test coverage baseline
         Focused endpoint coverage for guideline-linked runs
+    - Path: pkg/mirror/schema.go
+      Note: |-
+        Diary context for the sqlite schema-version split that upgrades legacy review databases
+        Diary context for the schema-version bug fix that unblocks guideline creation on legacy DBs
+    - Path: pkg/mirror/store_test.go
+      Note: |-
+        Regression coverage for upgrading legacy schema-version-3 sqlite databases
+        Diary context for the copied-db regression and upgrade validation
     - Path: ttmp/2026/04/06/SMN-20260406-REVIEW-REVIEW-TTMP--meta-review-of-the-intern-code-review-for-task-add-review-ui/design-doc/01-review-of-the-intern-s-code-review-for-the-review-ui-branch.md
       Note: Diary records the revision step after the later meta-review
     - Path: ui/package.json
@@ -37,10 +47,11 @@ RelatedFiles:
         Diary context for scopeKind frontend feedback filter support
 ExternalSources: []
 Summary: Chronological diary of the independent code review, including the initial docmgr/root mistakes, investigation commands, validation runs, and handoff notes.
-LastUpdated: 2026-04-06T20:10:00Z
+LastUpdated: 2026-04-07T10:20:00Z
 WhatFor: Capture how the review was produced so another engineer can reproduce or continue it.
 WhenToUse: Read this when you want the exact commands, errors, and reasoning behind the review report.
 ---
+
 
 
 
@@ -788,6 +799,120 @@ After the code landed, I updated the ticket again so the follow-up history remai
 - Updated `changelog.md`, `index.md`, and this diary.
 - Related the new async-link flow files to the ticket docs with `docmgr`.
 - Re-ran `docmgr doctor` for the ticket.
+
+## Step 12: Fix legacy sqlite schema upgrades for review tables
+
+While testing the review UI against a long-lived merged sqlite database, the user hit a real persistence bug that had nothing to do with React state or request payloads: guideline creation failed with `insert review guideline: no such table: review_guidelines`. I traced that back to mirror schema bootstrapping rather than the guideline handlers themselves.
+
+The root cause was versioning drift inside the sqlite bootstrap path. Older databases had already been stamped `schema_version=3` before the review/guideline tables were folded into the version-3 annotation migration helper, so bootstrap would skip reapplying that migration and never create the newer review tables.
+
+### Prompt Context
+
+**User prompt (verbatim):** "I have another issue, I am running  go run -tags sqlite_fts5 ./cmd/smailnail sqlite serve --sqlite-path /home/manuel/smailnail/smailnail-last-24-months-merged.sqlite (and pnpm dev on :5050), and for example creating guidelines I get: insert review guideline: no such table: review_guidelines HTTP 500 on await fetch(\"http://10.10.10.1:5050/api/review-guidelines\", {
+    \"credentials\": \"omit\",
+    \"headers\": {
+        \"User-Agent\": \"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0\",
+        \"Accept\": \"application/json\",
+        \"Accept-Language\": \"en-US,en;q=0.9\",
+        \"content-type\": \"application/json\",
+        \"Priority\": \"u=0\"
+    },
+    \"referrer\": \"http://10.10.10.1:5050/annotations/guidelines/new?runId=mail-triage-v1-20260403\",
+    \"body\": \"{\\\"slug\\\":\\\"foobar\\\",\\\"title\\\":\\\"Foobar\\\",\\\"scopeKind\\\":\\\"global\\\",\\\"bodyMarkdown\\\":\\\"kjsdflakjsdhflkasjdf\\\"}\",
+    \"method\": \"POST\",
+    \"mode\": \"cors\"
+});
+
+---
+
+Is it because migrations are not applied / we don't have migrations?"
+
+**Assistant interpretation:** Diagnose why a long-lived sqlite mirror database still lacks the review tables and land the real schema-versioning fix rather than a one-off manual workaround.
+
+**Inferred user intent:** Make existing local review/test databases self-heal on startup so guideline creation works without manual SQL patching.
+
+**Commit (code):** `252c9fc` — `Mirror: upgrade legacy review schema to v4`
+
+### What I did
+- Verified the failing merged sqlite DB existed, reported `schema_version=3`, and still had no `review_guidelines` / `review_feedback` / `run_guideline_links` tables.
+- Read the sqlite server bootstrap path in `cmd/smailnail/commands/sqlite/serve.go`, `pkg/mirror/store.go`, and `pkg/mirror/schema.go`.
+- Split the mirror schema migrations so:
+  - version 3 now applies only `annotate.SchemaMigrationV3CoreStatements()`;
+  - version 4 applies `annotate.SchemaMigrationV4Statements()`.
+- Bumped `currentSchemaVersion` to `4` and taught `schemaVersion(...)` to parse version `4`.
+- Simplified `annotate.SchemaMigrationV3Statements()` so its name again matches its contents instead of silently returning v4 tables too.
+- Added a regression test in `pkg/mirror/store_test.go` that seeds a legacy version-3 database and proves bootstrap upgrades it to version 4 with the review tables present.
+- Ran a copied-db smoke test by copying `/home/manuel/smailnail/smailnail-last-24-months-merged.sqlite` into repo-local `tmp/`, bootstrapping it through `mirror.OpenStore(...).Bootstrap(...)`, and verifying the copied DB reached schema version 4 and gained the missing review tables.
+
+### Why
+- The bug was not that migrations were absent; it was that the schema version number did not advance when new review tables were added to the migration helper.
+- Without a version bump, any long-lived database already marked version 3 would silently skip the new review schema forever.
+
+### What worked
+- The version split cleanly expresses the historical reality: annotation MVP tables are schema version 3; review/guideline tables are schema version 4.
+- The regression test protects the exact failure mode the user hit.
+- The copied-db smoke test confirmed that the real class of local database now upgrades automatically.
+
+### What didn't work
+- My first smoke-test attempt used `timeout 8s go run -tags sqlite_fts5 ./cmd/smailnail sqlite serve ...` against a copied DB and then immediately inspected it with `sqlite3`. That left the database locked when I probed it:
+
+```text
+Error: in prepare, database is locked (5)
+```
+
+- I switched to a tiny one-off Go bootstrap program that opened the copied DB, ran `mirror.OpenStore(...).Bootstrap(...)`, and exited cleanly before inspecting the schema.
+
+### What I learned
+- Embedding newer DDL into an old migration helper is harmless for fresh databases but dangerous for already-versioned databases.
+- A focused upgrade test is worth far more here than relying on clean-database bootstrap tests alone.
+
+### What was tricky to build
+- The subtle part was recognizing that `annotate.SchemaMigrationV3Statements()` had become historically inaccurate. Fresh DBs still worked, which hid the fact that older DBs already stamped at version 3 would never see the newer tables.
+- The other tricky part was validating the real-world case without mutating the user’s actual database, which is why I used a copied DB for the smoke test.
+
+### What warrants a second pair of eyes
+- The merge/bootstrap path in `pkg/mirror/merge.go` also keys behavior off `currentSchemaVersion`; reviewers should confirm that moving the repo to schema version 4 is acceptable for all existing merge workflows.
+
+### What should be done in the future
+- Add one more focused integration-style test around `cmd/smailnail sqlite serve` or a higher-level bootstrap wrapper if this path changes again.
+
+### Code review instructions
+- Start with:
+  - `pkg/mirror/schema.go`
+  - `pkg/mirror/store_test.go`
+  - `pkg/annotate/schema.go`
+- Validate with:
+  - `go test -tags sqlite_fts5 ./pkg/mirror -count=1`
+
+### Technical details
+- Diagnosis commands:
+
+```bash
+cd smailnail
+sqlite3 /home/manuel/smailnail/smailnail-last-24-months-merged.sqlite "SELECT value FROM mirror_metadata WHERE key='schema_version';"
+sqlite3 /home/manuel/smailnail/smailnail-last-24-months-merged.sqlite ".tables" | tr ' ' '\n' | rg '^review_|^run_guideline_links$'
+```
+
+- Validation commands:
+
+```bash
+gofmt -w pkg/mirror/schema.go pkg/mirror/store_test.go pkg/annotate/schema.go
+go test -tags sqlite_fts5 ./pkg/mirror -count=1
+```
+
+- Copied-db smoke test result after the fix:
+
+```text
+schema=4 fts=true status=available
+schema_version:
+value
+4
+tables:
+review_guidelines
+run_guideline_links
+review_feedback
+review_feedback_targets
+```
 
 ## Related
 

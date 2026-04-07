@@ -87,7 +87,15 @@
 - [x] Update the ticket diary/changelog/index/tasks for the finding-6 work
 - [x] Relate newly changed files to the ticket docs with `docmgr`
 - [x] Run `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
-- [ ] Commit the ticket-doc updates for finding 6
+- [x] Commit the ticket-doc updates for finding 6
+
+### Phase 9 — Fix legacy sqlite schema upgrades for review tables
+
+- [x] Confirm the failing merged sqlite DB is still marked `schema_version=3` while missing `review_guidelines` and related review tables
+- [x] Split mirror schema bootstrapping so annotation core tables remain version 3 and review/guideline tables become version 4
+- [x] Add focused regression coverage proving legacy version-3 DBs upgrade to the new review tables
+- [x] Validate phase 9 (`go test -tags sqlite_fts5 ./pkg/mirror -count=1` and a copied-db bootstrap smoke test)
+- [x] Commit phase 9 as a focused schema-migration fix
 
 ## Explicitly Deferred For Now
 

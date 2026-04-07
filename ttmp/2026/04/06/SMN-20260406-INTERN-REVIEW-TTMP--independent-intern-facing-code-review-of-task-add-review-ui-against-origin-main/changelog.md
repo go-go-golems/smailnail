@@ -29,6 +29,9 @@
 - Fixed finding 6 by awaiting guideline-link mutations in `RunGuidelineSection` and in guideline create-and-link flows, keeping the picker open on failure and surfacing explicit error states in the UI
 - Updated the run-guideline Storybook handlers to continue matching the real wrapper-response API shape during the async-link flow
 - Created focused async-link-flow commit `0897d2b` (`AnnotationUI: await guideline link flows`)
+- Fixed sqlite mirror schema versioning so legacy databases already marked `schema_version=3` now upgrade to the review/guideline tables via a new schema version 4 instead of failing guideline creation with `no such table: review_guidelines`
+- Added focused regression coverage for upgrading legacy version-3 sqlite DBs and manually smoke-tested the fix against a copied `smailnail-last-24-months-merged.sqlite`
+- Created focused schema-upgrade commit `252c9fc` (`Mirror: upgrade legacy review schema to v4`)
 
 ## 2026-04-06
 
