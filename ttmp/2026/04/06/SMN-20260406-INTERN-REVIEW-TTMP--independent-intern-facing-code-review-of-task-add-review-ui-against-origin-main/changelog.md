@@ -16,9 +16,11 @@
 - Re-uploaded the updated bundle to reMarkable
 - Added a phased follow-up implementation plan inside this ticket for findings 5 and 9, with findings 7 and 8 explicitly deferred for now
 - Implemented guideline-linked runs fully by adding repository support, backend endpoint `GET /api/review-guidelines/{id}/runs`, frontend query wiring, detail-page loading, mock support, and focused backend coverage
-- Created focused linked-runs implementation commit `AnnotationUI: add guideline linked runs endpoint`
+- Created focused linked-runs implementation commit `5192aef` (`AnnotationUI: add guideline linked runs endpoint`)
 - Cleaned dead review-queue Redux state that was no longer wired to `ReviewQueuePage`
 - Removed fake `linkedRunCount={0}` wiring from the guideline list page until the backend exposes real count data
+- Created focused cleanup commit `4250dee` (`AnnotationUI: clean dead review UI state`)
+- Related follow-up implementation files to the ticket docs and verified ticket health with `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
 
 ## 2026-04-06
 

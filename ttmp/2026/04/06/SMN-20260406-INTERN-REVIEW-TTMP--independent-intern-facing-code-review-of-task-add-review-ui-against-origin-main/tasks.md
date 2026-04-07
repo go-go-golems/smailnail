@@ -32,14 +32,14 @@
 - [x] Remove dead review-queue slice fields/actions that are no longer wired (`filterType`, `filterSource`, `filterRunId`, `commentDrawerOpen`, `filterMailbox`) unless a live caller still needs them
 - [x] Remove fake guideline list UI state that advertises unavailable data (`linkedRunCount={0}`) until the backend exposes a real count
 - [x] Re-run frontend validation for the cleanup slice (`cd ui && pnpm run check`)
-- [ ] Commit phase 2 as a focused review-UI cleanup change
+- [x] Commit phase 2 as a focused review-UI cleanup change
 
 ### Phase 3 — Ticket hygiene and handoff
 
-- [ ] Update the ticket diary with exact commands, validation, and any pitfalls from phases 1-2
-- [ ] Update the ticket changelog and index status for the implemented follow-up work
-- [ ] Relate changed code files to the ticket docs with `docmgr`
-- [ ] Run `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
+- [x] Update the ticket diary with exact commands, validation, and any pitfalls from phases 1-2
+- [x] Update the ticket changelog and index status for the implemented follow-up work
+- [x] Relate changed code files to the ticket docs with `docmgr`
+- [x] Run `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
 
 ## Explicitly Deferred For Now
 

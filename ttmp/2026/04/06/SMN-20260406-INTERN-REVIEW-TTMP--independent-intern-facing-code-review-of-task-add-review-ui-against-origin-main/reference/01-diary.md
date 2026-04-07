@@ -14,11 +14,17 @@ Owners:
     - manuel
 RelatedFiles:
     - Path: pkg/annotationui/server_test.go
-      Note: Validation context and existing server test coverage baseline
+      Note: |-
+        Validation context and existing server test coverage baseline
+        Focused endpoint coverage for guideline-linked runs
     - Path: ttmp/2026/04/06/SMN-20260406-REVIEW-REVIEW-TTMP--meta-review-of-the-intern-code-review-for-task-add-review-ui/design-doc/01-review-of-the-intern-s-code-review-for-the-review-ui-branch.md
       Note: Diary records the revision step after the later meta-review
     - Path: ui/package.json
       Note: Validation and package-manager notes recorded in the diary
+    - Path: ui/src/components/Guidelines/GuidelineSummaryCard.tsx
+      Note: Cleanup of fake linked run count prop usage
+    - Path: ui/src/pages/GuidelinesListPage.tsx
+      Note: Removal of fake linkedRunCount wiring from the live guideline list
     - Path: ui/src/types/reviewFeedback.ts
       Note: Diary evidence for TS/Go contract drift
 ExternalSources: []
@@ -27,6 +33,7 @@ LastUpdated: 2026-04-06T20:10:00Z
 WhatFor: Capture how the review was produced so another engineer can reproduce or continue it.
 WhenToUse: Read this when you want the exact commands, errors, and reasoning behind the review report.
 ---
+
 
 
 
@@ -528,6 +535,17 @@ With the guideline-linked-runs slice landed, I moved to the narrower cleanup hal
 ```bash
 cd smailnail/ui
 pnpm run check
+```
+
+- Focused commits created during this follow-up:
+  - `5192aef` — `AnnotationUI: add guideline linked runs endpoint`
+  - `4250dee` — `AnnotationUI: clean dead review UI state`
+
+- Ticket hygiene command:
+
+```bash
+cd smailnail
+docmgr --root /home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ttmp doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30
 ```
 
 ## Related

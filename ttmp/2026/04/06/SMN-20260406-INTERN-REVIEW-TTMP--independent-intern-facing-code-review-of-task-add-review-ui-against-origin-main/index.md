@@ -12,13 +12,24 @@ DocType: index
 Intent: long-term
 Owners:
     - manuel
-RelatedFiles: []
+RelatedFiles:
+    - Path: pkg/annotate/repository_feedback.go
+      Note: Follow-up implementation for guideline-linked runs repository query
+    - Path: pkg/annotationui/handlers_feedback.go
+      Note: Follow-up implementation for guideline-linked runs HTTP endpoint
+    - Path: pkg/annotationui/server.go
+      Note: Route registration for guideline-linked runs endpoint
+    - Path: ui/src/pages/GuidelineDetailPage.tsx
+      Note: Frontend detail-page wiring for live linked runs
+    - Path: ui/src/store/annotationUiSlice.ts
+      Note: Cleanup of dead review-queue Redux state from finding 9
 ExternalSources: []
 Summary: Independent code review ticket for the review UI branch, now also tracking follow-up implementation work for selected findings after the original review.
 LastUpdated: 2026-04-06T23:55:00Z
 WhatFor: Track and publish an independent code review of the task/add-review-ui branch and the targeted follow-up work executed from that review.
 WhenToUse: Start here to find the main report, diary, validation notes, and follow-up tasks.
 ---
+
 
 # Independent intern-facing code review of task/add-review-ui against origin/main
 
@@ -41,7 +52,7 @@ I intentionally did **not** use the existing review ticket contents as source ma
 - Review report: **written and later revised after meta-review of the intern ticket**
 - Follow-up finding 3: **completed elsewhere** via shared protobuf contract work
 - Follow-up finding 5: **implemented** via guideline-linked-runs backend/frontend wiring
-- Follow-up finding 9: **cleanup in progress / partially implemented** via review-queue state cleanup and fake guideline-count removal
+- Follow-up finding 9: **implemented as targeted cleanup** via review-queue state cleanup and fake guideline-count removal
 - Findings 7 and 8: **explicitly deferred for now**
 - Diary: **updated with implementation follow-up steps**
 - Validation: **completed for the landed follow-up slices** (`go test -tags sqlite_fts5 ./pkg/annotate ./pkg/annotationui -count=1`, `pnpm run check`)
