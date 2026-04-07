@@ -289,6 +289,14 @@ export const handlers = [
     return HttpResponse.json(created, { status: 201 });
   }),
 
+  http.get("/api/review-guidelines/:id/runs", ({ params }) => {
+    const guidelineId = params["id"] as string;
+    const linkedRuns = mockRuns.filter((run) =>
+      runGuidelineLinks.get(run.runId)?.has(guidelineId),
+    );
+    return HttpResponse.json({ items: linkedRuns });
+  }),
+
   http.get("/api/review-guidelines/:id", ({ params }) => {
     const g = mutableGuidelines.find((gl) => gl.id === params["id"]);
     if (!g) return HttpResponse.json({ error: "not found" }, { status: 404 });

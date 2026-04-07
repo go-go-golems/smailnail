@@ -140,6 +140,15 @@ func (h *appHandler) handleGetGuideline(w http.ResponseWriter, r *http.Request) 
 	writeProtoJSON(w, http.StatusOK, guidelineToProto(g))
 }
 
+func (h *appHandler) handleListGuidelineRuns(w http.ResponseWriter, r *http.Request) {
+	runs, err := h.annotations.ListGuidelineRuns(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeMessageError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.AgentRunListResponse{Items: annotateRunsToProto(runs)})
+}
+
 func (h *appHandler) handleCreateGuideline(w http.ResponseWriter, r *http.Request) {
 	req := &annotationuiv1.CreateGuidelineRequest{}
 	if !decodeProtoJSONBody(w, r, req) {

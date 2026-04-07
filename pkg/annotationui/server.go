@@ -171,6 +171,7 @@ func (h *appHandler) registerAPIRoutes(mux *http.ServeMux) {
 	// ── Review guidelines ──────────────────────────────────────────────
 	mux.HandleFunc("GET /api/review-guidelines", h.handleListGuidelines)
 	mux.HandleFunc("GET /api/review-guidelines/{id}", h.handleGetGuideline)
+	mux.HandleFunc("GET /api/review-guidelines/{id}/runs", h.handleListGuidelineRuns)
 	mux.HandleFunc("POST /api/review-guidelines", h.handleCreateGuideline)
 	mux.HandleFunc("PATCH /api/review-guidelines/{id}", h.handleUpdateGuideline)
 

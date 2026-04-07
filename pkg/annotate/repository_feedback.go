@@ -352,6 +352,79 @@ func (r *Repository) ListRunGuidelines(ctx context.Context, runID string) ([]Rev
 	return guidelines, nil
 }
 
+func (r *Repository) ListGuidelineRuns(ctx context.Context, guidelineID string) ([]AgentRunSummary, error) {
+	query := `
+WITH linked_runs AS (
+	SELECT DISTINCT agent_run_id
+	FROM run_guideline_links
+	WHERE guideline_id = ? AND agent_run_id != ''
+),
+run_annotations AS (
+	SELECT
+		a.agent_run_id,
+		COUNT(*) AS annotation_count,
+		SUM(CASE WHEN a.review_state = 'to_review' THEN 1 ELSE 0 END) AS pending_count,
+		SUM(CASE WHEN a.review_state = 'reviewed' THEN 1 ELSE 0 END) AS reviewed_count,
+		SUM(CASE WHEN a.review_state = 'dismissed' THEN 1 ELSE 0 END) AS dismissed_count,
+		MIN(a.created_at) AS started_at,
+		MAX(a.created_at) AS completed_at
+	FROM annotations a
+	INNER JOIN linked_runs lr ON lr.agent_run_id = a.agent_run_id
+	GROUP BY a.agent_run_id
+),
+run_annotation_metadata AS (
+	SELECT agent_run_id, source_label, source_kind
+	FROM (
+		SELECT
+			a.agent_run_id,
+			a.source_label,
+			a.source_kind,
+			ROW_NUMBER() OVER (
+				PARTITION BY a.agent_run_id
+				ORDER BY a.created_at DESC, a.id DESC
+			) AS row_number
+		FROM annotations a
+		INNER JOIN linked_runs lr ON lr.agent_run_id = a.agent_run_id
+	)
+	WHERE row_number = 1
+),
+run_logs AS (
+	SELECT l.agent_run_id, COUNT(*) AS log_count
+	FROM annotation_logs l
+	INNER JOIN linked_runs lr ON lr.agent_run_id = l.agent_run_id
+	GROUP BY l.agent_run_id
+),
+run_groups AS (
+	SELECT g.agent_run_id, COUNT(*) AS group_count
+	FROM target_groups g
+	INNER JOIN linked_runs lr ON lr.agent_run_id = g.agent_run_id
+	GROUP BY g.agent_run_id
+)
+SELECT
+	ra.agent_run_id AS run_id,
+	COALESCE(ram.source_label, '') AS source_label,
+	COALESCE(ram.source_kind, '') AS source_kind,
+	ra.annotation_count,
+	ra.pending_count,
+	ra.reviewed_count,
+	ra.dismissed_count,
+	COALESCE(rl.log_count, 0) AS log_count,
+	COALESCE(rg.group_count, 0) AS group_count,
+	ra.started_at,
+	ra.completed_at
+FROM run_annotations ra
+LEFT JOIN run_annotation_metadata ram ON ram.agent_run_id = ra.agent_run_id
+LEFT JOIN run_logs rl ON rl.agent_run_id = ra.agent_run_id
+LEFT JOIN run_groups rg ON rg.agent_run_id = ra.agent_run_id
+ORDER BY ra.started_at DESC, ra.agent_run_id DESC`
+
+	runs := []AgentRunSummary{}
+	if err := r.db.SelectContext(ctx, &runs, r.db.Rebind(query), strings.TrimSpace(guidelineID)); err != nil {
+		return nil, errors.Wrap(err, "list guideline runs")
+	}
+	return runs, nil
+}
+
 func (r *Repository) ReviewAnnotationWithArtifacts(ctx context.Context, input ReviewAnnotationActionInput) (*Annotation, error) {
 	if strings.TrimSpace(input.AnnotationID) == "" {
 		return nil, fmt.Errorf("annotation id is required")

@@ -8,6 +8,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   useGetGuidelineQuery,
+  useGetGuidelineRunsQuery,
   useCreateGuidelineMutation,
   useUpdateGuidelineMutation,
   useLinkGuidelineToRunMutation,
@@ -25,17 +26,23 @@ export function GuidelineDetailPage() {
   const runIdParam = searchParams.get("runId");
 
   const isNew = guidelineId === "new" || !guidelineId;
+  const [mode, setMode] = useState<"view" | "edit" | "create">(
+    isNew ? "create" : "view",
+  );
+
   const { data: guideline, isLoading } = useGetGuidelineQuery(
     guidelineId ?? "",
     { skip: isNew },
   );
+  const {
+    data: linkedRuns = [],
+    isFetching: linkedRunsLoading,
+  } = useGetGuidelineRunsQuery(guidelineId ?? "", {
+    skip: isNew || mode !== "view",
+  });
   const [createGuideline] = useCreateGuidelineMutation();
   const [updateGuideline] = useUpdateGuidelineMutation();
   const [linkGuidelineToRun] = useLinkGuidelineToRunMutation();
-
-  const [mode, setMode] = useState<"view" | "edit" | "create">(
-    isNew ? "create" : "view",
-  );
 
   const handleSave = useCallback(
     (payload: CreateGuidelineRequest | UpdateGuidelineRequest) => {
@@ -131,7 +138,8 @@ export function GuidelineDetailPage() {
         <>
           <Divider sx={{ my: 3 }} />
           <GuidelineLinkedRuns
-            runs={[]}
+            runs={linkedRuns}
+            loading={linkedRunsLoading}
             onNavigateRun={(id) =>
               navigate(`/annotations/runs/${encodeURIComponent(id)}`)
             }

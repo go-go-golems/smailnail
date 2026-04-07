@@ -302,6 +302,24 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		if len(guidelineList.Items) == 0 {
 			t.Fatalf("expected guideline list items, got 0")
 		}
+
+		linkGuidelineRec := performProtoRequest(t, handler, http.MethodPost, "/api/annotation-runs/run-42/guidelines", &annotationuiv1.LinkRunGuidelineRequest{GuidelineId: createdGuideline.Id})
+		if linkGuidelineRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", linkGuidelineRec.Code, linkGuidelineRec.Body.String())
+		}
+
+		guidelineRunsRec := performRequest(t, handler, http.MethodGet, "/api/review-guidelines/"+createdGuideline.Id+"/runs", "")
+		if guidelineRunsRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", guidelineRunsRec.Code, guidelineRunsRec.Body.String())
+		}
+		var guidelineRuns annotationuiv1.AgentRunListResponse
+		decodeProtoJSONResponse(t, guidelineRunsRec, &guidelineRuns)
+		if len(guidelineRuns.Items) != 1 {
+			t.Fatalf("expected 1 linked run, got %d", len(guidelineRuns.Items))
+		}
+		if guidelineRuns.Items[0].RunId != "run-42" {
+			t.Fatalf("runId = %q", guidelineRuns.Items[0].RunId)
+		}
 	})
 
 	t.Run("list senders returns annotation counts and tags", func(t *testing.T) {

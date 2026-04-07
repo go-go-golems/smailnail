@@ -217,6 +217,11 @@ export const annotationsApi = createApi({
       query: (id) => `review-guidelines/${id}`,
       providesTags: ["Guidelines"],
     }),
+    getGuidelineRuns: builder.query<AgentRunSummary[], string>({
+      query: (guidelineId) => `review-guidelines/${guidelineId}/runs`,
+      transformResponse: (response: AgentRunListResponse) => response.items,
+      providesTags: ["Guidelines", "Runs"],
+    }),
     createGuideline: builder.mutation<ReviewGuideline, CreateGuidelineRequest>({
       query: (body) => ({ url: "review-guidelines", method: "POST", body }),
       invalidatesTags: ["Guidelines"],
@@ -289,6 +294,7 @@ export const {
   // ── Review Guidelines hooks
   useListGuidelinesQuery,
   useGetGuidelineQuery,
+  useGetGuidelineRunsQuery,
   useCreateGuidelineMutation,
   useUpdateGuidelineMutation,
   // ── Run-Guideline Links hooks

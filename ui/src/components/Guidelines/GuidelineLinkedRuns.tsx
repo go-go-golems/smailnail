@@ -9,13 +9,25 @@ import type { AgentRunSummary } from "../../types/annotations";
 
 export interface GuidelineLinkedRunsProps {
   runs: AgentRunSummary[];
+  loading?: boolean;
   onNavigateRun?: (runId: string) => void;
 }
 
 export function GuidelineLinkedRuns({
   runs,
+  loading = false,
   onNavigateRun,
 }: GuidelineLinkedRunsProps) {
+  if (loading) {
+    return (
+      <Box data-part={parts.guidelineLinkedRuns} sx={{ py: 2, textAlign: "center" }}>
+        <Typography variant="body2" color="text.secondary">
+          Loading linked runs…
+        </Typography>
+      </Box>
+    );
+  }
+
   if (runs.length === 0) {
     return (
       <Box data-part={parts.guidelineLinkedRuns} sx={{ py: 2, textAlign: "center" }}>
