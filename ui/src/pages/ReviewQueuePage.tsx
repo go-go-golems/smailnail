@@ -13,6 +13,7 @@ import {
 } from "../store/annotationUiSlice";
 import {
   useListAnnotationsQuery,
+  useGetRunGuidelinesQuery,
   useBatchReviewMutation,
   useReviewAnnotationMutation,
 } from "../api/annotations";
@@ -45,8 +46,17 @@ export function ReviewQueuePage() {
   const [batchReview] = useBatchReviewMutation();
   const [reviewAnnotation] = useReviewAnnotationMutation();
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  const [commentAnnotation, setCommentAnnotation] = useState<Annotation | null>(null);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const expandedAnnotation = useMemo(
+    () => annotations.find((annotation) => annotation.id === expandedId) ?? null,
+    [annotations, expandedId],
+  );
+  const { data: expandedRunGuidelines = [] } = useGetRunGuidelinesQuery(
+    expandedAnnotation?.agentRunId ?? "",
+    { skip: !expandedAnnotation?.agentRunId },
+  );
   const selectedAnnotations = useMemo(
     () => annotations.filter((annotation) => selectedSet.has(annotation.id)),
     [annotations, selectedSet],
@@ -102,7 +112,7 @@ export function ReviewQueuePage() {
     setCommentDrawerOpen(true);
   }, []);
 
-  const handleCommentSubmit = useCallback(
+  const handleBatchCommentSubmit = useCallback(
     (payload: {
       feedbackKind: FeedbackKind;
       title: string;
@@ -125,6 +135,41 @@ export function ReviewQueuePage() {
       setCommentDrawerOpen(false);
     },
     [batchReview, selected, singleSelectedRunId, dispatch],
+  );
+
+  const handleDismissExplain = useCallback(
+    (id: string) => {
+      const annotation = annotations.find((item) => item.id === id) ?? null;
+      setCommentAnnotation(annotation);
+    },
+    [annotations],
+  );
+
+  const handleSingleCommentSubmit = useCallback(
+    (payload: {
+      feedbackKind: FeedbackKind;
+      title: string;
+      bodyMarkdown: string;
+      guidelineIds: string[];
+    }) => {
+      if (!commentAnnotation) {
+        return;
+      }
+
+      void reviewAnnotation({
+        id: commentAnnotation.id,
+        reviewState: "dismissed",
+        comment: {
+          feedbackKind: payload.feedbackKind,
+          title: payload.title,
+          bodyMarkdown: payload.bodyMarkdown,
+        },
+        guidelineIds:
+          payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+      });
+      setCommentAnnotation(null);
+    },
+    [commentAnnotation, reviewAnnotation],
   );
 
   const handleGetRelated = useCallback(
@@ -245,8 +290,12 @@ export function ReviewQueuePage() {
         onToggleExpand={handleToggleExpand}
         onApprove={handleApprove}
         onDismiss={handleDismiss}
+        onDismissExplain={handleDismissExplain}
         onNavigateTarget={handleNavigateTarget}
         getRelated={handleGetRelated}
+        getGuidelines={(annotation) =>
+          expandedId === annotation.id ? expandedRunGuidelines : []
+        }
       />
 
       <ReviewCommentDrawer
@@ -260,8 +309,17 @@ export function ReviewQueuePage() {
             ? "Guidelines can only be attached when the selected annotations all come from the same run."
             : undefined
         }
-        onSubmit={handleCommentSubmit}
+        onSubmit={handleBatchCommentSubmit}
         onCancel={() => setCommentDrawerOpen(false)}
+      />
+
+      <ReviewCommentDrawer
+        open={commentAnnotation !== null}
+        mode="single"
+        targetCount={1}
+        agentRunId={commentAnnotation?.agentRunId}
+        onSubmit={handleSingleCommentSubmit}
+        onCancel={() => setCommentAnnotation(null)}
       />
     </Box>
   );

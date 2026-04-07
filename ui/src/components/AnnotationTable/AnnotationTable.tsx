@@ -11,6 +11,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { Annotation } from "../../types/annotations";
 import type { ReviewFeedback } from "../../types/reviewFeedback";
+import type { ReviewGuideline } from "../../types/reviewGuideline";
 import { AnnotationRow } from "./AnnotationRow";
 import { AnnotationDetail } from "./AnnotationDetail";
 import { parts } from "./parts";
@@ -39,6 +40,8 @@ export interface AnnotationTableProps {
   getRelated?: (annotation: Annotation) => Annotation[];
   /** Find feedback for the expanded row */
   getFeedback?: (annotation: Annotation) => ReviewFeedback[];
+  /** Find guidelines relevant to the expanded row */
+  getGuidelines?: (annotation: Annotation) => ReviewGuideline[];
 }
 
 interface AnnotationTableItemProps {
@@ -47,6 +50,7 @@ interface AnnotationTableItemProps {
   isExpanded: boolean;
   relatedAnnotations: Annotation[];
   feedback: ReviewFeedback[];
+  guidelines: ReviewGuideline[];
   onToggleSelect: (id: string) => void;
   onToggleExpand: (id: string) => void;
   onApprove: (id: string) => void;
@@ -59,6 +63,7 @@ interface AnnotationTableItemProps {
 const COLUMN_COUNT = 8;
 const EMPTY_RELATED: Annotation[] = [];
 const EMPTY_FEEDBACK: ReviewFeedback[] = [];
+const EMPTY_GUIDELINES: ReviewGuideline[] = [];
 
 const AnnotationTableItem = memo(
   function AnnotationTableItem({
@@ -67,6 +72,7 @@ const AnnotationTableItem = memo(
     isExpanded,
     relatedAnnotations,
     feedback,
+    guidelines,
     onToggleSelect,
     onToggleExpand,
     onApprove,
@@ -100,6 +106,7 @@ const AnnotationTableItem = memo(
             isExpanded={true}
             relatedAnnotations={relatedAnnotations}
             feedback={feedback}
+            guidelines={guidelines}
             onNavigateTarget={
               onNavigateTarget
                 ? () => onNavigateTarget(annotation.targetType, annotation.targetId)
@@ -117,6 +124,7 @@ const AnnotationTableItem = memo(
     prev.isExpanded === next.isExpanded &&
     prev.relatedAnnotations === next.relatedAnnotations &&
     prev.feedback === next.feedback &&
+    prev.guidelines === next.guidelines &&
     prev.onToggleSelect === next.onToggleSelect &&
     prev.onToggleExpand === next.onToggleExpand &&
     prev.onApprove === next.onApprove &&
@@ -139,6 +147,7 @@ export function AnnotationTable({
   onNavigateTarget,
   getRelated,
   getFeedback,
+  getGuidelines,
 }: AnnotationTableProps) {
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const allSelected =
@@ -163,6 +172,13 @@ export function AnnotationTable({
     }
     return getFeedback(expandedAnnotation);
   }, [expandedAnnotation, getFeedback]);
+
+  const expandedGuidelines = useMemo(() => {
+    if (!expandedAnnotation || !getGuidelines) {
+      return EMPTY_GUIDELINES;
+    }
+    return getGuidelines(expandedAnnotation);
+  }, [expandedAnnotation, getGuidelines]);
 
   if (annotations.length === 0) {
     return (
@@ -220,6 +236,7 @@ export function AnnotationTable({
                 isExpanded={isExpanded}
                 relatedAnnotations={isExpanded ? expandedRelated : EMPTY_RELATED}
                 feedback={isExpanded ? expandedFeedback : EMPTY_FEEDBACK}
+                guidelines={isExpanded ? expandedGuidelines : EMPTY_GUIDELINES}
                 onToggleSelect={onToggleSelect}
                 onToggleExpand={onToggleExpand}
                 onApprove={onApprove}

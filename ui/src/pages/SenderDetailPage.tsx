@@ -60,6 +60,19 @@ export function SenderDetailPage() {
     return mailboxNames.length === 1 ? mailboxNames[0] : undefined;
   }, [messages]);
 
+  const getGuidelines = useCallback(
+    (annotation: Annotation) => {
+      if (!annotation.agentRunId) {
+        return [];
+      }
+      return (
+        senderGuidelineGroups.find((group) => group.runId === annotation.agentRunId)
+          ?.guidelines ?? []
+      );
+    },
+    [senderGuidelineGroups],
+  );
+
   const getRelated = useCallback(
     (ann: Annotation) =>
       annotations.filter(
@@ -210,6 +223,9 @@ export function SenderDetailPage() {
             getRelated={getRelated}
             getFeedback={(annotation) =>
               expandedId === annotation.id ? annotationFeedback : []
+            }
+            getGuidelines={(annotation) =>
+              expandedId === annotation.id ? getGuidelines(annotation) : []
             }
           />
           <Divider sx={{ my: 3 }} />

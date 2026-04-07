@@ -32,7 +32,7 @@ export const StatefulMutationDemo: Story = {
     docs: {
       description: {
         story:
-          "This story uses the shared mutable MSW annotation state. Approve, dismiss, or batch-review items and verify that pending-only queue queries shrink or update immediately instead of leaving stale rows behind.",
+          "This story uses the shared mutable MSW annotation state. Approve, dismiss, use the per-row dismiss-and-explain bubble, or batch-review items and verify that pending-only queue queries shrink or update immediately instead of leaving stale rows behind.",
       },
     },
   },

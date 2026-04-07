@@ -295,6 +295,11 @@ export function RunDetailPage() {
         getFeedback={(annotation) =>
           expandedId === annotation.id ? annotationFeedback : []
         }
+        getGuidelines={(annotation) =>
+          expandedId === annotation.id && annotation.agentRunId === (runId ?? "")
+            ? linkedGuidelines
+            : []
+        }
       />
 
       <ReviewCommentDrawer

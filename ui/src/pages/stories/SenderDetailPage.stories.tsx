@@ -40,7 +40,7 @@ export const WithLinkedGuidelines: Story = {
     docs: {
       description: {
         story:
-          "Uses the shared MSW sender-guideline endpoint so the sender page shows the run-linked guideline panel for senders that participate in reviewed runs.",
+          "Uses the shared MSW sender-guideline endpoint so the sender page shows the run-linked guideline panel and, when you expand an annotation from that run, the same linked guidelines inside the annotation detail.",
       },
     },
   },
@@ -51,7 +51,7 @@ export const StatefulAnnotationFeedback: Story = {
     docs: {
       description: {
         story:
-          "Expand the visible annotation row to inspect annotation-scoped feedback loaded through the target-filtered review-feedback query. Dismissing with an explanation in the story should create more annotation feedback in the shared MSW state.",
+          "Expand the visible annotation row to inspect annotation-scoped feedback plus any run-linked guidelines relevant to that item. Dismissing with an explanation in the story should create more annotation feedback in the shared MSW state.",
       },
     },
   },
