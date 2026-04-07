@@ -199,6 +199,24 @@ LIMIT 20`)
 	}))
 }
 
+func (h *appHandler) handleListSenderGuidelines(w http.ResponseWriter, r *http.Request) {
+	email := strings.TrimSpace(r.PathValue("email"))
+	if email == "" {
+		writeNotFound(w, "sender not found")
+		return
+	}
+
+	groups, err := h.annotations.ListSenderGuidelineGroups(r.Context(), email)
+	if err != nil {
+		writeMessageError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.SenderGuidelineListResponse{
+		Items: senderGuidelineGroupsToProto(groups),
+	})
+}
+
 func (h *appHandler) listSenderLogs(ctx context.Context, email string) ([]annotate.AnnotationLog, error) {
 	query := h.db.Rebind(`SELECT DISTINCT l.*
 		FROM annotation_logs l

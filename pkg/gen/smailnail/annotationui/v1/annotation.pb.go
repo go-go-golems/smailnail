@@ -1658,6 +1658,118 @@ func (x *SenderDetail) GetRecentMessages() []*MessagePreview {
 	return nil
 }
 
+type SenderGuidelineGroup struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RunId         string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	SourceLabel   string                 `protobuf:"bytes,2,opt,name=source_label,json=sourceLabel,proto3" json:"source_label,omitempty"`
+	SourceKind    string                 `protobuf:"bytes,3,opt,name=source_kind,json=sourceKind,proto3" json:"source_kind,omitempty"`
+	Guidelines    []*ReviewGuideline     `protobuf:"bytes,4,rep,name=guidelines,proto3" json:"guidelines,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SenderGuidelineGroup) Reset() {
+	*x = SenderGuidelineGroup{}
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SenderGuidelineGroup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SenderGuidelineGroup) ProtoMessage() {}
+
+func (x *SenderGuidelineGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SenderGuidelineGroup.ProtoReflect.Descriptor instead.
+func (*SenderGuidelineGroup) Descriptor() ([]byte, []int) {
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SenderGuidelineGroup) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *SenderGuidelineGroup) GetSourceLabel() string {
+	if x != nil {
+		return x.SourceLabel
+	}
+	return ""
+}
+
+func (x *SenderGuidelineGroup) GetSourceKind() string {
+	if x != nil {
+		return x.SourceKind
+	}
+	return ""
+}
+
+func (x *SenderGuidelineGroup) GetGuidelines() []*ReviewGuideline {
+	if x != nil {
+		return x.Guidelines
+	}
+	return nil
+}
+
+type SenderGuidelineListResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Items         []*SenderGuidelineGroup `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SenderGuidelineListResponse) Reset() {
+	*x = SenderGuidelineListResponse{}
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SenderGuidelineListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SenderGuidelineListResponse) ProtoMessage() {}
+
+func (x *SenderGuidelineListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SenderGuidelineListResponse.ProtoReflect.Descriptor instead.
+func (*SenderGuidelineListResponse) Descriptor() ([]byte, []int) {
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *SenderGuidelineListResponse) GetItems() []*SenderGuidelineGroup {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 type SenderListRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Domain         string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
@@ -1670,7 +1782,7 @@ type SenderListRequest struct {
 
 func (x *SenderListRequest) Reset() {
 	*x = SenderListRequest{}
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[19]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1682,7 +1794,7 @@ func (x *SenderListRequest) String() string {
 func (*SenderListRequest) ProtoMessage() {}
 
 func (x *SenderListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[19]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1695,7 +1807,7 @@ func (x *SenderListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SenderListRequest.ProtoReflect.Descriptor instead.
 func (*SenderListRequest) Descriptor() ([]byte, []int) {
-	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{19}
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *SenderListRequest) GetDomain() string {
@@ -1735,7 +1847,7 @@ type SenderListResponse struct {
 
 func (x *SenderListResponse) Reset() {
 	*x = SenderListResponse{}
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[20]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1747,7 +1859,7 @@ func (x *SenderListResponse) String() string {
 func (*SenderListResponse) ProtoMessage() {}
 
 func (x *SenderListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[20]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +1872,7 @@ func (x *SenderListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SenderListResponse.ProtoReflect.Descriptor instead.
 func (*SenderListResponse) Descriptor() ([]byte, []int) {
-	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{20}
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SenderListResponse) GetItems() []*SenderRow {
@@ -1782,7 +1894,7 @@ type SavedQuery struct {
 
 func (x *SavedQuery) Reset() {
 	*x = SavedQuery{}
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[21]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1794,7 +1906,7 @@ func (x *SavedQuery) String() string {
 func (*SavedQuery) ProtoMessage() {}
 
 func (x *SavedQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[21]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1807,7 +1919,7 @@ func (x *SavedQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SavedQuery.ProtoReflect.Descriptor instead.
 func (*SavedQuery) Descriptor() ([]byte, []int) {
-	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{21}
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SavedQuery) GetName() string {
@@ -1847,7 +1959,7 @@ type SavedQueryListResponse struct {
 
 func (x *SavedQueryListResponse) Reset() {
 	*x = SavedQueryListResponse{}
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[22]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1859,7 +1971,7 @@ func (x *SavedQueryListResponse) String() string {
 func (*SavedQueryListResponse) ProtoMessage() {}
 
 func (x *SavedQueryListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[22]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1872,7 +1984,7 @@ func (x *SavedQueryListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SavedQueryListResponse.ProtoReflect.Descriptor instead.
 func (*SavedQueryListResponse) Descriptor() ([]byte, []int) {
-	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{22}
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *SavedQueryListResponse) GetItems() []*SavedQuery {
@@ -1891,7 +2003,7 @@ type ExecuteQueryRequest struct {
 
 func (x *ExecuteQueryRequest) Reset() {
 	*x = ExecuteQueryRequest{}
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[23]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1903,7 +2015,7 @@ func (x *ExecuteQueryRequest) String() string {
 func (*ExecuteQueryRequest) ProtoMessage() {}
 
 func (x *ExecuteQueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[23]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1916,7 +2028,7 @@ func (x *ExecuteQueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteQueryRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteQueryRequest) Descriptor() ([]byte, []int) {
-	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{23}
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ExecuteQueryRequest) GetSql() string {
@@ -1938,7 +2050,7 @@ type QueryResult struct {
 
 func (x *QueryResult) Reset() {
 	*x = QueryResult{}
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[24]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1950,7 +2062,7 @@ func (x *QueryResult) String() string {
 func (*QueryResult) ProtoMessage() {}
 
 func (x *QueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[24]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1963,7 +2075,7 @@ func (x *QueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryResult.ProtoReflect.Descriptor instead.
 func (*QueryResult) Descriptor() ([]byte, []int) {
-	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{24}
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *QueryResult) GetColumns() []string {
@@ -2006,7 +2118,7 @@ type SaveQueryRequest struct {
 
 func (x *SaveQueryRequest) Reset() {
 	*x = SaveQueryRequest{}
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[25]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2018,7 +2130,7 @@ func (x *SaveQueryRequest) String() string {
 func (*SaveQueryRequest) ProtoMessage() {}
 
 func (x *SaveQueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[25]
+	mi := &file_smailnail_annotationui_v1_annotation_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2031,7 +2143,7 @@ func (x *SaveQueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveQueryRequest.ProtoReflect.Descriptor instead.
 func (*SaveQueryRequest) Descriptor() ([]byte, []int) {
-	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{25}
+	return file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SaveQueryRequest) GetName() string {
@@ -2066,7 +2178,7 @@ var File_smailnail_annotationui_v1_annotation_proto protoreflect.FileDescriptor
 
 const file_smailnail_annotationui_v1_annotation_proto_rawDesc = "" +
 	"\n" +
-	"*smailnail/annotationui/v1/annotation.proto\x12\x19smailnail.annotationui.v1\x1a\x1cgoogle/protobuf/struct.proto\"R\n" +
+	"*smailnail/annotationui/v1/annotation.proto\x12\x19smailnail.annotationui.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a&smailnail/annotationui/v1/review.proto\"R\n" +
 	"\fDatabaseInfo\x12\x16\n" +
 	"\x06driver\x18\x01 \x01(\tR\x06driver\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n" +
@@ -2247,7 +2359,17 @@ const file_smailnail_annotationui_v1_annotation_proto_rawDesc = "" +
 	"\vannotations\x18\n" +
 	" \x03(\v2%.smailnail.annotationui.v1.AnnotationR\vannotations\x12<\n" +
 	"\x04logs\x18\v \x03(\v2(.smailnail.annotationui.v1.AnnotationLogR\x04logs\x12R\n" +
-	"\x0frecent_messages\x18\f \x03(\v2).smailnail.annotationui.v1.MessagePreviewR\x0erecentMessages\"\x95\x01\n" +
+	"\x0frecent_messages\x18\f \x03(\v2).smailnail.annotationui.v1.MessagePreviewR\x0erecentMessages\"\xbd\x01\n" +
+	"\x14SenderGuidelineGroup\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12!\n" +
+	"\fsource_label\x18\x02 \x01(\tR\vsourceLabel\x12\x1f\n" +
+	"\vsource_kind\x18\x03 \x01(\tR\n" +
+	"sourceKind\x12J\n" +
+	"\n" +
+	"guidelines\x18\x04 \x03(\v2*.smailnail.annotationui.v1.ReviewGuidelineR\n" +
+	"guidelines\"d\n" +
+	"\x1bSenderGuidelineListResponse\x12E\n" +
+	"\x05items\x18\x01 \x03(\v2/.smailnail.annotationui.v1.SenderGuidelineGroupR\x05items\"\x95\x01\n" +
 	"\x11SenderListRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12,\n" +
 	"\x0fhas_annotations\x18\x02 \x01(\bH\x00R\x0ehasAnnotations\x88\x01\x01\x12\x10\n" +
@@ -2290,35 +2412,38 @@ func file_smailnail_annotationui_v1_annotation_proto_rawDescGZIP() []byte {
 	return file_smailnail_annotationui_v1_annotation_proto_rawDescData
 }
 
-var file_smailnail_annotationui_v1_annotation_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_smailnail_annotationui_v1_annotation_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_smailnail_annotationui_v1_annotation_proto_goTypes = []any{
-	(*DatabaseInfo)(nil),           // 0: smailnail.annotationui.v1.DatabaseInfo
-	(*InfoResponse)(nil),           // 1: smailnail.annotationui.v1.InfoResponse
-	(*Annotation)(nil),             // 2: smailnail.annotationui.v1.Annotation
-	(*AnnotationListRequest)(nil),  // 3: smailnail.annotationui.v1.AnnotationListRequest
-	(*AnnotationListResponse)(nil), // 4: smailnail.annotationui.v1.AnnotationListResponse
-	(*TargetGroup)(nil),            // 5: smailnail.annotationui.v1.TargetGroup
-	(*GroupMember)(nil),            // 6: smailnail.annotationui.v1.GroupMember
-	(*GroupDetail)(nil),            // 7: smailnail.annotationui.v1.GroupDetail
-	(*GroupListRequest)(nil),       // 8: smailnail.annotationui.v1.GroupListRequest
-	(*GroupListResponse)(nil),      // 9: smailnail.annotationui.v1.GroupListResponse
-	(*AnnotationLog)(nil),          // 10: smailnail.annotationui.v1.AnnotationLog
-	(*LogListRequest)(nil),         // 11: smailnail.annotationui.v1.LogListRequest
-	(*LogListResponse)(nil),        // 12: smailnail.annotationui.v1.LogListResponse
-	(*AgentRunSummary)(nil),        // 13: smailnail.annotationui.v1.AgentRunSummary
-	(*AgentRunDetail)(nil),         // 14: smailnail.annotationui.v1.AgentRunDetail
-	(*AgentRunListResponse)(nil),   // 15: smailnail.annotationui.v1.AgentRunListResponse
-	(*SenderRow)(nil),              // 16: smailnail.annotationui.v1.SenderRow
-	(*MessagePreview)(nil),         // 17: smailnail.annotationui.v1.MessagePreview
-	(*SenderDetail)(nil),           // 18: smailnail.annotationui.v1.SenderDetail
-	(*SenderListRequest)(nil),      // 19: smailnail.annotationui.v1.SenderListRequest
-	(*SenderListResponse)(nil),     // 20: smailnail.annotationui.v1.SenderListResponse
-	(*SavedQuery)(nil),             // 21: smailnail.annotationui.v1.SavedQuery
-	(*SavedQueryListResponse)(nil), // 22: smailnail.annotationui.v1.SavedQueryListResponse
-	(*ExecuteQueryRequest)(nil),    // 23: smailnail.annotationui.v1.ExecuteQueryRequest
-	(*QueryResult)(nil),            // 24: smailnail.annotationui.v1.QueryResult
-	(*SaveQueryRequest)(nil),       // 25: smailnail.annotationui.v1.SaveQueryRequest
-	(*structpb.Struct)(nil),        // 26: google.protobuf.Struct
+	(*DatabaseInfo)(nil),                // 0: smailnail.annotationui.v1.DatabaseInfo
+	(*InfoResponse)(nil),                // 1: smailnail.annotationui.v1.InfoResponse
+	(*Annotation)(nil),                  // 2: smailnail.annotationui.v1.Annotation
+	(*AnnotationListRequest)(nil),       // 3: smailnail.annotationui.v1.AnnotationListRequest
+	(*AnnotationListResponse)(nil),      // 4: smailnail.annotationui.v1.AnnotationListResponse
+	(*TargetGroup)(nil),                 // 5: smailnail.annotationui.v1.TargetGroup
+	(*GroupMember)(nil),                 // 6: smailnail.annotationui.v1.GroupMember
+	(*GroupDetail)(nil),                 // 7: smailnail.annotationui.v1.GroupDetail
+	(*GroupListRequest)(nil),            // 8: smailnail.annotationui.v1.GroupListRequest
+	(*GroupListResponse)(nil),           // 9: smailnail.annotationui.v1.GroupListResponse
+	(*AnnotationLog)(nil),               // 10: smailnail.annotationui.v1.AnnotationLog
+	(*LogListRequest)(nil),              // 11: smailnail.annotationui.v1.LogListRequest
+	(*LogListResponse)(nil),             // 12: smailnail.annotationui.v1.LogListResponse
+	(*AgentRunSummary)(nil),             // 13: smailnail.annotationui.v1.AgentRunSummary
+	(*AgentRunDetail)(nil),              // 14: smailnail.annotationui.v1.AgentRunDetail
+	(*AgentRunListResponse)(nil),        // 15: smailnail.annotationui.v1.AgentRunListResponse
+	(*SenderRow)(nil),                   // 16: smailnail.annotationui.v1.SenderRow
+	(*MessagePreview)(nil),              // 17: smailnail.annotationui.v1.MessagePreview
+	(*SenderDetail)(nil),                // 18: smailnail.annotationui.v1.SenderDetail
+	(*SenderGuidelineGroup)(nil),        // 19: smailnail.annotationui.v1.SenderGuidelineGroup
+	(*SenderGuidelineListResponse)(nil), // 20: smailnail.annotationui.v1.SenderGuidelineListResponse
+	(*SenderListRequest)(nil),           // 21: smailnail.annotationui.v1.SenderListRequest
+	(*SenderListResponse)(nil),          // 22: smailnail.annotationui.v1.SenderListResponse
+	(*SavedQuery)(nil),                  // 23: smailnail.annotationui.v1.SavedQuery
+	(*SavedQueryListResponse)(nil),      // 24: smailnail.annotationui.v1.SavedQueryListResponse
+	(*ExecuteQueryRequest)(nil),         // 25: smailnail.annotationui.v1.ExecuteQueryRequest
+	(*QueryResult)(nil),                 // 26: smailnail.annotationui.v1.QueryResult
+	(*SaveQueryRequest)(nil),            // 27: smailnail.annotationui.v1.SaveQueryRequest
+	(*ReviewGuideline)(nil),             // 28: smailnail.annotationui.v1.ReviewGuideline
+	(*structpb.Struct)(nil),             // 29: google.protobuf.Struct
 }
 var file_smailnail_annotationui_v1_annotation_proto_depIdxs = []int32{
 	0,  // 0: smailnail.annotationui.v1.InfoResponse.database:type_name -> smailnail.annotationui.v1.DatabaseInfo
@@ -2333,14 +2458,16 @@ var file_smailnail_annotationui_v1_annotation_proto_depIdxs = []int32{
 	2,  // 9: smailnail.annotationui.v1.SenderDetail.annotations:type_name -> smailnail.annotationui.v1.Annotation
 	10, // 10: smailnail.annotationui.v1.SenderDetail.logs:type_name -> smailnail.annotationui.v1.AnnotationLog
 	17, // 11: smailnail.annotationui.v1.SenderDetail.recent_messages:type_name -> smailnail.annotationui.v1.MessagePreview
-	16, // 12: smailnail.annotationui.v1.SenderListResponse.items:type_name -> smailnail.annotationui.v1.SenderRow
-	21, // 13: smailnail.annotationui.v1.SavedQueryListResponse.items:type_name -> smailnail.annotationui.v1.SavedQuery
-	26, // 14: smailnail.annotationui.v1.QueryResult.rows:type_name -> google.protobuf.Struct
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	28, // 12: smailnail.annotationui.v1.SenderGuidelineGroup.guidelines:type_name -> smailnail.annotationui.v1.ReviewGuideline
+	19, // 13: smailnail.annotationui.v1.SenderGuidelineListResponse.items:type_name -> smailnail.annotationui.v1.SenderGuidelineGroup
+	16, // 14: smailnail.annotationui.v1.SenderListResponse.items:type_name -> smailnail.annotationui.v1.SenderRow
+	23, // 15: smailnail.annotationui.v1.SavedQueryListResponse.items:type_name -> smailnail.annotationui.v1.SavedQuery
+	29, // 16: smailnail.annotationui.v1.QueryResult.rows:type_name -> google.protobuf.Struct
+	17, // [17:17] is the sub-list for method output_type
+	17, // [17:17] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_smailnail_annotationui_v1_annotation_proto_init() }
@@ -2348,14 +2475,15 @@ func file_smailnail_annotationui_v1_annotation_proto_init() {
 	if File_smailnail_annotationui_v1_annotation_proto != nil {
 		return
 	}
-	file_smailnail_annotationui_v1_annotation_proto_msgTypes[19].OneofWrappers = []any{}
+	file_smailnail_annotationui_v1_review_proto_init()
+	file_smailnail_annotationui_v1_annotation_proto_msgTypes[21].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_smailnail_annotationui_v1_annotation_proto_rawDesc), len(file_smailnail_annotationui_v1_annotation_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

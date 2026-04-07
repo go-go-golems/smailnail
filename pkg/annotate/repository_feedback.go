@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
@@ -81,31 +82,45 @@ func (r *Repository) GetReviewFeedback(ctx context.Context, id string) (*ReviewF
 }
 
 func (r *Repository) ListReviewFeedback(ctx context.Context, filter ListFeedbackFilter) ([]ReviewFeedback, error) {
-	query := `SELECT * FROM review_feedback WHERE 1 = 1`
-	args := make([]any, 0, 5)
+	query := `SELECT DISTINCT rf.* FROM review_feedback rf`
+	args := make([]any, 0, 7)
+
+	if strings.TrimSpace(filter.TargetType) != "" || strings.TrimSpace(filter.TargetID) != "" {
+		query += ` INNER JOIN review_feedback_targets rft ON rft.feedback_id = rf.id`
+	}
+
+	query += ` WHERE 1 = 1`
 
 	if strings.TrimSpace(filter.ScopeKind) != "" {
-		query += ` AND scope_kind = ?`
+		query += ` AND rf.scope_kind = ?`
 		args = append(args, strings.TrimSpace(filter.ScopeKind))
 	}
 	if strings.TrimSpace(filter.AgentRunID) != "" {
-		query += ` AND agent_run_id = ?`
+		query += ` AND rf.agent_run_id = ?`
 		args = append(args, strings.TrimSpace(filter.AgentRunID))
 	}
 	if strings.TrimSpace(filter.Status) != "" {
-		query += ` AND status = ?`
+		query += ` AND rf.status = ?`
 		args = append(args, strings.TrimSpace(filter.Status))
 	}
 	if strings.TrimSpace(filter.FeedbackKind) != "" {
-		query += ` AND feedback_kind = ?`
+		query += ` AND rf.feedback_kind = ?`
 		args = append(args, strings.TrimSpace(filter.FeedbackKind))
 	}
 	if strings.TrimSpace(filter.MailboxName) != "" {
-		query += ` AND mailbox_name = ?`
+		query += ` AND rf.mailbox_name = ?`
 		args = append(args, strings.TrimSpace(filter.MailboxName))
 	}
+	if strings.TrimSpace(filter.TargetType) != "" {
+		query += ` AND rft.target_type = ?`
+		args = append(args, strings.TrimSpace(filter.TargetType))
+	}
+	if strings.TrimSpace(filter.TargetID) != "" {
+		query += ` AND rft.target_id = ?`
+		args = append(args, strings.TrimSpace(filter.TargetID))
+	}
 
-	query += ` ORDER BY created_at DESC, id DESC`
+	query += ` ORDER BY rf.created_at DESC, rf.id DESC`
 	if filter.Limit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, filter.Limit)
@@ -354,6 +369,102 @@ func (r *Repository) ListRunGuidelines(ctx context.Context, runID string) ([]Rev
 		return nil, errors.Wrap(err, "list run guidelines")
 	}
 	return guidelines, nil
+}
+
+func (r *Repository) ListSenderGuidelineGroups(ctx context.Context, email string) ([]SenderGuidelineGroup, error) {
+	query := `
+WITH sender_runs AS (
+	SELECT agent_run_id AS run_id, MAX(created_at) AS latest_created_at
+	FROM annotations
+	WHERE target_type = 'sender' AND target_id = ? AND agent_run_id != ''
+	GROUP BY agent_run_id
+),
+run_metadata AS (
+	SELECT run_id, source_label, source_kind
+	FROM (
+		SELECT
+			a.agent_run_id AS run_id,
+			a.source_label,
+			a.source_kind,
+			ROW_NUMBER() OVER (
+				PARTITION BY a.agent_run_id
+				ORDER BY a.created_at DESC, a.id DESC
+			) AS row_number
+		FROM annotations a
+		INNER JOIN sender_runs sr ON sr.run_id = a.agent_run_id
+	)
+	WHERE row_number = 1
+)
+SELECT
+	sr.run_id,
+	COALESCE(rm.source_label, '') AS source_label,
+	COALESCE(rm.source_kind, '') AS source_kind,
+	g.id,
+	g.slug,
+	g.title,
+	g.scope_kind,
+	g.status,
+	g.priority,
+	g.body_markdown,
+	g.created_by,
+	g.created_at,
+	g.updated_at
+FROM sender_runs sr
+INNER JOIN run_guideline_links l ON l.agent_run_id = sr.run_id
+INNER JOIN review_guidelines g ON g.id = l.guideline_id
+LEFT JOIN run_metadata rm ON rm.run_id = sr.run_id
+ORDER BY sr.latest_created_at DESC, sr.run_id DESC, g.priority DESC, g.created_at DESC, g.id DESC`
+
+	type senderGuidelineRow struct {
+		RunID        string    `db:"run_id"`
+		SourceLabel  string    `db:"source_label"`
+		SourceKind   string    `db:"source_kind"`
+		GuidelineID  string    `db:"id"`
+		Slug         string    `db:"slug"`
+		Title        string    `db:"title"`
+		ScopeKind    string    `db:"scope_kind"`
+		Status       string    `db:"status"`
+		Priority     int       `db:"priority"`
+		BodyMarkdown string    `db:"body_markdown"`
+		CreatedBy    string    `db:"created_by"`
+		CreatedAt    time.Time `db:"created_at"`
+		UpdatedAt    time.Time `db:"updated_at"`
+	}
+
+	rows := []senderGuidelineRow{}
+	if err := r.db.SelectContext(ctx, &rows, r.db.Rebind(query), strings.TrimSpace(email)); err != nil {
+		return nil, errors.Wrap(err, "list sender guideline groups")
+	}
+
+	groups := make([]SenderGuidelineGroup, 0)
+	indexByRunID := map[string]int{}
+	for _, row := range rows {
+		groupIndex, ok := indexByRunID[row.RunID]
+		if !ok {
+			groups = append(groups, SenderGuidelineGroup{
+				RunID:       row.RunID,
+				SourceLabel: row.SourceLabel,
+				SourceKind:  row.SourceKind,
+				Guidelines:  []ReviewGuideline{},
+			})
+			groupIndex = len(groups) - 1
+			indexByRunID[row.RunID] = groupIndex
+		}
+		groups[groupIndex].Guidelines = append(groups[groupIndex].Guidelines, ReviewGuideline{
+			ID:           row.GuidelineID,
+			Slug:         row.Slug,
+			Title:        row.Title,
+			ScopeKind:    row.ScopeKind,
+			Status:       row.Status,
+			Priority:     row.Priority,
+			BodyMarkdown: row.BodyMarkdown,
+			CreatedBy:    row.CreatedBy,
+			CreatedAt:    row.CreatedAt,
+			UpdatedAt:    row.UpdatedAt,
+		})
+	}
+
+	return groups, nil
 }
 
 func (r *Repository) ListGuidelineRuns(ctx context.Context, guidelineID string) ([]AgentRunSummary, error) {

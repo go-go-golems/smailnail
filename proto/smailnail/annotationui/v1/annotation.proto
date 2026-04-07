@@ -5,6 +5,7 @@ package smailnail.annotationui.v1;
 option go_package = "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1;annotationuiv1";
 
 import "google/protobuf/struct.proto";
+import "smailnail/annotationui/v1/review.proto";
 
 // Wire-format contract for the rest of the annotation UI HTTP layer beyond
 // review feedback/guidelines. This file covers read models for annotations,
@@ -184,6 +185,17 @@ message SenderDetail {
   repeated Annotation annotations = 10;
   repeated AnnotationLog logs = 11;
   repeated MessagePreview recent_messages = 12;
+}
+
+message SenderGuidelineGroup {
+  string run_id = 1;
+  string source_label = 2;
+  string source_kind = 3;
+  repeated ReviewGuideline guidelines = 4;
+}
+
+message SenderGuidelineListResponse {
+  repeated SenderGuidelineGroup items = 1;
 }
 
 message SenderListRequest {

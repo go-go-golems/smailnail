@@ -5,6 +5,7 @@
 // source: smailnail/annotationui/v1/annotation.proto
 
 /* eslint-disable */
+import type { ReviewGuideline } from "./review";
 
 export const protobufPackage = "smailnail.annotationui.v1";
 
@@ -182,6 +183,17 @@ export interface SenderDetail {
   annotations: Annotation[];
   logs: AnnotationLog[];
   recentMessages: MessagePreview[];
+}
+
+export interface SenderGuidelineGroup {
+  runId: string;
+  sourceLabel: string;
+  sourceKind: string;
+  guidelines: ReviewGuideline[];
+}
+
+export interface SenderGuidelineListResponse {
+  items: SenderGuidelineGroup[];
 }
 
 export interface SenderListRequest {

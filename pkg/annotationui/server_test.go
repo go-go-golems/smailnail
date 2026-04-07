@@ -368,6 +368,59 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		}
 	})
 
+	t.Run("feedback list supports target filters", func(t *testing.T) {
+		repo := annotate.NewRepository(db)
+		_, err := repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeAnnotation,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindRejectRequest,
+			Title:        "Needs correction",
+			BodyMarkdown: "Only for annotation one.",
+			CreatedBy:    "tester",
+			Targets: []annotate.FeedbackTargetInput{{
+				TargetType: annotate.FeedbackScopeAnnotation,
+				TargetID:   fixture.AnnotationOneID,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(targeted-1) error = %v", err)
+		}
+		_, err = repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeAnnotation,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindClarification,
+			Title:        "Different target",
+			BodyMarkdown: "Only for annotation two.",
+			CreatedBy:    "tester",
+			Targets: []annotate.FeedbackTargetInput{{
+				TargetType: annotate.FeedbackScopeAnnotation,
+				TargetID:   fixture.AnnotationTwoID,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(targeted-2) error = %v", err)
+		}
+
+		rec := performRequest(t, handler, http.MethodGet, "/api/review-feedback?scopeKind=annotation&targetType=annotation&targetId="+fixture.AnnotationOneID, "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload annotationuiv1.ReviewFeedbackListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) == 0 {
+			t.Fatalf("expected targeted feedback items, got 0")
+		}
+		for _, item := range payload.Items {
+			if item.ScopeKind != annotate.FeedbackScopeAnnotation {
+				t.Fatalf("unexpected scopeKind %q", item.ScopeKind)
+			}
+			if len(item.Targets) != 1 || item.Targets[0].TargetId != fixture.AnnotationOneID {
+				t.Fatalf("unexpected targets: %#v", item.Targets)
+			}
+		}
+	})
+
 	t.Run("list senders returns annotation counts and tags", func(t *testing.T) {
 		rec := performRequest(t, handler, http.MethodGet, "/api/mirror/senders?hasAnnotations=true&tag=newsletter", "")
 		if rec.Code != http.StatusOK {
@@ -408,6 +461,69 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			if log.Title == "Other sender on same run" {
 				t.Fatalf("unexpected unrelated log leaked into sender detail")
 			}
+		}
+	})
+
+	t.Run("sender guideline endpoint groups linked guidelines by run", func(t *testing.T) {
+		repo := annotate.NewRepository(db)
+		guidelineOne, err := repo.CreateGuideline(context.Background(), annotate.CreateGuidelineInput{
+			Slug:         "sender-guideline-one",
+			Title:        "Sender guideline one",
+			ScopeKind:    annotate.GuidelineScopeWorkflow,
+			BodyMarkdown: "Applies to run 42 sender review.",
+			CreatedBy:    "tester",
+		})
+		if err != nil {
+			t.Fatalf("CreateGuideline(one) error = %v", err)
+		}
+		guidelineTwo, err := repo.CreateGuideline(context.Background(), annotate.CreateGuidelineInput{
+			Slug:         "sender-guideline-two",
+			Title:        "Sender guideline two",
+			ScopeKind:    annotate.GuidelineScopeWorkflow,
+			BodyMarkdown: "Also applies to run 42 sender review.",
+			CreatedBy:    "tester",
+		})
+		if err != nil {
+			t.Fatalf("CreateGuideline(two) error = %v", err)
+		}
+		if err := repo.LinkGuidelineToRun(context.Background(), "run-42", guidelineOne.ID, "tester"); err != nil {
+			t.Fatalf("LinkGuidelineToRun(one) error = %v", err)
+		}
+		if err := repo.LinkGuidelineToRun(context.Background(), "run-42", guidelineTwo.ID, "tester"); err != nil {
+			t.Fatalf("LinkGuidelineToRun(two) error = %v", err)
+		}
+
+		rec := performRequest(t, handler, http.MethodGet, "/api/mirror/senders/news%40example.com/guidelines", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload annotationuiv1.SenderGuidelineListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 1 {
+			t.Fatalf("expected 1 sender guideline group, got %d", len(payload.Items))
+		}
+		if payload.Items[0].RunId != "run-42" {
+			t.Fatalf("runId = %q", payload.Items[0].RunId)
+		}
+		if payload.Items[0].SourceLabel != "triage-agent-v1" {
+			t.Fatalf("sourceLabel = %q", payload.Items[0].SourceLabel)
+		}
+		if len(payload.Items[0].Guidelines) < 2 {
+			t.Fatalf("expected at least 2 guidelines, got %d", len(payload.Items[0].Guidelines))
+		}
+		foundOne := false
+		foundTwo := false
+		for _, guideline := range payload.Items[0].Guidelines {
+			if guideline.Slug == "sender-guideline-one" {
+				foundOne = true
+			}
+			if guideline.Slug == "sender-guideline-two" {
+				foundTwo = true
+			}
+		}
+		if !foundOne || !foundTwo {
+			t.Fatalf("expected sender guidelines to be present, got %#v", payload.Items[0].Guidelines)
 		}
 	})
 

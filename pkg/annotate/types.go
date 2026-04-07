@@ -220,6 +220,8 @@ type ListFeedbackFilter struct {
 	Status       string
 	FeedbackKind string
 	MailboxName  string
+	TargetType   string
+	TargetID     string
 	Limit        int
 }
 
@@ -300,6 +302,13 @@ type ListGuidelinesFilter struct {
 	ScopeKind string
 	Search    string
 	Limit     int
+}
+
+type SenderGuidelineGroup struct {
+	RunID       string            `json:"runId"`
+	SourceLabel string            `json:"sourceLabel"`
+	SourceKind  string            `json:"sourceKind"`
+	Guidelines  []ReviewGuideline `json:"guidelines"`
 }
 
 // ── Run-Guideline Links ───────────────────────────────────────

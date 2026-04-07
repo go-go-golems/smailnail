@@ -23,6 +23,8 @@ func (h *appHandler) handleListFeedback(w http.ResponseWriter, r *http.Request) 
 		Status:       strings.TrimSpace(r.URL.Query().Get("status")),
 		FeedbackKind: strings.TrimSpace(r.URL.Query().Get("feedbackKind")),
 		MailboxName:  strings.TrimSpace(r.URL.Query().Get("mailboxName")),
+		TargetType:   strings.TrimSpace(r.URL.Query().Get("targetType")),
+		TargetID:     strings.TrimSpace(r.URL.Query().Get("targetId")),
 		Limit:        limit,
 	})
 	if err != nil {

@@ -163,6 +163,7 @@ func (h *appHandler) registerAPIRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/mirror/senders", h.handleListSenders)
 	mux.HandleFunc("GET /api/mirror/senders/{email}", h.handleGetSender)
+	mux.HandleFunc("GET /api/mirror/senders/{email}/guidelines", h.handleListSenderGuidelines)
 
 	// ── Review feedback ────────────────────────────────────────────
 	mux.HandleFunc("GET /api/review-feedback", h.handleListFeedback)

@@ -242,6 +242,26 @@ func senderDetailToProto(detail SenderDetail) *annotationuiv1.SenderDetail {
 	}
 }
 
+func senderGuidelineGroupToProto(group *annotate.SenderGuidelineGroup) *annotationuiv1.SenderGuidelineGroup {
+	if group == nil {
+		return nil
+	}
+	return &annotationuiv1.SenderGuidelineGroup{
+		RunId:       group.RunID,
+		SourceLabel: group.SourceLabel,
+		SourceKind:  group.SourceKind,
+		Guidelines:  guidelineListToProto(group.Guidelines).Items,
+	}
+}
+
+func senderGuidelineGroupsToProto(groups []annotate.SenderGuidelineGroup) []*annotationuiv1.SenderGuidelineGroup {
+	ret := make([]*annotationuiv1.SenderGuidelineGroup, 0, len(groups))
+	for i := range groups {
+		ret = append(ret, senderGuidelineGroupToProto(&groups[i]))
+	}
+	return ret
+}
+
 func savedQueryToProto(query SavedQuery) *annotationuiv1.SavedQuery {
 	return &annotationuiv1.SavedQuery{
 		Name:        query.Name,
