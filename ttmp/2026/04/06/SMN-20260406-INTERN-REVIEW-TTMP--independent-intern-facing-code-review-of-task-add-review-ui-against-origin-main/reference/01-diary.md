@@ -25,6 +25,8 @@ RelatedFiles:
       Note: Validation and package-manager notes recorded in the diary
     - Path: ui/src/components/Guidelines/GuidelineSummaryCard.tsx
       Note: Cleanup of fake linked run count prop usage
+    - Path: ui/src/pages/GuidelineDetailPage.tsx
+      Note: Diary context for awaited create-and-link flow and partial-success error handling
     - Path: ui/src/pages/GuidelinesListPage.tsx
       Note: Removal of fake linkedRunCount wiring from the live guideline list
     - Path: ui/src/pages/stories/ReviewQueuePage.stories.tsx
@@ -39,6 +41,7 @@ LastUpdated: 2026-04-06T20:10:00Z
 WhatFor: Capture how the review was produced so another engineer can reproduce or continue it.
 WhenToUse: Read this when you want the exact commands, errors, and reasoning behind the review report.
 ---
+
 
 
 
@@ -713,6 +716,78 @@ After the code landed, I updated the ticket docs again so the intern-review work
 cd smailnail
 docmgr --root /home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ttmp doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30
 ```
+
+## Step 10: Fix finding 6 by awaiting guideline-link flows and surfacing failures
+
+The next deferred item the user explicitly brought back into scope was finding 6. This was a frontend flow problem rather than a backend contract problem: the UI fired guideline-link mutations and then immediately closed or navigated away, which could silently hide failures.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Ok, address that one too."
+
+**Assistant interpretation:** Take the remaining async-linking semantics issue and fix it with the same phase/commit/doc discipline as the earlier findings.
+
+### What I did
+- Updated `tasks.md` to add a dedicated phase for finding 6.
+- Changed `GuidelineLinkPicker` so `onLink` can be async and so the dialog waits for the callback before clearing local selection.
+- Changed `RunGuidelineSection` to:
+  - await all selected link mutations with `Promise.all(...unwrap())`,
+  - keep the picker open on failure,
+  - show an inline error alert instead of silently failing,
+  - await unlink operations too and surface unlink failures in the same area.
+- Changed `GuidelineDetailPage` to:
+  - await guideline creation,
+  - await run-link creation before navigating back to the run page,
+  - handle the partial-success case where guideline creation succeeds but run-link creation fails by routing to the new guideline detail page with an explicit error message.
+- Updated the `RunGuidelineSection` Storybook handlers so they still return wrapper-response shapes matching the real API contract.
+
+### Why
+- The original problem was a classic async UI lie: the UI acted like success had already happened.
+- This kind of issue is especially painful in review tooling because the user is making deliberate, high-value curation decisions and expects those links to stick.
+
+### What worked
+- `unwrap()` made the mutation success/failure path much clearer than the old fire-and-forget usage.
+- Keeping the picker open on failure means users do not lose context when a request fails.
+- The guideline-create flow now handles the awkward partial-success case much more honestly.
+
+### What didn't work
+- No hard implementation blocker here; the main work was carefully deciding how to handle the “guideline created, but link failed” edge case without leaving the user stranded on `/new`.
+
+### What I learned
+- Async UI correctness often needs a small amount of explicit error state, not just `await`.
+- The best failure UX here was not “stay on `/new` forever”; it was “navigate to the created guideline and clearly say that the run link failed.”
+
+### What was tricky to build
+- The trickiest part was making the picker preserve user intent on failure instead of clearing local selection too early.
+- The second tricky part was the create-and-link partial success case, because there are really two operations with different failure modes.
+
+### Code review instructions
+- Start with:
+  - `ui/src/components/ReviewFeedback/GuidelineLinkPicker.tsx`
+  - `ui/src/components/RunGuideline/RunGuidelineSection.tsx`
+  - `ui/src/pages/GuidelineDetailPage.tsx`
+  - `ui/src/components/RunGuideline/stories/RunGuidelineSection.stories.tsx`
+
+### Technical details
+- Validation command:
+
+```bash
+cd smailnail/ui
+pnpm run check
+```
+
+- Focused commit:
+  - `0897d2b` — `AnnotationUI: await guideline link flows`
+
+## Step 11: Refresh ticket docs after finding 6
+
+After the code landed, I updated the ticket again so the follow-up history remained chronological and explicit.
+
+### What I did
+- Marked the new finding-6 phase complete in `tasks.md`.
+- Updated `changelog.md`, `index.md`, and this diary.
+- Related the new async-link flow files to the ticket docs with `docmgr`.
+- Re-ran `docmgr doctor` for the ticket.
 
 ## Related
 

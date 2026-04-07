@@ -69,11 +69,28 @@
 - [x] Update the ticket changelog and index status for the implemented follow-up work
 - [x] Relate changed code files to the ticket docs with `docmgr`
 - [x] Run `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
-- [ ] Commit the ticket-doc updates for findings 1/2/4
+- [x] Commit the ticket-doc updates for findings 1/2/4
+
+### Phase 7 — Fix finding 6: await guideline-link mutations and surface failures
+
+- [x] Make `RunGuidelineSection` await link mutations before closing the picker
+- [x] Preserve selection / keep the picker open when a link operation fails
+- [x] Surface link errors in the run-guideline UI instead of failing silently
+- [x] Make `GuidelineDetailPage` await create-and-link flows before navigating back to the run page
+- [x] Surface create/link failures in the guideline detail flow, including the “guideline created but run link failed” case
+- [x] Update any affected stories or mock handlers so the async link flow still reflects the real API shape
+- [x] Validate phase 7 (`cd ui && pnpm run check`)
+- [x] Commit phase 7 as a focused async guideline-link flow fix
+
+### Phase 8 — Ticket hygiene and handoff for finding 6
+
+- [x] Update the ticket diary/changelog/index/tasks for the finding-6 work
+- [x] Relate newly changed files to the ticket docs with `docmgr`
+- [x] Run `docmgr doctor --ticket SMN-20260406-INTERN-REVIEW-TTMP --stale-after 30`
+- [ ] Commit the ticket-doc updates for finding 6
 
 ## Explicitly Deferred For Now
 
 - [ ] Finding 7: settle the `/` vs `/annotations` transitional app architecture
 - [ ] Finding 8: broader feedback/guideline performance/test cleanup beyond the targeted coverage needed for phase 4
-- [ ] Finding 6: await guideline-link mutations and surface failures more explicitly in the UI
 - [ ] Package-manager / embed-asset policy cleanup outside the targeted review-queue state cleanup

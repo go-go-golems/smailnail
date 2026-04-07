@@ -26,6 +26,9 @@
 - Added `scopeKind` filtering to feedback listing, wired run detail feedback to request only run-scoped feedback, and added focused backend coverage for the filtered list
 - Populated review audit metadata (`CreatedBy` / `LinkedBy`) through annotation UI handlers with a request-scoped actor helper and added focused backend audit coverage
 - Created focused combined commit `991e0f7` (`AnnotationUI: scope run feedback and populate audit fields`)
+- Fixed finding 6 by awaiting guideline-link mutations in `RunGuidelineSection` and in guideline create-and-link flows, keeping the picker open on failure and surfacing explicit error states in the UI
+- Updated the run-guideline Storybook handlers to continue matching the real wrapper-response API shape during the async-link flow
+- Created focused async-link-flow commit `0897d2b` (`AnnotationUI: await guideline link flows`)
 
 ## 2026-04-06
 

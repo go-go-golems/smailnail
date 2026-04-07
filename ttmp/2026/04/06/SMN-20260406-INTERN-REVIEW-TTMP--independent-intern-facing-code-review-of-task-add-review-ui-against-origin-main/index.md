@@ -21,6 +21,12 @@ RelatedFiles:
       Note: Follow-up implementation for guideline-linked runs HTTP endpoint
     - Path: pkg/annotationui/server.go
       Note: Route registration for guideline-linked runs endpoint
+    - Path: ui/src/components/ReviewFeedback/GuidelineLinkPicker.tsx
+      Note: Finding 6 follow-up async picker behavior now waits for link completion before clearing selection
+    - Path: ui/src/components/RunGuideline/RunGuidelineSection.tsx
+      Note: Finding 6 follow-up link/unlink error handling and awaited mutation flow
+    - Path: ui/src/components/RunGuideline/stories/RunGuidelineSection.stories.tsx
+      Note: Finding 6 follow-up story updates for async guideline-link wrapper responses
     - Path: ui/src/pages/GuidelineDetailPage.tsx
       Note: Frontend detail-page wiring for live linked runs
     - Path: ui/src/pages/ReviewQueuePage.tsx
@@ -35,6 +41,7 @@ LastUpdated: 2026-04-07T00:05:00Z
 WhatFor: Track and publish an independent code review of the task/add-review-ui branch and the targeted follow-up work executed from that review.
 WhenToUse: Start here to find the main report, diary, validation notes, and follow-up tasks.
 ---
+
 
 
 
@@ -62,8 +69,9 @@ I intentionally did **not** use the existing review ticket contents as source ma
 - Follow-up finding 3: **completed elsewhere** via shared protobuf contract work
 - Follow-up finding 4: **implemented** by populating review audit metadata through handlers
 - Follow-up finding 5: **implemented** via guideline-linked-runs backend/frontend wiring
+- Follow-up finding 6: **implemented** by awaiting guideline-link flows and surfacing failures in the UI
 - Follow-up finding 9: **implemented as targeted cleanup** via review-queue state cleanup and fake guideline-count removal
-- Findings 6, 7, and 8: **explicitly deferred for now**
+- Findings 7 and 8: **explicitly deferred for now**
 - Diary: **updated with implementation follow-up steps**
 - Validation: **completed for the landed follow-up slices** (`go test -tags sqlite_fts5 ./pkg/annotate ./pkg/annotationui -count=1`, `pnpm run check`, full pre-commit repo `go test ./...`, `golangci-lint`)
 - Delivery to reMarkable: **completed (updated bundle re-uploaded)**
@@ -83,6 +91,7 @@ I intentionally did **not** use the existing review ticket contents as source ma
   - finding 3 was addressed through shared protobuf wire contracts,
   - finding 4 was fixed by populating review authorship/link metadata at the handler boundary,
   - finding 5 was shipped properly with a real linked-runs endpoint and UI wiring,
+  - finding 6 was fixed by awaiting guideline-link mutations and surfacing failures instead of navigating away early,
   - part of finding 9 was cleaned by removing dead review-queue state and fake guideline count wiring.
 
 ## Structure
