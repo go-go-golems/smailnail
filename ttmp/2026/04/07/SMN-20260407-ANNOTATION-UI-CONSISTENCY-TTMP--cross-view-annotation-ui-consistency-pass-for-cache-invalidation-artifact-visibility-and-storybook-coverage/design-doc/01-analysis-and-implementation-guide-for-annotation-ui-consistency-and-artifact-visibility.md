@@ -16,13 +16,23 @@ RelatedFiles:
     - Path: cmd/smailnail/commands/sqlite/serve.go
       Note: Entrypoint showing the sqlite annotation server lifecycle and subsystem boundary
     - Path: pkg/annotate/repository_feedback.go
-      Note: Repository behavior for feedback listing
+      Note: |-
+        Repository behavior for feedback listing
+        Repository support for target-filtered feedback and sender-visible guideline grouping
+    - Path: pkg/annotate/types.go
+      Note: Target-addressable feedback filters and sender-guideline group types used by the implementation pass
     - Path: pkg/annotationui/handlers_feedback.go
       Note: Feedback and guideline endpoints that define the currently available review artifact queries
     - Path: pkg/annotationui/handlers_senders.go
-      Note: Backend sender detail contract that currently omits feedback and guideline artifacts
+      Note: |-
+        Backend sender detail contract that currently omits feedback and guideline artifacts
+        Sender-guideline endpoint implementing sender-visible linked guideline reads
     - Path: pkg/annotationui/server.go
       Note: Route registration and server composition for all annotation review APIs
+    - Path: pkg/annotationui/server_test.go
+      Note: Focused handler coverage for sender guidelines and targeted feedback
+    - Path: pkg/doc/annotationui-review-consistency-playbook.md
+      Note: Durable repo playbook capturing the page/query/invalidation policy
     - Path: proto/smailnail/annotationui/v1/annotation.proto
       Note: Wire contract showing which sender and run detail fields are currently exposed
     - Path: proto/smailnail/annotationui/v1/review.proto
@@ -31,18 +41,25 @@ RelatedFiles:
       Note: Frontend route topology for the annotation surfaces discussed in the design
     - Path: ui/src/api/annotations.ts
       Note: RTK Query endpoint and tag model that drives cache invalidation behavior
+    - Path: ui/src/components/AnnotationTable/AnnotationDetail.tsx
+      Note: Expanded annotation detail now renders annotation-scoped feedback
+    - Path: ui/src/components/SenderProfile/SenderGuidelinePanel.tsx
+      Note: Sender detail now shows linked guidelines grouped by run
     - Path: ui/src/mocks/handlers.ts
       Note: MSW mock layer whose statefulness currently under-models cross-view refresh behavior
     - Path: ui/src/pages/RunDetailPage.tsx
       Note: Reference page already using composed artifact queries
     - Path: ui/src/pages/SenderDetailPage.tsx
       Note: Key example of missing feedback and guideline artifact composition
+    - Path: ui/src/pages/stories/RunDetailPage.stories.tsx
+      Note: Storybook evidence for mutation-driven run refresh expectations
 ExternalSources: []
 Summary: Evidence-backed analysis and phased implementation guide for making annotation review views consistent across cache invalidation, artifact visibility, and Storybook coverage.
-LastUpdated: 2026-04-07T10:52:00-04:00
+LastUpdated: 2026-04-07T11:55:00-04:00
 WhatFor: Give a new intern enough architecture context and a concrete implementation plan to make the review UI refresh correctly and display feedback/guideline artifacts consistently across views.
 WhenToUse: Read this before changing annotation UI data fetching, cache invalidation, sender/run/guideline detail pages, or Storybook/MSW handlers for review workflows.
 ---
+
 
 
 # Analysis and implementation guide for annotation UI consistency and artifact visibility
@@ -52,6 +69,14 @@ WhenToUse: Read this before changing annotation UI data fetching, cache invalida
 The annotation UI now has the right raw building blocks for review work: a sqlite-backed HTTP server, shared protobuf wire contracts, RTK Query hooks, and distinct pages for runs, senders, guidelines, groups, and the review queue. The core persistence path is not the main problem anymore. Review actions are being written to the database, run-guideline links are persisted, and the review/guideline schema is present on current databases.
 
 The bigger problem is cross-view consistency. Different pages are built from different combinations of denormalized detail payloads and ad hoc side queries, while the frontend cache invalidation strategy is only partially aligned with those query shapes. As a result, a user can perform a correct action and still see stale data, or create feedback/guideline relationships that exist in the database but are not visible in the page where the user expects them.
+
+Status update after the first implementation pass on 2026-04-07:
+
+- sender detail now loads sender-visible linked guidelines explicitly,
+- run detail and sender detail now expose annotation-scoped feedback inside expanded annotation detail rows,
+- feedback listing is target-addressable through `targetType` / `targetId`,
+- Storybook/MSW now uses mutable annotation state so mutation-driven refreshes are easier to inspect,
+- the repo deliberately keeps broad RTK Query family tags for now and documents that choice in `pkg/doc/annotationui-review-consistency-playbook.md`.
 
 The most important observations are:
 

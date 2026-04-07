@@ -13,24 +13,35 @@ Intent: long-term
 Owners:
     - manuel
 RelatedFiles:
+    - Path: pkg/annotate/repository_feedback.go
+      Note: Matrix now reflects implemented target filtering and sender guideline grouping
+    - Path: pkg/doc/annotationui-review-consistency-playbook.md
+      Note: Matrix and playbook now describe the same broad-tag consistency policy
     - Path: ui/src/api/annotations.ts
       Note: Matrix anchors page-level query ownership and tag invalidation responsibilities
     - Path: ui/src/mocks/handlers.ts
-      Note: Matrix captures current Storybook/MSW statefulness limitations
+      Note: |-
+        Matrix captures current Storybook/MSW statefulness limitations
+        Matrix now reflects mutable annotation Storybook state
     - Path: ui/src/pages/GuidelineDetailPage.tsx
       Note: Matrix captures guideline-detail linked-run visibility rules
     - Path: ui/src/pages/ReviewQueuePage.tsx
       Note: Matrix captures queue-specific artifact and refresh expectations
     - Path: ui/src/pages/RunDetailPage.tsx
-      Note: Matrix captures the current composed-query reference implementation
+      Note: |-
+        Matrix captures the current composed-query reference implementation
+        Matrix now reflects expanded annotation feedback in run detail
     - Path: ui/src/pages/SenderDetailPage.tsx
-      Note: Matrix captures the missing sender feedback/guideline artifact surfaces
+      Note: |-
+        Matrix captures the missing sender feedback/guideline artifact surfaces
+        Matrix now reflects explicit sender artifact subqueries
 ExternalSources: []
 Summary: Canonical matrix for the annotation UI pages, their visible artifact sections, the queries that power those sections, and the mutations that are expected to refresh them.
-LastUpdated: 2026-04-07T11:15:00-04:00
+LastUpdated: 2026-04-07T11:55:00-04:00
 WhatFor: Give implementation work a concrete source of truth for which page owns which artifacts and what invalidation/refetch behavior each review mutation must preserve.
 WhenToUse: Consult this before changing page composition, backend read models, or RTK Query invalidation for annotation review workflows.
 ---
+
 
 
 # Artifact query and invalidation matrix
@@ -90,12 +101,12 @@ That inconsistency is the source of much of the current confusion. This matrix e
 
 | Visible section | Current query source | Current mutation(s) that affect it | Current status | Notes |
 | --- | --- | --- | --- | --- |
-| sender profile basics | `useGetSenderQuery(email)` | any mutation that changes sender-visible counts/tags | fixed recently for refresh | `getSender` now provides `Senders` |
-| sender annotations | `useGetSenderQuery(email)` | `reviewAnnotation`, `batchReview` | fixed recently for refresh | state persists and now refetches |
+| sender profile basics | `useGetSenderQuery(email)` | any mutation that changes sender-visible counts/tags | correct | `getSender` provides `Senders` and review mutations invalidate it |
+| sender annotations | `useGetSenderQuery(email)` | `reviewAnnotation`, `batchReview` | correct | state now refetches instead of staying stale |
 | sender logs | `useGetSenderQuery(email)` | none in normal review flows | okay | read-only in current scope |
 | recent messages | `useGetSenderQuery(email)` | none in review flows | okay | read-only in current scope |
-| annotation-scoped feedback for sender-visible annotations | **missing dedicated query** | `reviewAnnotation` with comment | missing | persisted but not shown |
-| run-linked guidelines relevant to this sender | **missing dedicated query** | `reviewAnnotation` / `batchReview` with guideline IDs, `linkGuidelineToRun` | missing | persisted but not shown |
+| annotation-scoped feedback for sender-visible annotations | `useListReviewFeedbackQuery({ scopeKind: "annotation", targetType: "annotation", targetId: expandedId })` | `reviewAnnotation` with comment, `createReviewFeedback`, `updateReviewFeedback` | implemented | exposed inside expanded annotation detail |
+| run-linked guidelines relevant to this sender | `useGetSenderGuidelinesQuery(email)` | `reviewAnnotation` / `batchReview` with guideline IDs, `linkGuidelineToRun`, `unlinkGuidelineFromRun` | implemented | displayed on sender detail grouped by run |
 
 ### 4. Guideline Detail
 
@@ -110,33 +121,33 @@ That inconsistency is the source of much of the current confusion. This matrix e
 | Mutation | Writes | Views that must visibly refresh | Current status |
 | --- | --- | --- | --- |
 | `reviewAnnotation` without artifacts | annotation review state | review queue, run detail, sender detail, run list counters | now mostly correct |
-| `reviewAnnotation` with comment | annotation review state + annotation feedback | all above + annotation feedback surface for the affected annotation | missing annotation feedback surface |
-| `reviewAnnotation` with guideline IDs | annotation review state + run-guideline links | all above + run detail guidelines + sender-visible guideline surface + guideline detail linked runs | sender-visible guideline surface missing |
-| `batchReview` without artifacts | multiple annotation review states | review queue, run detail, sender detail, run list counters | now mostly correct |
-| `batchReview` with comment | multiple states + selection feedback | same plus whatever page owns selection feedback display | currently run-level only in a limited sense |
-| `batchReview` with guideline IDs | multiple states + run-guideline links | same plus run/sender/guideline artifact surfaces | sender surface missing |
-| `createReviewFeedback` | review feedback row | whichever page lists that feedback scope | correct for run feedback, incomplete for target-based surfaces |
+| `reviewAnnotation` with comment | annotation review state + annotation feedback | all above + annotation feedback surface for the affected annotation | implemented for expanded annotation detail |
+| `reviewAnnotation` with guideline IDs | annotation review state + run-guideline links | all above + run detail guidelines + sender-visible guideline surface + guideline detail linked runs | implemented across run/guideline/sender surfaces |
+| `batchReview` without artifacts | multiple annotation review states | review queue, run detail, sender detail, run list counters | correct with broad-family invalidation |
+| `batchReview` with comment | multiple states + selection feedback | same plus whatever page owns selection feedback display | acceptable for current scope |
+| `batchReview` with guideline IDs | multiple states + run-guideline links | same plus run/sender/guideline artifact surfaces | implemented for run/sender/guideline views |
+| `createReviewFeedback` | review feedback row | whichever page lists that feedback scope | correct for run and annotation target scopes |
 | `updateReviewFeedback` | feedback status | whichever page lists that feedback scope | correct where query exists |
 | `createGuideline` | guideline row | guideline list/detail | correct |
-| `linkGuidelineToRun` | run-guideline link | run detail, guideline detail, sender-visible guideline surfaces | sender surface missing |
-| `unlinkGuidelineFromRun` | remove run-guideline link | same as above | sender surface missing |
+| `linkGuidelineToRun` | run-guideline link | run detail, guideline detail, sender-visible guideline surfaces | correct with current `Runs`/`Guidelines` tag ownership |
+| `unlinkGuidelineFromRun` | remove run-guideline link | same as above | correct with current `Runs`/`Guidelines` tag ownership |
 
 ## D. Required implementation deltas
 
-### Sender detail must gain explicit artifact queries
+### Sender detail now has explicit artifact queries
 
-The sender page should no longer rely on the base `SenderDetail` payload alone. It needs explicit artifact surfaces for:
+The sender page no longer relies on the base `SenderDetail` payload alone. It now uses explicit artifact queries for:
 
-1. feedback attached to sender-visible annotations,
+1. feedback attached to the currently expanded sender annotation,
 2. guidelines linked to runs that produced sender-visible annotations.
 
-### Feedback listing must become target-addressable
+### Feedback listing is now target-addressable
 
-The repository stores feedback targets, but the list API currently cannot filter by `targetType` / `targetId`. That is the minimum backend enhancement needed to display annotation-scoped feedback naturally.
+The repository now supports `targetType` / `targetId` filters, which is the minimum backend enhancement needed to display annotation-scoped feedback naturally.
 
-### Storybook must own mutable annotation state
+### Storybook now owns mutable annotation state
 
-Storybook/MSW can currently simulate mutable feedback and guidelines better than mutable annotations. That means it under-tests the class of bugs that motivated this ticket.
+Storybook/MSW now mutates shared annotation state and recomputes run and sender read models from that state, which makes mutation-driven refresh behavior much easier to inspect.
 
 ## Usage Examples
 
