@@ -27,6 +27,17 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const StatefulMutationDemo: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "This story uses the shared mutable MSW annotation state. Approve, dismiss, or batch-review items and verify that pending-only queue queries shrink or update immediately instead of leaving stale rows behind.",
+      },
+    },
+  },
+};
+
 export const Empty: Story = {
   parameters: {
     msw: {

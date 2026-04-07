@@ -35,6 +35,28 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const WithLinkedGuidelines: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Uses the shared MSW sender-guideline endpoint so the sender page shows the run-linked guideline panel for senders that participate in reviewed runs.",
+      },
+    },
+  },
+};
+
+export const StatefulAnnotationFeedback: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Expand the visible annotation row to inspect annotation-scoped feedback loaded through the target-filtered review-feedback query. Dismissing with an explanation in the story should create more annotation feedback in the shared MSW state.",
+      },
+    },
+  },
+};
+
 export const NotFound: Story = {
   decorators: [
     withAll(
