@@ -31,7 +31,7 @@ export const Empty: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/annotations", () => HttpResponse.json([])),
+        http.get("/api/annotations", () => HttpResponse.json({ items: [] })),
       ],
     },
   },
@@ -53,14 +53,18 @@ export const AllReviewed: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/annotations", () =>
-          HttpResponse.json(
-            mockAnnotations.map((a) => ({
-              ...a,
-              reviewState: "reviewed",
-            })),
-          ),
-        ),
+        http.get("/api/annotations", ({ request }) => {
+          const url = new URL(request.url);
+          const reviewState = url.searchParams.get("reviewState");
+          const reviewed = mockAnnotations.map((a) => ({
+            ...a,
+            reviewState: "reviewed",
+          }));
+          const items = reviewState === "to_review"
+            ? []
+            : reviewed;
+          return HttpResponse.json({ items });
+        }),
       ],
     },
   },
@@ -70,11 +74,15 @@ export const OnlyNewsletters: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/annotations", () =>
-          HttpResponse.json(
-            mockAnnotations.filter((a) => a.tag === "newsletter"),
-          ),
-        ),
+        http.get("/api/annotations", ({ request }) => {
+          const url = new URL(request.url);
+          let items = mockAnnotations.filter((a) => a.tag === "newsletter");
+          const reviewState = url.searchParams.get("reviewState");
+          if (reviewState) {
+            items = items.filter((a) => a.reviewState === reviewState);
+          }
+          return HttpResponse.json({ items });
+        }),
       ],
     },
   },

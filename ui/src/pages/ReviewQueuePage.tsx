@@ -33,9 +33,15 @@ export function ReviewQueuePage() {
     (s) => s.annotationUi.reviewQueue,
   );
 
-  const { data: annotations = [], isLoading } = useListAnnotationsQuery(
-    filterTag ? { tag: filterTag } : {},
+  const queueFilter = useMemo(
+    () => ({
+      reviewState: "to_review" as const,
+      ...(filterTag ? { tag: filterTag } : {}),
+    }),
+    [filterTag],
   );
+
+  const { data: annotations = [], isLoading } = useListAnnotationsQuery(queueFilter);
   const [batchReview] = useBatchReviewMutation();
   const [reviewAnnotation] = useReviewAnnotationMutation();
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -60,8 +66,10 @@ export function ReviewQueuePage() {
     selectedRunIds.length === 1 ? selectedRunIds[0] : undefined;
   const guidelinesEnabled = selectedRunIds.length <= 1;
 
-  // Compute tag counts for filter pills (always from unfiltered set)
-  const { data: allAnnotations = [] } = useListAnnotationsQuery({});
+  // Compute tag counts for filter pills from the pending-review population.
+  const { data: allAnnotations = [] } = useListAnnotationsQuery({
+    reviewState: "to_review",
+  });
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const ann of allAnnotations) {
