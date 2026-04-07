@@ -87,7 +87,7 @@ export const annotationsApi = createApi({
           mailboxName: mailboxName ?? "",
         } satisfies ReviewAnnotationRequest,
       }),
-      invalidatesTags: ["Annotations", "Runs", "Feedback"],
+      invalidatesTags: ["Annotations", "Runs", "Feedback", "Senders"],
     }),
     batchReview: builder.mutation<
       void,
@@ -112,7 +112,7 @@ export const annotationsApi = createApi({
           mailboxName: mailboxName ?? "",
         } satisfies BatchReviewRequest,
       }),
-      invalidatesTags: ["Annotations", "Runs", "Feedback"],
+      invalidatesTags: ["Annotations", "Runs", "Feedback", "Senders"],
     }),
 
     // ── Groups ───────────────────────────────────
