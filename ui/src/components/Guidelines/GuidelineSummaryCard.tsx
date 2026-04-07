@@ -13,7 +13,7 @@ import type { ReviewGuideline } from "../../types/reviewGuideline";
 
 export interface GuidelineSummaryCardProps {
   guideline: ReviewGuideline;
-  linkedRunCount: number;
+  linkedRunCount?: number;
   onEdit: () => void;
   onArchive?: () => void;
   onActivate?: () => void;
@@ -34,7 +34,7 @@ const priorityLabel = (p: number): string => {
 
 export function GuidelineSummaryCard({
   guideline,
-  linkedRunCount,
+  linkedRunCount = 0,
   onEdit,
   onArchive,
   onActivate,

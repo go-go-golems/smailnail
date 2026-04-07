@@ -24,14 +24,14 @@
 - [x] Update mocks and any affected stories so the linked-runs section is exercised realistically
 - [x] Add focused backend coverage for the new guideline-runs endpoint
 - [x] Validate phase 1 (`go test -tags sqlite_fts5 ./pkg/annotationui ./pkg/annotate -count=1`, `cd ui && pnpm run check`)
-- [ ] Commit phase 1 as a focused linked-runs implementation change
+- [x] Commit phase 1 as a focused linked-runs implementation change
 
 ### Phase 2 — Address finding 9 by wiring or cleaning dead review UI state
 
-- [ ] Audit `annotationUiSlice` review-queue state against the live `ReviewQueuePage`
-- [ ] Remove dead review-queue slice fields/actions that are no longer wired (`filterType`, `filterSource`, `filterRunId`, `commentDrawerOpen`, `filterMailbox`) unless a live caller still needs them
-- [ ] Remove fake guideline list UI state that advertises unavailable data (`linkedRunCount={0}`) until the backend exposes a real count
-- [ ] Re-run frontend validation for the cleanup slice (`cd ui && pnpm run check`)
+- [x] Audit `annotationUiSlice` review-queue state against the live `ReviewQueuePage`
+- [x] Remove dead review-queue slice fields/actions that are no longer wired (`filterType`, `filterSource`, `filterRunId`, `commentDrawerOpen`, `filterMailbox`) unless a live caller still needs them
+- [x] Remove fake guideline list UI state that advertises unavailable data (`linkedRunCount={0}`) until the backend exposes a real count
+- [x] Re-run frontend validation for the cleanup slice (`cd ui && pnpm run check`)
 - [ ] Commit phase 2 as a focused review-UI cleanup change
 
 ### Phase 3 — Ticket hygiene and handoff

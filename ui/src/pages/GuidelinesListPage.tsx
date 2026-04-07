@@ -112,7 +112,6 @@ export function GuidelinesListPage() {
           <GuidelineSummaryCard
             key={g.id}
             guideline={g}
-            linkedRunCount={0}
             onEdit={() =>
               navigate(`/annotations/guidelines/${g.id}`)
             }

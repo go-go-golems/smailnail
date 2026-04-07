@@ -463,6 +463,73 @@ cd smailnail/ui
 pnpm run check
 ```
 
+## Step 6: Clean finding 9 instead of pretending the dead UI state is still real
+
+With the guideline-linked-runs slice landed, I moved to the narrower cleanup half of the user request: finding 9. I deliberately did not tackle the package-manager or embed-asset policy parts of that finding, because the user asked for the UI state to be wired properly or cleaned, not for a repo-wide tooling detour.
+
+### Prompt Context
+
+**User prompt (verbatim):** same as Step 5
+
+**Assistant interpretation:** Remove the dead review UI state if it is not serving the live page flow, and stop advertising fake guideline list data.
+
+**Inferred user intent:** Prefer honest, simpler UI state over speculative or misleading plumbing.
+
+### What I did
+- Re-audited `ui/src/store/annotationUiSlice.ts` against `ui/src/pages/ReviewQueuePage.tsx`.
+- Confirmed the live page only uses:
+  - `selected`
+  - `filterTag`
+  - `expandedId`
+- Removed dead review-queue slice fields and actions that were no longer wired:
+  - `filterType`
+  - `filterSource`
+  - `filterRunId`
+  - `commentDrawerOpen`
+  - `filterMailbox`
+- Kept `commentDrawerOpen` as local component state in `ReviewQueuePage`, where it is actually used.
+- Updated `GuidelineSummaryCard` so `linkedRunCount` is optional rather than mandatory.
+- Removed `linkedRunCount={0}` from `GuidelinesListPage`, so the UI no longer pretends to know a count it does not have.
+- Re-ran frontend validation with `pnpm run check`.
+
+### Why
+- Dead global state is worse than no state; it implies product capabilities and interaction paths that do not exist.
+- Hard-coding zero for linked-run counts makes the guideline list look “complete” while still lying about the data source.
+
+### What worked
+- The cleanup was mechanically small because the dead Redux fields had no live callers.
+- Making `linkedRunCount` optional preserved Storybook/component demo flexibility while letting the real list page stop passing fake data.
+
+### What didn't work
+- N/A
+
+### What I learned
+- The right cleanup is often to reduce required props and state shape, not to invent more plumbing just to keep an old interface alive.
+
+### What was tricky to build
+- The main judgment call was deciding what counted as the “real” owner of state. In this case, the drawer open/close state clearly belongs to the page component, not Redux.
+
+### What warrants a second pair of eyes
+- If future review-queue filters are reintroduced, they should come back together with visible controls on the page instead of sleeping in the slice unused.
+
+### What should be done in the future
+- If guideline list cards eventually need a linked-run count, add it to the guideline read model or list response explicitly and then thread it through the UI honestly.
+
+### Code review instructions
+- Start with:
+  - `ui/src/store/annotationUiSlice.ts`
+  - `ui/src/pages/ReviewQueuePage.tsx`
+  - `ui/src/components/Guidelines/GuidelineSummaryCard.tsx`
+  - `ui/src/pages/GuidelinesListPage.tsx`
+
+### Technical details
+- Validation command:
+
+```bash
+cd smailnail/ui
+pnpm run check
+```
+
 ## Related
 
 - Design doc: `../design-doc/01-intern-guide-and-independent-code-review-of-the-review-ui-branch.md`
