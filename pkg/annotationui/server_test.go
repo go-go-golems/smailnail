@@ -322,6 +322,52 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		}
 	})
 
+	t.Run("feedback list supports scopeKind filter", func(t *testing.T) {
+		repo := annotate.NewRepository(db)
+		_, err := repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeRun,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindComment,
+			Title:        "Run feedback",
+			BodyMarkdown: "Run scoped note",
+			CreatedBy:    "tester",
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(run) error = %v", err)
+		}
+		_, err = repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeAnnotation,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindClarification,
+			Title:        "Annotation feedback",
+			BodyMarkdown: "Annotation scoped note",
+			CreatedBy:    "tester",
+			Targets: []annotate.FeedbackTargetInput{{
+				TargetType: annotate.FeedbackScopeAnnotation,
+				TargetID:   fixture.AnnotationOneID,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(annotation) error = %v", err)
+		}
+
+		rec := performRequest(t, handler, http.MethodGet, "/api/review-feedback?agentRunId=run-42&scopeKind=run", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload annotationuiv1.ReviewFeedbackListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) == 0 {
+			t.Fatalf("expected scoped feedback items, got 0")
+		}
+		for _, item := range payload.Items {
+			if item.ScopeKind != annotate.FeedbackScopeRun {
+				t.Fatalf("unexpected scopeKind %q in filtered result", item.ScopeKind)
+			}
+		}
+	})
+
 	t.Run("list senders returns annotation counts and tags", func(t *testing.T) {
 		rec := performRequest(t, handler, http.MethodGet, "/api/mirror/senders?hasAnnotations=true&tag=newsletter", "")
 		if rec.Code != http.StatusOK {

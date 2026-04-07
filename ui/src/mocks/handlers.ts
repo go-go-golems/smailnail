@@ -170,6 +170,9 @@ export const handlers = [
     const url = new URL(request.url);
     let result = [...mutableFeedback];
 
+    const scopeKind = url.searchParams.get("scopeKind");
+    if (scopeKind) result = result.filter((f) => f.scopeKind === scopeKind);
+
     const agentRunId = url.searchParams.get("agentRunId");
     if (agentRunId) result = result.filter((f) => f.agentRunId === agentRunId);
 

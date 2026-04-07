@@ -215,6 +215,7 @@ type FeedbackTargetInput struct {
 }
 
 type ListFeedbackFilter struct {
+	ScopeKind    string
 	AgentRunID   string
 	Status       string
 	FeedbackKind string

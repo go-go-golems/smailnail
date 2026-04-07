@@ -84,6 +84,10 @@ func (r *Repository) ListReviewFeedback(ctx context.Context, filter ListFeedback
 	query := `SELECT * FROM review_feedback WHERE 1 = 1`
 	args := make([]any, 0, 5)
 
+	if strings.TrimSpace(filter.ScopeKind) != "" {
+		query += ` AND scope_kind = ?`
+		args = append(args, strings.TrimSpace(filter.ScopeKind))
+	}
 	if strings.TrimSpace(filter.AgentRunID) != "" {
 		query += ` AND agent_run_id = ?`
 		args = append(args, strings.TrimSpace(filter.AgentRunID))

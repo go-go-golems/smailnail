@@ -29,7 +29,7 @@ export function RunDetailPage() {
   const { data: run, isLoading } = useGetRunQuery(runId ?? "");
   const { data: linkedGuidelines = [] } = useGetRunGuidelinesQuery(runId ?? "", { skip: !runId });
   const { data: feedback = [] } = useListReviewFeedbackQuery(
-    { agentRunId: runId },
+    { agentRunId: runId, scopeKind: "run" },
     { skip: !runId },
   );
   const [batchReview] = useBatchReviewMutation();

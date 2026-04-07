@@ -67,6 +67,7 @@ export type ReviewCommentDraft = Omit<GeneratedReviewComment, "feedbackKind"> & 
 };
 
 export interface FeedbackFilter {
+  scopeKind?: FeedbackScopeKind;
   agentRunId?: string;
   status?: FeedbackStatus;
   feedbackKind?: FeedbackKind;

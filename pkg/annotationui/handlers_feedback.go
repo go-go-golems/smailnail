@@ -18,6 +18,7 @@ func (h *appHandler) handleListFeedback(w http.ResponseWriter, r *http.Request) 
 	}
 
 	feedback, err := h.annotations.ListReviewFeedback(r.Context(), annotate.ListFeedbackFilter{
+		ScopeKind:    strings.TrimSpace(r.URL.Query().Get("scopeKind")),
 		AgentRunID:   strings.TrimSpace(r.URL.Query().Get("agentRunId")),
 		Status:       strings.TrimSpace(r.URL.Query().Get("status")),
 		FeedbackKind: strings.TrimSpace(r.URL.Query().Get("feedbackKind")),
@@ -67,6 +68,7 @@ func (h *appHandler) handleCreateFeedback(w http.ResponseWriter, r *http.Request
 		FeedbackKind: feedbackKind,
 		Title:        strings.TrimSpace(req.Title),
 		BodyMarkdown: strings.TrimSpace(req.BodyMarkdown),
+		CreatedBy:    requestReviewActor(r),
 		Targets:      protoTargetsToAnnotate(req.Targets),
 	})
 	if err != nil {
@@ -168,6 +170,7 @@ func (h *appHandler) handleCreateGuideline(w http.ResponseWriter, r *http.Reques
 		Title:        strings.TrimSpace(req.Title),
 		ScopeKind:    strings.TrimSpace(req.ScopeKind),
 		BodyMarkdown: strings.TrimSpace(req.BodyMarkdown),
+		CreatedBy:    requestReviewActor(r),
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {
@@ -227,7 +230,7 @@ func (h *appHandler) handleLinkRunGuideline(w http.ResponseWriter, r *http.Reque
 	if err := h.annotations.LinkGuidelineToRun(r.Context(),
 		r.PathValue("id"),
 		strings.TrimSpace(req.GuidelineId),
-		"",
+		requestReviewActor(r),
 	); err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return

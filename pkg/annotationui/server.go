@@ -48,6 +48,8 @@ type appHandler struct {
 	publicFS    fs.FS
 }
 
+const defaultAnnotationUIActor = "local-reviewer"
+
 func NewHTTPServer(options ServerOptions) *http.Server {
 	return &http.Server{
 		Addr: fmt.Sprintf("%s:%d", options.Host, options.Port),
@@ -248,6 +250,18 @@ func writeNotFound(w http.ResponseWriter, message string) {
 		"error":   "not-found",
 		"message": message,
 	})
+}
+
+func requestReviewActor(r *http.Request) string {
+	if r == nil {
+		return defaultAnnotationUIActor
+	}
+	for _, header := range []string{"X-Smailnail-User", "X-Forwarded-User", "X-Remote-User", "X-User"} {
+		if value := strings.TrimSpace(r.Header.Get(header)); value != "" {
+			return value
+		}
+	}
+	return defaultAnnotationUIActor
 }
 
 func parseLimitQuery(r *http.Request, key string, defaultValue int) (int, error) {

@@ -70,6 +70,7 @@ func (h *appHandler) handleReviewAnnotation(w http.ResponseWriter, r *http.Reque
 		MailboxName:  strings.TrimSpace(req.GetMailboxName()),
 		Comment:      protoCommentToAnnotate(req.GetComment()),
 		GuidelineIDs: req.GetGuidelineIds(),
+		CreatedBy:    requestReviewActor(r),
 	})
 	if err != nil {
 		if isNotFoundError(err) {
@@ -102,6 +103,7 @@ func (h *appHandler) handleBatchReview(w http.ResponseWriter, r *http.Request) {
 		MailboxName:  strings.TrimSpace(req.GetMailboxName()),
 		Comment:      protoCommentToAnnotate(req.GetComment()),
 		GuidelineIDs: req.GetGuidelineIds(),
+		CreatedBy:    requestReviewActor(r),
 	}); err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
