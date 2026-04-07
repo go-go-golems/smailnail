@@ -17,6 +17,8 @@ import type {
   SenderFilter,
   SenderListResponse,
   SenderDetail,
+  SenderGuidelineGroup,
+  SenderGuidelineListResponse,
   SavedQuery,
   SavedQueryListResponse,
   QueryResult,
@@ -159,6 +161,11 @@ export const annotationsApi = createApi({
       query: (email) => `mirror/senders/${encodeURIComponent(email)}`,
       providesTags: ["Senders"],
     }),
+    getSenderGuidelines: builder.query<SenderGuidelineGroup[], string>({
+      query: (email) => `mirror/senders/${encodeURIComponent(email)}/guidelines`,
+      transformResponse: (response: SenderGuidelineListResponse) => response.items,
+      providesTags: ["Senders", "Guidelines", "Runs"],
+    }),
 
     // ── Query Editor ─────────────────────────────
     executeQuery: builder.mutation<QueryResult, ExecuteQueryRequest>({
@@ -287,6 +294,7 @@ export const {
   useGetRunQuery,
   useListSendersQuery,
   useGetSenderQuery,
+  useGetSenderGuidelinesQuery,
   useExecuteQueryMutation,
   useGetPresetsQuery,
   useGetSavedQueriesQuery,

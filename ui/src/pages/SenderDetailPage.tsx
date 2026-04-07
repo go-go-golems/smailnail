@@ -8,12 +8,15 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   useGetSenderQuery,
+  useGetSenderGuidelinesQuery,
+  useListReviewFeedbackQuery,
   useReviewAnnotationMutation,
 } from "../api/annotations";
 import {
   SenderProfileCard,
   AgentReasoningPanel,
   MessagePreviewTable,
+  SenderGuidelinePanel,
 } from "../components/SenderProfile";
 import { AnnotationTable } from "../components/AnnotationTable";
 import { ReviewCommentDrawer } from "../components/ReviewFeedback";
@@ -23,12 +26,24 @@ import type { FeedbackKind } from "../types/reviewFeedback";
 export function SenderDetailPage() {
   const { email } = useParams<{ email: string }>();
   const navigate = useNavigate();
-  const { data: sender, isLoading } = useGetSenderQuery(email ?? "");
-  const [reviewAnnotation] = useReviewAnnotationMutation();
-
   const [selected, setSelected] = useState<string[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [commentAnnotation, setCommentAnnotation] = useState<Annotation | null>(null);
+
+  const { data: sender, isLoading } = useGetSenderQuery(email ?? "");
+  const { data: senderGuidelineGroups = [] } = useGetSenderGuidelinesQuery(
+    email ?? "",
+    { skip: !email },
+  );
+  const { data: annotationFeedback = [] } = useListReviewFeedbackQuery(
+    {
+      scopeKind: "annotation",
+      targetType: "annotation",
+      targetId: expandedId ?? "",
+    },
+    { skip: !expandedId },
+  );
+  const [reviewAnnotation] = useReviewAnnotationMutation();
 
   const annotations = sender?.annotations ?? [];
   const logs = sender?.logs ?? [];
@@ -171,6 +186,11 @@ export function SenderDetailPage() {
       {/* Profile card */}
       <SenderProfileCard sender={sender} />
 
+      <SenderGuidelinePanel
+        groups={senderGuidelineGroups}
+        onNavigateRun={(runId) => navigate(`/annotations/runs/${encodeURIComponent(runId)}`)}
+      />
+
       {/* Annotations */}
       {annotations.length > 0 && (
         <>
@@ -188,6 +208,9 @@ export function SenderDetailPage() {
             onDismiss={handleDismiss}
             onDismissExplain={handleDismissExplain}
             getRelated={getRelated}
+            getFeedback={(annotation) =>
+              expandedId === annotation.id ? annotationFeedback : []
+            }
           />
           <Divider sx={{ my: 3 }} />
         </>

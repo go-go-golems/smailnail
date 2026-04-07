@@ -135,6 +135,39 @@ export const handlers = [
     });
   }),
 
+  http.get("/api/mirror/senders/:email/guidelines", ({ params }) => {
+    const email = params["email"] as string;
+    const senderAnnotations = mockAnnotations.filter(
+      (annotation) => annotation.targetType === "sender" && annotation.targetId === email,
+    );
+    const runIds = Array.from(
+      new Set(
+        senderAnnotations
+          .map((annotation) => annotation.agentRunId)
+          .filter((runId) => runId.length > 0),
+      ),
+    );
+
+    const items = runIds
+      .map((runId) => {
+        const run = mockRuns.find((candidate) => candidate.runId === runId);
+        const linkedIds = runGuidelineLinks.get(runId) ?? new Set<string>();
+        const guidelines = mutableGuidelines.filter((guideline) => linkedIds.has(guideline.id));
+        if (guidelines.length === 0) {
+          return null;
+        }
+        return {
+          runId,
+          sourceLabel: run?.sourceLabel ?? "",
+          sourceKind: run?.sourceKind ?? "",
+          guidelines,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    return HttpResponse.json({ items });
+  }),
+
   // ── Query Editor ─────────────────────────────
   http.post("/api/query/execute", async ({ request }) => {
     const body = (await request.json()) as { sql: string };
@@ -184,6 +217,20 @@ export const handlers = [
 
     const mailboxName = url.searchParams.get("mailboxName");
     if (mailboxName) result = result.filter((f) => f.mailboxName === mailboxName);
+
+    const targetType = url.searchParams.get("targetType");
+    if (targetType) {
+      result = result.filter((f) =>
+        f.targets.some((target) => target.targetType === targetType),
+      );
+    }
+
+    const targetId = url.searchParams.get("targetId");
+    if (targetId) {
+      result = result.filter((f) =>
+        f.targets.some((target) => target.targetId === targetId),
+      );
+    }
 
     return HttpResponse.json({ items: result });
   }),

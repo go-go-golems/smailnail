@@ -14,10 +14,13 @@ import type {
   SavedQuery as GeneratedSavedQuery,
   SaveQueryRequest as GeneratedSaveQueryRequest,
   SenderDetail as GeneratedSenderDetail,
+  SenderGuidelineGroup as GeneratedSenderGuidelineGroup,
   SenderListRequest as GeneratedSenderListRequest,
   SenderRow as GeneratedSenderRow,
   TargetGroup as GeneratedTargetGroup,
 } from "../gen/smailnail/annotationui/v1/annotation";
+
+import type { ReviewGuideline } from "./reviewGuideline";
 
 export const SOURCE_KIND_VALUES = ["human", "agent", "heuristic", "import"] as const;
 export type SourceKind = (typeof SOURCE_KIND_VALUES)[number];
@@ -92,6 +95,15 @@ export type SenderDetail = Omit<GeneratedSenderDetail, "annotations" | "logs" | 
   annotations: Annotation[];
   logs: AnnotationLog[];
   recentMessages: MessagePreview[];
+};
+
+export type SenderGuidelineGroup = Omit<GeneratedSenderGuidelineGroup, "sourceKind" | "guidelines"> & {
+  sourceKind: SourceKind;
+  guidelines: ReviewGuideline[];
+};
+
+export type SenderGuidelineListResponse = {
+  items: SenderGuidelineGroup[];
 };
 
 export type AnnotationFilter = Partial<

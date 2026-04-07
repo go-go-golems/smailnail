@@ -72,4 +72,6 @@ export interface FeedbackFilter {
   status?: FeedbackStatus;
   feedbackKind?: FeedbackKind;
   mailboxName?: string;
+  targetType?: string;
+  targetId?: string;
 }

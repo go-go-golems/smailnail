@@ -26,18 +26,26 @@ import type { FeedbackKind } from "../types/reviewFeedback";
 export function RunDetailPage() {
   const { runId } = useParams<{ runId: string }>();
   const navigate = useNavigate();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [commentAnnotation, setCommentAnnotation] = useState<Annotation | null>(null);
+
   const { data: run, isLoading } = useGetRunQuery(runId ?? "");
   const { data: linkedGuidelines = [] } = useGetRunGuidelinesQuery(runId ?? "", { skip: !runId });
   const { data: feedback = [] } = useListReviewFeedbackQuery(
     { agentRunId: runId, scopeKind: "run" },
     { skip: !runId },
   );
+  const { data: annotationFeedback = [] } = useListReviewFeedbackQuery(
+    {
+      scopeKind: "annotation",
+      targetType: "annotation",
+      targetId: expandedId ?? "",
+    },
+    { skip: !expandedId },
+  );
   const [batchReview] = useBatchReviewMutation();
   const [reviewAnnotation] = useReviewAnnotationMutation();
-
-  const [selected, setSelected] = useState<string[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [commentAnnotation, setCommentAnnotation] = useState<Annotation | null>(null);
 
   const annotations = run?.annotations ?? [];
   const logs = run?.logs ?? [];
@@ -284,6 +292,9 @@ export function RunDetailPage() {
         onDismissExplain={handleDismissExplain}
         onNavigateTarget={handleNavigateTarget}
         getRelated={getRelated}
+        getFeedback={(annotation) =>
+          expandedId === annotation.id ? annotationFeedback : []
+        }
       />
 
       <ReviewCommentDrawer
