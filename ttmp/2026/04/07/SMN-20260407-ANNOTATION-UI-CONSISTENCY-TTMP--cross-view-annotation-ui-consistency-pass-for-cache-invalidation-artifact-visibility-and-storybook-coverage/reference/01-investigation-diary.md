@@ -25,22 +25,33 @@ RelatedFiles:
       Note: Canonical page-by-page matrix added during phase-1 planning
     - Path: ui/src/api/annotations.ts
       Note: Diary context for query/tag observations gathered during the investigation
+    - Path: ui/src/components/AnnotationTable/AnnotationDetail.tsx
+      Note: Diary Step 12 records inline rendering of run-linked guidelines beside annotation feedback
+    - Path: ui/src/components/AnnotationTable/AnnotationTable.tsx
+      Note: Diary Step 12 records the new guideline slot for shared expanded annotation detail
     - Path: ui/src/mocks/handlers.ts
       Note: |-
         Diary context for Storybook/MSW mutation-state limitations
         Diary records the move to mutable Storybook annotation state
+    - Path: ui/src/pages/ReviewQueuePage.tsx
+      Note: Diary Step 12 records restoring the per-row dismiss-and-explain action in the review queue
     - Path: ui/src/pages/RunDetailPage.tsx
       Note: Diary context for the run-detail composed-query baseline
     - Path: ui/src/pages/SenderDetailPage.tsx
       Note: |-
         Diary context for the sender-detail artifact visibility gap
         Diary records explicit sender artifact queries and the expandedId hook ordering fix
+    - Path: ui/src/pages/stories/ReviewQueuePage.stories.tsx
+      Note: Diary Step 12 records the queue story copy update for the restored dismiss-and-explain action
+    - Path: ui/src/pages/stories/SenderDetailPage.stories.tsx
+      Note: Diary Step 12 records sender story guidance for inline linked-guideline visibility
 ExternalSources: []
 Summary: Chronological diary for creating the annotation UI consistency ticket, gathering evidence across backend/frontend/storybook layers, and producing the design/implementation guide plus reMarkable delivery.
-LastUpdated: 2026-04-07T11:55:00-04:00
+LastUpdated: 2026-04-07T12:35:00-04:00
 WhatFor: Capture the exact investigation path, commands, reasoning, and delivery steps for the annotation UI consistency pass.
 WhenToUse: Read this when continuing the ticket, reviewing how the analysis was assembled, or reproducing the upload/validation workflow.
 ---
+
 
 
 
@@ -877,6 +888,104 @@ remarquee upload bundle "$INDEX" "$DESIGN" "$MATRIX" "$DIARY" "$TASKS" "$CHANGEL
   --toc-depth 2 \
   --force
 remarquee cloud ls "$REMOTE" --long --non-interactive
+```
+
+## Step 12: Restore queue dismiss-and-explain parity and show linked guidelines inside annotation detail
+
+This follow-up started from two concrete visual regressions the user caught in live use: the review queue rows no longer exposed the orange dismiss-and-explain bubble that sender detail already had, and expanded annotation detail showed comment feedback but not the linked guidelines that had been attached during review. The screenshots were valuable because they narrowed the problem from “something feels inconsistent” to two specific missing affordances.
+
+The actual fixes stayed small once the problem was localized. The queue bug was a page-composition omission: `ReviewQueuePage` never passed `onDismissExplain` to `AnnotationTable`, so the row action was never rendered there. The guideline bug was a read-model/rendering omission: `AnnotationDetail` had grown support for feedback cards, but no parallel slot for run-linked guidelines, even though the sender and run pages already had enough data to supply them.
+
+### Prompt Context
+
+**User prompt (verbatim):** "we are missing the dismiss and explain comment bubble icon for reviewing an annotation in the review queue, as is show in the senders view: /tmp/pi-clipboard-b67b3b4d-21d4-41fd-accf-7edac36e9337.png
+
+I am also not seeing attached guidelines attached to items, say like here in papa@example.com /tmp/pi-clipboard-09561c28-b92a-451b-b2d7-c8ba917b7069.png
+
+Analyze, and then fix. keep a diary, and commit"
+
+**Assistant interpretation:** Compare the queue and sender annotation-row affordances, confirm the missing guideline visibility from the screenshot, then fix the page composition so both actions and attached artifacts appear where the user expects.
+
+**Inferred user intent:** Make single-annotation review behavior visually consistent across queue/run/sender views and stop hiding linked review artifacts behind page-level panels.
+
+**Commit (code):** `b7a3f74` — `AnnotationUI: restore queue comment action and show item guidelines`
+
+### What I did
+- Used image analysis on both screenshots to confirm:
+  - the orange dismiss-and-explain bubble exists in sender rows between dismiss and expand,
+  - the `papa@example.com` annotation detail showed review feedback but no visible linked guidelines.
+- Updated `ui/src/pages/ReviewQueuePage.tsx` to:
+  - restore per-row dismiss-and-explain via `onDismissExplain`,
+  - open a single-item `ReviewCommentDrawer`,
+  - load run-linked guidelines for the expanded row so the queue detail can show them inline.
+- Extended `ui/src/components/AnnotationTable/AnnotationTable.tsx` and `ui/src/components/AnnotationTable/AnnotationDetail.tsx` with a `getGuidelines(...)` path and a compact linked-guidelines section.
+- Updated `ui/src/pages/SenderDetailPage.tsx` to map the expanded annotation to the correct sender-guideline group and render those guidelines inside the annotation detail.
+- Updated `ui/src/pages/RunDetailPage.tsx` to pass run-linked guidelines into expanded annotation detail.
+- Refreshed the relevant Storybook story descriptions for queue and sender detail.
+- Ran:
+
+```bash
+cd smailnail/ui
+pnpm run check
+pnpm run build-storybook
+rm -rf storybook-static
+```
+
+### Why
+- The queue and sender pages should not disagree on whether a single annotation can be dismissed with an explanation.
+- If a reviewer attaches guidelines while reviewing an item, the most natural place to rediscover them is inside that item’s expanded detail, not only in a page-level run/sender summary section.
+
+### What worked
+- The queue bubble fix was simple once I confirmed the row icon is rendered purely from whether `onDismissExplain` is provided.
+- Adding a general `getGuidelines(...)` hook to `AnnotationTable` avoided yet another page-specific annotation-detail fork.
+- Existing run and sender guideline query results were already sufficient; the missing piece was composition, not a new backend endpoint.
+- Both TypeScript validation and Storybook static build passed after the UI changes.
+
+### What didn't work
+- There was no implementation failure once the issue was localized. The main cost was diagnosis time: the queue bug looked like an icon/styling issue at first, but the real cause was a missing page prop.
+
+### What I learned
+- A reusable table/detail component needs parallel extension points for every artifact class we expect to show consistently. Adding feedback without adding guidelines created a subtle asymmetry that only showed up in real usage.
+- Screenshot-driven bug reports are especially effective for page-composition regressions because they expose what the user expects to see, not just what the data model technically contains.
+
+### What was tricky to build
+- The tricky part was preserving the abstraction boundary of `AnnotationTable`. I wanted guideline visibility to be consistent without turning the table into a query owner. The solution was to mirror the existing `getFeedback(...)` pattern with a new `getGuidelines(...)` callback so each page still owns its data loading while the shared detail renderer owns presentation.
+- The second subtle point was semantics: the guidelines visible on an annotation are run-linked guidelines relevant to that annotation’s run, not annotation-target rows stored separately in the database. The UI copy therefore says “Linked guidelines for this run” to avoid implying a narrower storage model than the backend actually has.
+
+### What warrants a second pair of eyes
+- Reviewers should confirm the wording “Linked guidelines for this run” is clear enough on sender detail, where the user may mentally associate the guideline with the selected annotation rather than the run.
+- Reviewers should also confirm that restoring the queue’s single-item comment drawer does not create any confusing overlap with the existing batch reject/explain drawer.
+
+### What should be done in the future
+- If reviewers want stronger provenance, add lightweight badges or helper text distinguishing annotation-scoped feedback from run-scoped linked guidelines inside expanded detail.
+
+### Code review instructions
+- Start with:
+  - `ui/src/pages/ReviewQueuePage.tsx`
+  - `ui/src/components/AnnotationTable/AnnotationTable.tsx`
+  - `ui/src/components/AnnotationTable/AnnotationDetail.tsx`
+  - `ui/src/pages/SenderDetailPage.tsx`
+  - `ui/src/pages/RunDetailPage.tsx`
+- Validate by:
+  - expanding a queue item and confirming the comment bubble appears again,
+  - opening the single-item queue drawer and verifying it still submits a dismiss+comment mutation,
+  - expanding a sender/run annotation that belongs to a run with linked guidelines and confirming the compact guideline cards appear under the feedback section.
+
+### Technical details
+- Screenshot analysis inputs:
+
+```text
+/tmp/pi-clipboard-b67b3b4d-21d4-41fd-accf-7edac36e9337.png
+/tmp/pi-clipboard-09561c28-b92a-451b-b2d7-c8ba917b7069.png
+```
+
+- Validation commands:
+
+```bash
+cd smailnail/ui
+pnpm run check
+pnpm run build-storybook
+rm -rf storybook-static
 ```
 
 ## Related

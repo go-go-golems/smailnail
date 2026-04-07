@@ -22,3 +22,6 @@
 - Related the key runtime/query/page/story files to the ticket docs with `docmgr doc relate`
 - Ran `docmgr doctor --ticket SMN-20260407-ANNOTATION-UI-CONSISTENCY-TTMP --stale-after 30` and got a clean report
 - Refreshed the reMarkable bundle upload as `SMN-20260407 Annotation UI Consistency Pass.pdf` under `/ai/2026/04/07/SMN-20260407-ANNOTATION-UI-CONSISTENCY-TTMP`
+- Fixed a post-rollout UX parity gap where `ReviewQueuePage` had lost the per-row dismiss-and-explain bubble that sender/run detail already exposed
+- Extended shared annotation detail rendering so expanded queue/run/sender items can show linked guidelines relevant to the annotation's run, not just annotation feedback
+- Created focused follow-up UI commit `b7a3f74` (`AnnotationUI: restore queue comment action and show item guidelines`)

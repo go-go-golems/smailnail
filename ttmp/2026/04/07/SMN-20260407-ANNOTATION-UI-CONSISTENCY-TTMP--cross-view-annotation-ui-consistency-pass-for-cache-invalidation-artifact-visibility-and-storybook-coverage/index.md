@@ -19,20 +19,25 @@ RelatedFiles:
       Note: Ticket now links to the durable repo playbook created from this pass
     - Path: ui/src/api/annotations.ts
       Note: Ticket centers on the annotation query and invalidation layer
+    - Path: ui/src/components/AnnotationTable/AnnotationDetail.tsx
+      Note: Ticket now treats expanded annotation detail as the place for both feedback and linked-guideline visibility
     - Path: ui/src/components/SenderProfile/SenderGuidelinePanel.tsx
       Note: Ticket now includes sender artifact rendering work
     - Path: ui/src/mocks/handlers.ts
       Note: Ticket includes a Storybook/MSW truthfulness pass
+    - Path: ui/src/pages/ReviewQueuePage.tsx
+      Note: Ticket now includes the post-rollout queue dismiss-and-explain parity fix
     - Path: ui/src/pages/RunDetailPage.tsx
       Note: Ticket uses run detail as the reference composed-artifact view
     - Path: ui/src/pages/SenderDetailPage.tsx
       Note: Ticket centers on sender-view artifact visibility and refresh behavior
 ExternalSources: []
 Summary: Ticket workspace for the broad annotation UI consistency pass covering cache invalidation, explicit artifact visibility across views, and stronger Storybook/MSW proof of cross-view behavior.
-LastUpdated: 2026-04-07T11:55:00-04:00
+LastUpdated: 2026-04-07T12:35:00-04:00
 WhatFor: Track the analysis and future implementation work needed to make annotation review artifacts refresh and appear consistently across run, sender, queue, and guideline views.
 WhenToUse: Start here to understand the ticket scope, current deliverables, phased tasks, and where the detailed implementation guide lives.
 ---
+
 
 
 
@@ -66,6 +71,7 @@ The core thesis of this ticket is that the annotation system needs an explicit c
 - Phase 4 cache/tag audit: **completed**, with broad family tags deliberately retained for now
 - Phase 5 Storybook/MSW truthfulness work: **completed** (`571cede`)
 - Repo playbook/help entry: **added** in `pkg/doc/annotationui-review-consistency-playbook.md`
+- Post-rollout UX parity follow-up: **completed** (`b7a3f74`) restoring the queue dismiss-and-explain bubble and showing linked guidelines inside expanded annotation detail
 - `docmgr doctor`: **passed**
 - reMarkable upload: **completed and refreshed after implementation** (`/ai/2026/04/07/SMN-20260407-ANNOTATION-UI-CONSISTENCY-TTMP`)
 
@@ -88,6 +94,7 @@ This ticket covers:
 - Sender detail now treats guidelines and annotation feedback as explicit artifact surfaces rather than hoping the base sender payload is enough.
 - Broad RTK Query family tags are still acceptable for this slice, but only because the relevant mounted detail queries now provide those tag families consistently.
 - Storybook/MSW now models mutable annotations, feedback, and guideline links well enough to exercise mutation-driven refresh behavior more honestly.
+- Expanded annotation detail is now the canonical place to inspect both annotation-scoped feedback and any run-linked guidelines relevant to the currently opened item.
 
 ## Structure
 
