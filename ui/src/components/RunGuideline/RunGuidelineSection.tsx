@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
@@ -25,18 +26,32 @@ export function RunGuidelineSection({
   onCreateAndLink,
 }: RunGuidelineSectionProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [linkGuidelineToRun] = useLinkGuidelineToRunMutation();
   const [unlinkGuidelineFromRun] = useUnlinkGuidelineFromRunMutation();
 
-  const handleLink = (guidelineIds: string[]) => {
-    for (const id of guidelineIds) {
-      void linkGuidelineToRun({ runId, guidelineId: id });
+  const handleLink = async (guidelineIds: string[]) => {
+    setLinkError(null);
+    try {
+      await Promise.all(
+        guidelineIds.map((id) =>
+          linkGuidelineToRun({ runId, guidelineId: id }).unwrap(),
+        ),
+      );
+      setPickerOpen(false);
+    } catch {
+      setLinkError("Failed to link one or more guidelines to this run. Please try again.");
+      throw new Error("guideline link failed");
     }
-    setPickerOpen(false);
   };
 
-  const handleUnlink = (guidelineId: string) => {
-    void unlinkGuidelineFromRun({ runId, guidelineId });
+  const handleUnlink = async (guidelineId: string) => {
+    setLinkError(null);
+    try {
+      await unlinkGuidelineFromRun({ runId, guidelineId }).unwrap();
+    } catch {
+      setLinkError("Failed to unlink the guideline from this run. Please try again.");
+    }
   };
 
   return (
@@ -44,6 +59,12 @@ export function RunGuidelineSection({
       <Typography variant="overline" sx={{ display: "block", mb: 1.5 }}>
         Linked Guidelines ({guidelines.length})
       </Typography>
+
+      {linkError && (
+        <Alert severity="error" sx={{ mb: 1.5 }}>
+          {linkError}
+        </Alert>
+      )}
 
       {guidelines.length === 0 && (
         <Box
@@ -67,7 +88,7 @@ export function RunGuidelineSection({
         <GuidelineCard
           key={g.id}
           guideline={g}
-          onUnlink={() => handleUnlink(g.id)}
+          onUnlink={() => void handleUnlink(g.id)}
         />
       ))}
 
@@ -76,7 +97,10 @@ export function RunGuidelineSection({
           size="small"
           variant="outlined"
           startIcon={<AddIcon />}
-          onClick={() => setPickerOpen(true)}
+          onClick={() => {
+            setLinkError(null);
+            setPickerOpen(true);
+          }}
         >
           Link Existing Guideline
         </Button>

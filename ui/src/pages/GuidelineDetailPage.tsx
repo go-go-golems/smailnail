@@ -1,11 +1,12 @@
 import { useState, useCallback } from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import Button from "@mui/material/Button";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import {
   useGetGuidelineQuery,
   useGetGuidelineRunsQuery,
@@ -22,12 +23,16 @@ import type {
 export function GuidelineDetailPage() {
   const { guidelineId } = useParams<{ guidelineId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const runIdParam = searchParams.get("runId");
 
   const isNew = guidelineId === "new" || !guidelineId;
   const [mode, setMode] = useState<"view" | "edit" | "create">(
     isNew ? "create" : "view",
+  );
+  const [saveError, setSaveError] = useState<string | null>(
+    (location.state as { flashError?: string } | null)?.flashError ?? null,
   );
 
   const { data: guideline, isLoading } = useGetGuidelineQuery(
@@ -45,31 +50,44 @@ export function GuidelineDetailPage() {
   const [linkGuidelineToRun] = useLinkGuidelineToRunMutation();
 
   const handleSave = useCallback(
-    (payload: CreateGuidelineRequest | UpdateGuidelineRequest) => {
-      if (mode === "create") {
-        void createGuideline(payload as CreateGuidelineRequest).then(
-          (result) => {
-            if ("data" in result && result.data) {
-              // If we came from a run context, link the new guideline
-              if (runIdParam) {
-                void linkGuidelineToRun({
-                  runId: runIdParam,
-                  guidelineId: result.data.id,
-                });
-                navigate(`/annotations/runs/${runIdParam}`);
-              } else {
-                navigate(`/annotations/guidelines/${result.data.id}`);
-              }
+    async (payload: CreateGuidelineRequest | UpdateGuidelineRequest) => {
+      setSaveError(null);
+      try {
+        if (mode === "create") {
+          const created = await createGuideline(
+            payload as CreateGuidelineRequest,
+          ).unwrap();
+
+          if (runIdParam) {
+            try {
+              await linkGuidelineToRun({
+                runId: runIdParam,
+                guidelineId: created.id,
+              }).unwrap();
+              navigate(`/annotations/runs/${runIdParam}`);
+              return;
+            } catch {
+              navigate(`/annotations/guidelines/${created.id}`, {
+                state: {
+                  flashError:
+                    "Guideline created, but linking it to the run failed. Please link it manually.",
+                },
+              });
+              return;
             }
-          },
-        );
-      } else {
-        void updateGuideline({
+          }
+
+          navigate(`/annotations/guidelines/${created.id}`);
+          return;
+        }
+
+        await updateGuideline({
           id: guidelineId ?? "",
           ...(payload as UpdateGuidelineRequest),
-        }).then(() => {
-          setMode("view");
-        });
+        }).unwrap();
+        setMode("view");
+      } catch {
+        setSaveError("Failed to save the guideline. Please try again.");
       }
     },
     [mode, createGuideline, updateGuideline, linkGuidelineToRun, guidelineId, runIdParam, navigate],
@@ -125,11 +143,19 @@ export function GuidelineDetailPage() {
         )}
       </Box>
 
+      {saveError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {saveError}
+        </Alert>
+      )}
+
       {/* Form */}
       <GuidelineForm
         guideline={guideline}
         mode={mode}
-        onSave={handleSave}
+        onSave={(payload) => {
+          void handleSave(payload);
+        }}
         onCancel={handleCancel}
       />
 

@@ -20,10 +20,16 @@ const meta = {
     msw: {
       handlers: [
         http.get("/api/review-guidelines", () =>
-          HttpResponse.json(mockGuidelines.filter((g) => g.status === "active")),
+          HttpResponse.json({
+            items: mockGuidelines.filter((g) => g.status === "active"),
+          }),
         ),
         http.post("/api/annotation-runs/:id/guidelines", () =>
-          HttpResponse.json(null, { status: 204 }),
+          HttpResponse.json({
+            items: mockGuidelines.filter((g) =>
+              ["guideline-001", "guideline-002"].includes(g.id),
+            ),
+          }),
         ),
         http.delete("/api/annotation-runs/:id/guidelines/:guidelineId", () =>
           HttpResponse.json(null, { status: 204 }),

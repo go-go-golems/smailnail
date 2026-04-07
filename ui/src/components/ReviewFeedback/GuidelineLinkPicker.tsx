@@ -19,7 +19,7 @@ export interface GuidelineLinkPickerProps {
   open: boolean;
   runId: string;
   alreadyLinkedIds: string[];
-  onLink: (guidelineIds: string[]) => void;
+  onLink: (guidelineIds: string[]) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -34,6 +34,7 @@ export function GuidelineLinkPicker({
   });
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filtered = useMemo(() => {
     if (!search) return guidelines;
@@ -50,10 +51,15 @@ export function GuidelineLinkPicker({
     );
   };
 
-  const handleLink = () => {
-    onLink(selectedIds);
-    setSelectedIds([]);
-    setSearch("");
+  const handleLink = async () => {
+    setIsSubmitting(true);
+    try {
+      await onLink(selectedIds);
+      setSelectedIds([]);
+      setSearch("");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -139,14 +145,14 @@ export function GuidelineLinkPicker({
         })}
       </DialogContent>
       <DialogActions>
-        <Button size="small" onClick={handleClose}>
+        <Button size="small" onClick={handleClose} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button
           size="small"
           variant="contained"
-          disabled={selectedIds.length === 0}
-          onClick={handleLink}
+          disabled={selectedIds.length === 0 || isSubmitting}
+          onClick={() => void handleLink()}
         >
           Link {selectedIds.length > 0 ? `${selectedIds.length} Guideline${selectedIds.length > 1 ? "s" : ""}` : "Guideline"}
         </Button>
