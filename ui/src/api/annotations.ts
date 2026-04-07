@@ -66,6 +66,7 @@ export const annotationsApi = createApi({
     }),
     getAnnotation: builder.query<Annotation, string>({
       query: (id) => `annotations/${id}`,
+      providesTags: ["Annotations"],
     }),
     reviewAnnotation: builder.mutation<
       Annotation,
@@ -123,6 +124,7 @@ export const annotationsApi = createApi({
     }),
     getGroup: builder.query<GroupDetail, string>({
       query: (id) => `annotation-groups/${id}`,
+      providesTags: ["Groups"],
     }),
 
     // ── Logs ─────────────────────────────────────
@@ -133,6 +135,7 @@ export const annotationsApi = createApi({
     }),
     getLog: builder.query<AnnotationLog, string>({
       query: (id) => `annotation-logs/${id}`,
+      providesTags: ["Logs"],
     }),
 
     // ── Runs (aggregated) ────────────────────────
@@ -143,6 +146,7 @@ export const annotationsApi = createApi({
     }),
     getRun: builder.query<AgentRunDetail, string>({
       query: (id) => `annotation-runs/${id}`,
+      providesTags: ["Runs"],
     }),
 
     // ── Senders ──────────────────────────────────
@@ -153,6 +157,7 @@ export const annotationsApi = createApi({
     }),
     getSender: builder.query<SenderDetail, string>({
       query: (email) => `mirror/senders/${encodeURIComponent(email)}`,
+      providesTags: ["Senders"],
     }),
 
     // ── Query Editor ─────────────────────────────
