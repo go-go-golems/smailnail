@@ -17,6 +17,8 @@ RelatedFiles:
       Note: Ticket now includes sender-visible guideline endpoint work
     - Path: pkg/doc/annotationui-review-consistency-playbook.md
       Note: Ticket now links to the durable repo playbook created from this pass
+    - Path: ui/package.json
+      Note: Ticket now explicitly points to existing Storybook support for the next UI polish slice
     - Path: ui/src/api/annotations.ts
       Note: Ticket centers on the annotation query and invalidation layer
     - Path: ui/src/components/AnnotationTable/AnnotationDetail.tsx
@@ -33,10 +35,11 @@ RelatedFiles:
       Note: Ticket centers on sender-view artifact visibility and refresh behavior
 ExternalSources: []
 Summary: Ticket workspace for the broad annotation UI consistency pass covering cache invalidation, explicit artifact visibility across views, and stronger Storybook/MSW proof of cross-view behavior.
-LastUpdated: 2026-04-07T12:35:00-04:00
+LastUpdated: 2026-04-07T13:05:00-04:00
 WhatFor: Track the analysis and future implementation work needed to make annotation review artifacts refresh and appear consistently across run, sender, queue, and guideline views.
 WhenToUse: Start here to understand the ticket scope, current deliverables, phased tasks, and where the detailed implementation guide lives.
 ---
+
 
 
 
@@ -52,6 +55,7 @@ The core thesis of this ticket is that the annotation system needs an explicit c
 ## Primary Documents
 
 - [Design doc: analysis and implementation guide](./design-doc/01-analysis-and-implementation-guide-for-annotation-ui-consistency-and-artifact-visibility.md)
+- [Design doc: compact expanded annotation row follow-up](./design-doc/02-compact-expanded-annotation-row-follow-up.md)
 - [Reference: artifact query and invalidation matrix](./reference/02-artifact-query-and-invalidation-matrix.md)
 - [Investigation diary](./reference/01-investigation-diary.md)
 - [Tasks](./tasks.md)
@@ -72,6 +76,7 @@ The core thesis of this ticket is that the annotation system needs an explicit c
 - Phase 5 Storybook/MSW truthfulness work: **completed** (`571cede`)
 - Repo playbook/help entry: **added** in `pkg/doc/annotationui-review-consistency-playbook.md`
 - Post-rollout UX parity follow-up: **completed** (`b7a3f74`) restoring the queue dismiss-and-explain bubble and showing linked guidelines inside expanded annotation detail
+- Compact expanded-row follow-up: **planned**, with a small implementation note in `design-doc/02-compact-expanded-annotation-row-follow-up.md`
 - `docmgr doctor`: **passed**
 - reMarkable upload: **completed and refreshed after implementation** (`/ai/2026/04/07/SMN-20260407-ANNOTATION-UI-CONSISTENCY-TTMP`)
 

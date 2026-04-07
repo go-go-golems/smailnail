@@ -23,6 +23,8 @@ RelatedFiles:
       Note: Primary deliverable recorded in the diary
     - Path: ttmp/2026/04/07/SMN-20260407-ANNOTATION-UI-CONSISTENCY-TTMP--cross-view-annotation-ui-consistency-pass-for-cache-invalidation-artifact-visibility-and-storybook-coverage/reference/02-artifact-query-and-invalidation-matrix.md
       Note: Canonical page-by-page matrix added during phase-1 planning
+    - Path: ui/package.json
+      Note: Diary Step 13 records Storybook availability and scripts for the compact-row follow-up
     - Path: ui/src/api/annotations.ts
       Note: Diary context for query/tag observations gathered during the investigation
     - Path: ui/src/components/AnnotationTable/AnnotationDetail.tsx
@@ -47,10 +49,11 @@ RelatedFiles:
       Note: Diary Step 12 records sender story guidance for inline linked-guideline visibility
 ExternalSources: []
 Summary: Chronological diary for creating the annotation UI consistency ticket, gathering evidence across backend/frontend/storybook layers, and producing the design/implementation guide plus reMarkable delivery.
-LastUpdated: 2026-04-07T12:35:00-04:00
+LastUpdated: 2026-04-07T13:05:00-04:00
 WhatFor: Capture the exact investigation path, commands, reasoning, and delivery steps for the annotation UI consistency pass.
 WhenToUse: Read this when continuing the ticket, reviewing how the analysis was assembled, or reproducing the upload/validation workflow.
 ---
+
 
 
 
@@ -987,6 +990,76 @@ pnpm run check
 pnpm run build-storybook
 rm -rf storybook-static
 ```
+
+## Step 13: Record the compact expanded-row follow-up and confirm Storybook remains available
+
+After agreeing on the next visual direction, I did not jump straight into code. Instead, I captured the proposed queue layout as a small implementation note and added a concrete follow-up task so the next UI pass can be reviewed against a stable target rather than a chat-only description.
+
+This was also a good moment to answer the Storybook question explicitly in repo-backed terms. The repo does already have Storybook wired up, and it already contains page/component stories that are relevant to this exact queue/run/sender detail area.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Perfect, add a task and a small implementation doc, and then update it. Do we have a storybook anyway?"
+
+**Assistant interpretation:** Capture the newly agreed compact queue-row design in the ticket, add a concrete follow-up task, and confirm whether the repo already has Storybook support.
+
+**Inferred user intent:** Make the next UI polish slice continuation-friendly and verify that there is a visual review harness available before implementation starts.
+
+### What I did
+- Added `design-doc/02-compact-expanded-annotation-row-follow-up.md`.
+- Added a post-rollout follow-up section to `tasks.md` covering:
+  - compacting the expanded row,
+  - deciding whether to reuse `FeedbackCard` or add a smaller summary renderer,
+  - updating Storybook once implemented.
+- Updated the ticket `index.md` and `changelog.md` so the new follow-up doc is discoverable.
+- Verified Storybook support from `ui/package.json` and the existing story files.
+
+### Why
+- The compact layout direction was now specific enough to deserve a first-class doc, but not yet implemented.
+- Capturing the design before coding reduces the chance that the eventual UI change drifts from the agreed ASCII layout.
+
+### What worked
+- The ticket now has a concrete handoff target for the next queue-polish slice.
+- Storybook support is clearly present and already covers the relevant page surfaces.
+
+### What didn't work
+- N/A; this was a straightforward documentation/planning update.
+
+### What I learned
+- Even small UI tightening passes benefit from a tiny implementation note when the main question is visual structure rather than backend semantics.
+- The existing Storybook footprint is broad enough that the compact-row pass should be easy to validate visually once implemented.
+
+### What was tricky to build
+- The only subtlety was choosing the right scope for the note: it needed to be specific enough to preserve the agreed compact layout, but small enough not to become a second large design doc.
+
+### What warrants a second pair of eyes
+- Reviewers should confirm that the follow-up task wording and the compact-row doc still match the latest agreed layout, especially the removal of the sender-link row and the inline guideline-chip treatment.
+
+### What should be done in the future
+- When the compact-row UI change lands, update the new follow-up doc with final implementation notes and add/refresh the relevant Storybook scenarios.
+
+### Code review instructions
+- Start with:
+  - `ttmp/2026/04/07/SMN-20260407-ANNOTATION-UI-CONSISTENCY-TTMP--cross-view-annotation-ui-consistency-pass-for-cache-invalidation-artifact-visibility-and-storybook-coverage/design-doc/02-compact-expanded-annotation-row-follow-up.md`
+  - `ttmp/2026/04/07/SMN-20260407-ANNOTATION-UI-CONSISTENCY-TTMP--cross-view-annotation-ui-consistency-pass-for-cache-invalidation-artifact-visibility-and-storybook-coverage/tasks.md`
+  - `smailnail/ui/package.json`
+- Confirm Storybook scripts exist and that the note references the right page/component story files.
+
+### Technical details
+- Storybook commands already present in `ui/package.json`:
+
+```bash
+cd smailnail/ui
+pnpm run storybook
+pnpm run build-storybook
+```
+
+- Relevant existing story entry points include:
+  - `ui/src/pages/stories/ReviewQueuePage.stories.tsx`
+  - `ui/src/pages/stories/RunDetailPage.stories.tsx`
+  - `ui/src/pages/stories/SenderDetailPage.stories.tsx`
+  - `ui/src/components/AnnotationTable/stories/AnnotationTable.stories.tsx`
+  - `ui/src/components/ReviewFeedback/stories/FeedbackCard.stories.tsx`
 
 ## Related
 

@@ -72,6 +72,12 @@
 - [x] Upload an updated ticket bundle to reMarkable
 - [x] Commit phase 6 as the ticket hygiene / handoff checkpoint
 
+## Post-rollout follow-up
+
+- [ ] Tighten the expanded annotation detail row in the review queue by removing the sender-link row and rendering linked guidelines as inline chips inside the compact review-feedback summary, with the actual feedback text on the following line
+- [ ] Decide whether the compact feedback line should reuse `FeedbackCard` with a dense mode or introduce a smaller expanded-row-specific summary renderer
+- [ ] Update the relevant queue/run/sender Storybook stories to demonstrate the compact expanded-row layout once implemented
+
 ## Delivery / Documentation
 
 - [x] Relate key files to the ticket docs with `docmgr doc relate`

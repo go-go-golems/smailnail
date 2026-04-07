@@ -25,3 +25,5 @@
 - Fixed a post-rollout UX parity gap where `ReviewQueuePage` had lost the per-row dismiss-and-explain bubble that sender/run detail already exposed
 - Extended shared annotation detail rendering so expanded queue/run/sender items can show linked guidelines relevant to the annotation's run, not just annotation feedback
 - Created focused follow-up UI commit `b7a3f74` (`AnnotationUI: restore queue comment action and show item guidelines`)
+- Added a small implementation note `design-doc/02-compact-expanded-annotation-row-follow-up.md` for the next UI tightening pass
+- Added explicit follow-up tasks for compacting the expanded queue row, removing the sender-link row, and validating the change in Storybook
