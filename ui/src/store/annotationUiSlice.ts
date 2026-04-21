@@ -3,9 +3,6 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 interface ReviewQueueState {
   selected: string[];
   filterTag: string | null;
-  filterType: string | null;
-  filterSource: string | null;
-  filterRunId: string | null;
   expandedId: string | null;
 }
 
@@ -23,9 +20,6 @@ const initialState: AnnotationUiState = {
   reviewQueue: {
     selected: [],
     filterTag: null,
-    filterType: null,
-    filterSource: null,
-    filterRunId: null,
     expandedId: null,
   },
   queryEditor: {
@@ -57,17 +51,9 @@ const annotationUiSlice = createSlice({
     setFilterTag(state, action: PayloadAction<string | null>) {
       state.reviewQueue.filterTag = action.payload;
     },
-    setFilterType(state, action: PayloadAction<string | null>) {
-      state.reviewQueue.filterType = action.payload;
-    },
-    setFilterSource(state, action: PayloadAction<string | null>) {
-      state.reviewQueue.filterSource = action.payload;
-    },
-    setFilterRunId(state, action: PayloadAction<string | null>) {
-      state.reviewQueue.filterRunId = action.payload;
-    },
-    setExpandedId(state, action: PayloadAction<string | null>) {
-      state.reviewQueue.expandedId = action.payload;
+    toggleExpandedId(state, action: PayloadAction<string>) {
+      state.reviewQueue.expandedId =
+        state.reviewQueue.expandedId === action.payload ? null : action.payload;
     },
 
     // ── Query editor ─────────────────────────────
@@ -85,10 +71,7 @@ export const {
   setSelected,
   clearSelected,
   setFilterTag,
-  setFilterType,
-  setFilterSource,
-  setFilterRunId,
-  setExpandedId,
+  toggleExpandedId,
   setSql,
   setActiveSourcePath,
 } = annotationUiSlice.actions;

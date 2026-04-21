@@ -10,23 +10,6 @@ import {
 } from "../../mocks/annotations";
 import { handlers } from "../../mocks/handlers";
 
-const runDetail = {
-  runId: "run-42",
-  sourceLabel: "triage-agent-v2",
-  sourceKind: "agent" as const,
-  annotationCount: 5,
-  pendingCount: 3,
-  reviewedCount: 1,
-  dismissedCount: 1,
-  logCount: 4,
-  groupCount: 2,
-  startedAt: "2026-04-01T10:29:00Z",
-  completedAt: "2026-04-01T10:40:00Z",
-  annotations: mockAnnotations.filter((a) => a.agentRunId === "run-42"),
-  logs: mockLogs.filter((l) => l.agentRunId === "run-42"),
-  groups: mockGroups.filter((g) => g.agentRunId === "run-42"),
-};
-
 const meta = {
   title: "Pages/RunDetailPage",
   component: RunDetailPage,
@@ -40,12 +23,7 @@ const meta = {
   ],
   parameters: {
     msw: {
-      handlers: [
-        ...handlers,
-        http.get("/api/annotation-runs/run-42", () =>
-          HttpResponse.json(runDetail),
-        ),
-      ],
+      handlers,
     },
   },
 } satisfies Meta<typeof RunDetailPage>;
@@ -54,6 +32,17 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const StatefulMutationDemo: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "This story uses the shared mutable MSW annotation state. Approve or dismiss annotations and verify that the run counters, annotation rows, annotation-scoped feedback, and linked guideline sections stay coordinated.",
+      },
+    },
+  },
+};
 
 export const Loading: Story = {
   parameters: {
@@ -92,15 +81,24 @@ export const AllReviewed: Story = {
     msw: {
       handlers: [
         ...handlers,
-        http.get("/api/annotation-runs/run-42", () =>
+        http.get("/api/annotation-runs/:id", () =>
           HttpResponse.json({
-            ...runDetail,
+            runId: "run-42",
+            sourceLabel: "triage-agent-v2",
+            sourceKind: "agent",
+            annotationCount: 4,
             pendingCount: 0,
-            reviewedCount: 5,
-            annotations: runDetail.annotations.map((a) => ({
-              ...a,
-              reviewState: "reviewed",
-            })),
+            reviewedCount: 4,
+            dismissedCount: 0,
+            logCount: 4,
+            groupCount: 2,
+            startedAt: "2026-04-01T10:29:00Z",
+            completedAt: "2026-04-01T10:40:00Z",
+            annotations: mockAnnotations
+              .filter((annotation) => annotation.agentRunId === "run-42")
+              .map((annotation) => ({ ...annotation, reviewState: "reviewed" })),
+            logs: mockLogs.filter((log) => log.agentRunId === "run-42"),
+            groups: mockGroups.filter((group) => group.agentRunId === "run-42"),
           }),
         ),
       ],

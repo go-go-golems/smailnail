@@ -13,21 +13,1174 @@ Owners:
 RelatedFiles: []
 ExternalSources: []
 Summary: "Chronological notes captured while opening the ticket and shaping the implementation plan."
-LastUpdated: 2026-04-03T12:15:00-04:00
+LastUpdated: 2026-04-06T13:24:00-04:00
 WhatFor: "Preserve design reasoning and discovery notes."
 WhenToUse: "Use when reviewing why the ticket was scoped this way."
 ---
 
-# Investigation Diary
+# Diary
 
-## 2026-04-03
+## Goal
 
-- Re-read the original annotation UI backend spec to anchor this ticket in the existing sqlite architecture rather than the older `smailnaild` assumptions.
-- Confirmed that the current React API contract only supports state transitions for review. There is no reviewer comment payload in `ui/src/api/annotations.ts`.
-- Confirmed that the current review queue and run detail pages expose approve/dismiss actions but no text-entry flow for reviewer correction requests.
-- Confirmed that mailbox is already present in the mirror storage schema as `messages.mailbox_name`; the problem is not missing storage but missing end-to-end product surfacing and provenance guidance.
-- Confirmed that sender detail already joins annotation and message-preview data, which makes it a strong pattern reference for future review-feedback endpoints.
-- Decided that reviewer feedback should be modeled separately from agent/system logs so future queries can distinguish human correction from agent narration.
-- Decided to keep this ticket functionality-first and explicitly avoid committing to pixel-level screen design.
-- Added detailed ticket docs, related-file links, and task breakdowns, then ran `docmgr doctor --ticket SMN-20260403-RUN-REVIEW`, which passed.
-- Attempted reMarkable bundle upload via `remarquee upload bundle ... --remote-dir /ai/2026/04/03/SMN-20260403-RUN-REVIEW --toc-depth 2` after a successful dry-run. The live upload failed with `dial tcp [2600:1901:0:4019::]:443: connect: network is unreachable`, so the ticket docs are ready locally but not confirmed on the device.
+Capture the full implementation journey for ticket SMN-20260403-RUN-REVIEW: adding review feedback, guidelines management, and mailbox-aware analysis to the smailnail annotation UI.
+
+---
+
+## Step 1: Research & ticket scoping (2026-04-03)
+
+This step established the problem space. The current UI only supports approve/dismiss state transitions with no reviewer comment payload. Mailbox data exists in storage but isn't surfaced. The investigation confirmed what was missing and what patterns already exist to build on.
+
+### What I did
+- Re-read the original annotation UI backend spec to anchor in the existing sqlite architecture.
+- Confirmed `ui/src/api/annotations.ts` has no reviewer comment payload — only state transitions.
+- Confirmed review queue and run detail pages have approve/dismiss but no text-entry flow.
+- Confirmed `messages.mailbox_name` exists in the mirror storage schema; the gap is product surfacing, not storage.
+- Confirmed sender detail already joins annotation + message-preview data — a strong pattern reference.
+- Added ticket docs, related-file links, and task breakdowns.
+- Ran `docmgr doctor --ticket SMN-20260403-RUN-REVIEW` (passed).
+- Attempted reMarkable upload — failed with `dial tcp [2600:1901:0:4019::]:443: connect: network is unreachable`.
+
+### Why
+- Needed to understand the existing architecture before designing new features.
+- Separating reviewer feedback from agent logs enables future queries to distinguish human correction from agent narration.
+
+### What worked
+- The existing sender-detail join pattern provided a clear blueprint for the feedback endpoints.
+- `docmgr doctor` caught no issues — the ticket structure was sound.
+
+### What didn't work
+- reMarkable upload failed due to IPv6 network unreachability.
+
+### What I learned
+- The codebase has a consistent pattern: types → RTK endpoints → MSW mocks → component → Storybook stories. Following this order minimizes compile errors.
+
+### What was tricky to build
+- N/A (research step).
+
+### What warrants a second pair of eyes
+- N/A (no code changed).
+
+### What should be done in the future
+- Retry reMarkable upload once network is available.
+
+### Code review instructions
+- Review ticket docs at `ttmp/2026/04/03/SMN-20260403-RUN-REVIEW--agent-run-review-requests-guidelines-and-mailbox-aware-analysis-workflow/`.
+
+---
+
+## Step 2: UI design document & phased task list (2026-04-04)
+
+Before writing any component code, produced a 1126-line UI design doc with ASCII wireframes and YAML widget DSL for 7 screens, then a 913-line phased task list with 17 phases and 217 tasks. This upfront design work kept implementation focused and avoided mid-stream redesigns.
+
+**Commit (docs):** `4ff7bb1` — "docs(SMN-20260403-RUN-REVIEW): add UI design doc and phased task breakdown"
+
+### Prompt Context
+
+**User prompt (verbatim):** (from earlier session, user asked to create design doc and task list)
+
+**Assistant interpretation:** Create a detailed UI design document with ASCII wireframes and React widget pseudo-DSL in YAML, then a phased task list for implementation.
+
+**Inferred user intent:** Have a concrete blueprint before writing code so implementation can proceed phase-by-phase without ambiguity.
+
+### What I did
+- Created `design/02-ui-design-review-feedback-guidelines-mailbox.md` with 7 screens, ASCII wireframes, YAML widget DSL.
+- Created `tasks.md` with 17 phases, 217 tasks.
+- Uploaded doc bundle to reMarkable at `/ai/2026/04/04/SMN-20260403-RUN-REVIEW/`.
+
+### Why
+- Frontend work benefits from upfront visual design — wireframes prevent debates during implementation.
+- Phased tasks keep commits focused and `tsc --noEmit` passing after every phase.
+
+### What worked
+- YAML widget DSL made it easy to translate wireframes directly into React component props.
+- reMarkable upload succeeded this time.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- The wireframe→YAML→React pipeline is efficient. Each widget DSL entry maps to one component directory with `parts.ts`, stories, and barrel exports.
+
+### What was tricky to build
+- N/A (design step).
+
+### What warrants a second pair of eyes
+- N/A (docs only).
+
+### What should be done in the future
+- Update the design doc if implementation reveals wireframe gaps.
+
+### Code review instructions
+- Read `design/02-ui-design-review-feedback-guidelines-mailbox.md` and `tasks.md` in the ticket directory.
+
+---
+
+## Step 3: TypeScript types & RTK Query contract
+
+**Commit (code):** `baefb8f` — "feat(ui): Phase 3 — TypeScript types & RTK Query contract for feedback/guidelines"
+
+This step laid the data foundation. All new types and API endpoints were defined before any UI code, so components could import from a stable contract. The key insight is that reviewer feedback and guidelines are independent domain objects linked through run-guideline join records.
+
+### Prompt Context
+
+**User prompt (verbatim):** "continue"
+
+**Assistant interpretation:** Proceed with Phase 3 from the task list — create TypeScript types and RTK Query endpoints.
+
+**Inferred user intent:** Build the data layer first so subsequent widget phases have types and hooks to import.
+
+### What I did
+- Created `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/types/reviewFeedback.ts` with `ReviewFeedback`, `FeedbackKind`, `FeedbackStatus`, `ReviewFeedbackTarget`.
+- Created `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/types/reviewGuideline.ts` with `ReviewGuideline`, `GuidelineScope`, `GuidelinePriority`.
+- Extended `MessagePreview` with optional `mailboxName` field.
+- Extended `AnnotationFilter` with `mailboxName` field.
+- Added 10 RTK Query endpoints: feedback CRUD, guidelines CRUD, run-guideline links.
+- Extended `reviewAnnotation`/`batchReview` payloads with `comment`, `guidelineIds`, `mailboxName`.
+- Added cache tags `Feedback` + `Guidelines`.
+- Updated mock messages with `mailboxName`.
+
+### Why
+- Types-first ensures compile safety across all later phases.
+- RTK Query endpoints with cache tags enable automatic refetching when feedback/guidelines mutate.
+
+### What worked
+- `tsc --noEmit` passed clean immediately.
+- RTK Query's `providesTags`/`invalidatesTags` pattern means components don't need manual refetch logic.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- RTK Query `keepUnusedDataFor: 5` on rarely-changing endpoints (guidelines) reduces unnecessary refetches.
+
+### What was tricky to build
+- The `useListReviewFeedbackQuery` takes a filter object `{ agentRunId?: string; targetId?: string }` rather than a plain string — needed to match this pattern to RTK Query's `query` function signature.
+
+### What warrants a second pair of eyes
+- Verify that `invalidatesTags` on `createReviewFeedback` correctly triggers refetch of `listReviewFeedback` queries that use different filter params.
+
+### What should be done in the future
+- When the real backend replaces MSW mocks, verify the endpoint paths match the RTK Query `query` URLs exactly.
+
+### Code review instructions
+- Start in `ui/src/types/reviewFeedback.ts` and `ui/src/types/reviewGuideline.ts` for types.
+- Then `ui/src/api/annotations.ts` — search for `// ── Review Feedback` and `// ── Review Guidelines`.
+- Validate: `cd ui && npx tsc --noEmit`
+
+### Technical details
+
+New endpoints:
+```
+GET  /feedback?agentRunId=          → useListReviewFeedbackQuery
+GET  /feedback/:id                  → useGetReviewFeedbackQuery
+POST /feedback                      → useCreateReviewFeedbackMutation
+PATCH /feedback/:id                 → useUpdateReviewFeedbackMutation
+GET  /guidelines                    → useListGuidelinesQuery
+GET  /guidelines/:id                → useGetGuidelineQuery
+POST /guidelines                    → useCreateGuidelineMutation
+PATCH /guidelines/:id               → useUpdateGuidelineMutation
+GET  /runs/:runId/guidelines        → useGetRunGuidelinesQuery
+POST /runs/:runId/guidelines        → useLinkGuidelineToRunMutation
+DELETE /runs/:runId/guidelines/:id  → useUnlinkGuidelineFromRunMutation
+```
+
+---
+
+## Step 4: MSW mock data & handlers
+
+**Commit (code):** `bbb82f5` — "feat(ui): Phase 4 — MSW mock data & handlers for feedback/guidelines"
+
+With the RTK contract in place, added mock data and MSW v2 handlers so Storybook stories and local dev can exercise the full CRUD lifecycle. The key design decision was placing mutable state (`runGuidelineLinks` Map) outside the handlers array — MSW handlers are an array literal, so you can't declare `const` inside it.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 3)
+
+**Assistant interpretation:** Proceed with Phase 4 — create MSW mock data and handlers for all new endpoints.
+
+**Inferred user intent:** Enable Storybook and local dev to work against realistic mock data before a real backend exists.
+
+### What I did
+- Created `mockFeedback` (4 items) and `mockGuidelines` (4 items) arrays in `ui/src/mocks/annotations.ts`.
+- Added MSW v2 handlers in `ui/src/mocks/handlers.ts` for feedback CRUD, guidelines CRUD, run-guideline links.
+- Used mutable `runGuidelineLinks` Map outside the handlers array for POST/DELETE mutability.
+
+### Why
+- Storybook stories need working API calls to render loading/success/error states.
+- Mock handlers let us test the full feedback lifecycle (create → list → acknowledge → resolve) without a backend.
+
+### What worked
+- `tsc --noEmit` passed clean.
+- MSW v2's `http.get/post/patch/delete` API is clean and type-safe with the mock data.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Mutable state outside the handlers array is the MSW pattern for simulating server-side mutations. The handlers close over the mutable reference.
+
+### What was tricky to build
+- The `runGuidelineLinks` Map needed to be initialized with default links from `mockGuidelines` so that `GET /runs/:runId/guidelines` returns meaningful data on first load.
+
+### What warrants a second pair of eyes
+- Verify that `runGuidelineLinks.delete()` in the DELETE handler correctly triggers a cache invalidation refetch in consuming components.
+
+### What should be done in the future
+- When replacing MSW with real API calls, remove the mutable `runGuidelineLinks` Map entirely — it's purely mock scaffolding.
+
+### Code review instructions
+- Start in `ui/src/mocks/annotations.ts` — search for `mockFeedback` and `mockGuidelines`.
+- Then `ui/src/mocks/handlers.ts` — search for `/feedback` and `/guidelines` and `/runs/:runId/guidelines`.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 5: Shared badge widgets
+
+**Commit (code):** `330886b` — "feat(ui): Phase 5 — shared badge widgets (MailboxBadge, FeedbackKind, FeedbackStatus, GuidelineScope)"
+
+Four small, reusable badge components that every later widget depends on. Building these first means FeedbackCard, GuidelineCard, and tables can import consistent, styled badges. Each follows the project pattern: `parts.ts` namespace, barrel export, Storybook stories with default/variant/empty states.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 3)
+
+**Assistant interpretation:** Proceed with Phase 5 — create shared badge components.
+
+**Inferred user intent:** Produce the atomic UI primitives that all feedback/guideline widgets will consume.
+
+### What I did
+- Created `ui/src/components/shared/MailboxBadge.tsx` — chip/inline variant, icon-per-mailbox, color-coded.
+- Created `ui/src/components/shared/FeedbackKindBadge.tsx` — color-coded chip for comment/reject_request/guideline_request.
+- Created `ui/src/components/shared/FeedbackStatusBadge.tsx` — chip for open/acknowledged/resolved.
+- Created `ui/src/components/shared/GuidelineScopeBadge.tsx` — chip with icon for global/mailbox/pattern/run.
+- Added all entries to `shared/parts.ts` and barrel exports from `shared/index.ts`.
+- Created Storybook stories for each with default, variant, and empty states.
+
+### Why
+- Badges are the visual language for the new domain concepts (feedback kinds, guideline scopes, mailbox identity).
+- Centralizing them in `shared/` prevents duplicate styling and inconsistent color choices.
+
+### What worked
+- All four badges compiled and rendered in Storybook on first try.
+- The `parts.ts` namespace pattern keeps `data-part` attributes consistent.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- MUI `Chip` with `icon` prop and `size="small"` is the right primitive for status badges in a data-dense UI.
+
+### What was tricky to build
+- `MailboxBadge` needed per-mailbox icons (INBOX → InboxIcon, SENT → SendIcon, etc.) which required a mapping object keyed by mailbox name.
+
+### What warrants a second pair of eyes
+- Verify the color palette is accessible in dark theme (contrast ratios on `warning.main`, `info.main`, etc.).
+
+### What should be done in the future
+- If mailbox names expand beyond INBOX/SENT/DRAFTS/SPAM/TRASH, the icon mapping in `MailboxBadge` needs updating.
+
+### Code review instructions
+- Start in `ui/src/components/shared/` — read the four badge files.
+- Check `ui/src/components/shared/parts.ts` for namespace entries.
+- Check `ui/src/components/shared/stories/` for Storybook stories.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 6: ReviewFeedback widget directory
+
+**Commit (code):** `04ed683` — "feat(ui): Phases 6+8 — ReviewFeedback widget directory (GuidelinePicker, CommentDrawer, FeedbackCard, etc.)"
+
+This was the largest single commit. Created six components in `components/ReviewFeedback/` that together form the feedback creation and display system. Combined Phases 6 and 8 because FeedbackCard and RunFeedbackSection were needed simultaneously for barrel exports to work.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 3)
+
+**Assistant interpretation:** Proceed with Phases 6+8 — create all ReviewFeedback components (GuidelinePicker, ReviewCommentDrawer, ReviewCommentInline, FeedbackCard, RunFeedbackSection, GuidelineLinkPicker).
+
+**Inferred user intent:** Build the complete feedback creation/display widget set so RunDetailPage can integrate it.
+
+### What I did
+- Created `GuidelinePicker.tsx` — checkbox list of guidelines for linking to feedback.
+- Created `ReviewCommentDrawer.tsx` — MUI Drawer supporting batch/single/run modes, with guideline picker and feedback kind selector.
+- Created `ReviewCommentInline.tsx` — compact dismiss-with-reason form.
+- Created `FeedbackCard.tsx` — single feedback display with badges, body, acknowledge/resolve actions.
+- Created `RunFeedbackSection.tsx` — section wrapper showing feedback list for a run, with "Add Feedback" button.
+- Created `GuidelineLinkPicker.tsx` — dialog modal for linking existing guidelines to a run.
+- Added `parts.ts` namespace, barrel exports, and Storybook stories for all six.
+
+### Why
+- The drawer pattern (vs modal) keeps context visible — reviewers can see selected items while writing feedback.
+- "Just Dismiss" fast path must not slow down power users — `ReviewCommentDrawer` supports a skip-comment mode.
+
+### What worked
+- `tsc --noEmit` passed clean.
+- Barrel exports in `index.ts` mean consumers import from `components/ReviewFeedback` without knowing internal structure.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- The `ReviewCommentDrawer`'s three modes (batch/single/run) share the same form UI but differ in which mutation they call and what they close. Using a `mode` prop keeps the component unified without branching logic.
+
+### What was tricky to build
+- `GuidelineLinkPicker` needs to fetch all guidelines and exclude already-linked ones. The component calls `useListGuidelinesQuery` internally and filters against the `guidelines` prop (already-linked IDs).
+
+### What warrants a second pair of eyes
+- `FeedbackCard` action buttons (acknowledge/resolve) call `useUpdateReviewFeedbackMutation` directly — verify the status transition logic matches the backend state machine (open → acknowledged → resolved, no backwards transitions).
+
+### What should be done in the future
+- Add `feedbackKind: "guideline_request"` handling — currently the UI creates these but there's no special rendering or auto-guideline-creation flow.
+
+### Code review instructions
+- Start in `ui/src/components/ReviewFeedback/index.ts` for the barrel exports.
+- Read `ReviewCommentDrawer.tsx` first (most complex), then `FeedbackCard.tsx`, then `RunFeedbackSection.tsx`.
+- Check `ui/src/components/ReviewFeedback/stories/` for Storybook stories.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 7: ReviewQueuePage batch reject drawer
+
+**Commit (code):** `f6c8a9d` — "feat(ui): Phase 7 — enhance ReviewQueuePage with Reject & Explain drawer"
+
+Extended the existing review queue with a "Reject & Explain" action that opens the `ReviewCommentDrawer`. This preserves the power-user "Just Dismiss" fast path while adding the option for richer rejection feedback. The drawer keeps the selected annotations visible, so the reviewer doesn't lose context.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 3)
+
+**Assistant interpretation:** Proceed with Phase 7 — wire the ReviewCommentDrawer into ReviewQueuePage for batch reject.
+
+**Inferred user intent:** Enable batch rejection with optional explanation without breaking the existing fast dismiss flow.
+
+### What I did
+- Extended `BatchActionBar` with optional `onRejectExplain` callback prop.
+- Added `commentDrawerOpen` state to `ReviewQueuePage`.
+- Wired `ReviewCommentDrawer` for batch reject flow — "Reject & Explain" opens the drawer.
+- "Just Dismiss" fast path still works without opening the drawer.
+
+### Why
+- Not every dismissal needs a reason, but when it does, the drawer provides the form without navigating away.
+
+### What worked
+- `tsc --noEmit` passed clean.
+- The optional `onRejectExplain` prop means `BatchActionBar` works unchanged in pages that don't need the drawer.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Optional callback props are the cleanest way to extend existing components without breaking consumers.
+
+### What was tricky to build
+- The drawer's `onSubmit` calls `batchReview` with `reviewState: "dismissed"` plus the comment and guideline IDs from the drawer form. Getting the payload shape right required matching the extended `batchReview` mutation type from Step 3.
+
+### What warrants a second pair of eyes
+- Verify that the drawer closes and selection resets after batch reject submission — state cleanup is easy to miss.
+
+### What should be done in the future
+- Add a toast/snackbar confirmation after batch reject completes.
+
+### Code review instructions
+- Start in `ui/src/components/shared/BatchActionBar.tsx` — look for `onRejectExplain` prop.
+- Then `ui/src/pages/ReviewQueuePage.tsx` — search for `commentDrawerOpen`.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 8: RunGuideline widget directory
+
+**Commit (code):** `31e567f` — "feat(ui): Phase 9 — RunGuideline widget directory (GuidelineCard, RunGuidelineSection)"
+
+Created the guideline display and linking components for the run detail page. `GuidelineCard` is a compact card showing a guideline with scope badge, priority, and optional unlink action. `RunGuidelineSection` wraps the list and provides "Link Existing" + "Create New" buttons, integrating the `GuidelineLinkPicker` modal from Step 6.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 3)
+
+**Assistant interpretation:** Proceed with Phase 9 — create RunGuideline components.
+
+**Inferred user intent:** Build the widgets that let reviewers see which guidelines apply to a run and manage those links.
+
+### What I did
+- Created `ui/src/components/RunGuideline/GuidelineCard.tsx` — compact card with scope badge, status, priority, truncated body, optional unlink button.
+- Created `ui/src/components/RunGuideline/RunGuidelineSection.tsx` — section wrapper with linked guideline cards, "Link Existing" + "Create New" buttons.
+- Added `parts.ts` namespace, barrel exports, Storybook stories.
+
+### Why
+- Reviewers need to see at a glance which guidelines a run is measured against.
+- Linking/unlinking should happen inline without navigating to a separate page.
+
+### What worked
+- `tsc --noEmit` passed clean.
+- `RunGuidelineSection` manages its own `linkGuidelineToRun`/`unlinkGuidelineFromRun` mutations — the consuming page only needs to pass data.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- The "Create New" button navigates to a guidelines page with a `runId` query param — this avoids embedding a full guideline creation form inside the run detail page.
+
+### What was tricky to build
+- `GuidelineCard`'s unlink button calls the parent callback (`onUnlink`) which triggers the mutation in `RunGuidelineSection`. Keeping the mutation at the section level (not the card level) ensures the guideline list refetches correctly.
+
+### What warrants a second pair of eyes
+- Verify that unlinking a guideline immediately removes it from the rendered list (RTK Query cache invalidation).
+
+### What should be done in the future
+- Add a confirmation dialog before unlinking — currently it's instant.
+
+### Code review instructions
+- Start in `ui/src/components/RunGuideline/RunGuidelineSection.tsx`.
+- Then `GuidelineCard.tsx`.
+- Check `ui/src/components/RunGuideline/stories/`.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 9: RunDetailPage integration
+
+**Commit (code):** `d79e3b2` — "feat(ui): Phase 10 — enhance RunDetailPage with guideline linking and run-level feedback sections"
+
+Integrated `RunGuidelineSection` and `RunFeedbackSection` into the existing run detail page. This step was almost derailed by repeated edit-tool corruption — the exact-text-matching requirement meant that stale file contents produced garbled output. After three failed attempts, restored from git and made four precise edits that compiled clean on first try.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 3)
+
+**Assistant interpretation:** Proceed with Phase 10 — wire RunGuidelineSection and RunFeedbackSection into RunDetailPage.
+
+**Inferred user intent:** Make the run detail page the central hub for reviewing a run — see linked guidelines, view/add feedback, then drill into annotations.
+
+### What I did
+- Added `useGetRunGuidelinesQuery` and `useListReviewFeedbackQuery` hooks to `RunDetailPage`.
+- Added imports for `RunGuidelineSection` and `RunFeedbackSection`.
+- Inserted `<RunGuidelineSection>` between stat boxes and Timeline.
+- Inserted `<RunFeedbackSection>` between Timeline and Groups.
+- Both components manage their own mutations — no unused hooks needed in the page.
+
+### Why
+- The run detail page is the natural place for run-level context: which guidelines apply, what feedback exists.
+- Placing guidelines before timeline and feedback after timeline follows the reviewer's mental flow: understand the rules → see what happened → provide feedback.
+
+### What worked
+- Final approach: restore from git, make four small targeted edits, verify each with `tsc --noEmit`.
+- Both components fetch their own data via hooks passed from the page — clean separation of concerns.
+
+### What didn't work
+- **Three failed edit attempts corrupted the file.** The edit tool requires `oldText` to match the file on disk byte-for-byte. I was matching against a stale mental model of the file. Symptoms: duplicate variable declarations, garbled content, syntax errors. Fix: `git checkout HEAD -- ui/src/pages/RunDetailPage.tsx` then re-read the file and match exactly.
+
+### What I learned
+- **Always re-read the file immediately before editing.** The file on disk may differ from what you last saw if previous edits were applied or reverted.
+- **Make the smallest possible edits.** Four 2–5 line replacements are safer than one 30-line block replacement.
+
+### What was tricky to build
+- The edit tool's exact-match requirement when the file has been modified by prior (failed) edits. The file on disk diverges from your mental model, causing a cascade of mismatches.
+
+### What warrants a second pair of eyes
+- The placement order (Guidelines → Timeline → Feedback → Groups → Annotations) — verify this matches the reviewer's expected workflow.
+
+### What should be done in the future
+- Add RunDetailPage Storybook story that includes the new sections (the existing story only covers the original page).
+
+### Code review instructions
+- Start in `ui/src/pages/RunDetailPage.tsx` — verify imports (lines 10–24) and JSX (lines 164–188).
+- Run: `cd ui && npx tsc --noEmit`
+- Check `git diff 31e567f..d79e3b2 -- ui/src/pages/RunDetailPage.tsx` for the exact changes.
+
+### Technical details
+
+Edit sequence that worked (after git restore):
+1. Replace import block (add 4 new imports).
+2. Add 2 data-fetching hooks after `useGetRunQuery`.
+3. Insert `<RunGuidelineSection>` block before Timeline section.
+4. Insert `<RunFeedbackSection>` block before Groups section.
+
+---
+
+## Step 10: Guidelines management pages
+
+**Commit (code):** `3cb43d1` — "feat(ui): Phase 11 — Guidelines management pages"
+
+Created the full guidelines management UI: a `components/Guidelines/` directory with three widgets (GuidelineSummaryCard, GuidelineForm, GuidelineLinkedRuns) plus two new pages (GuidelinesListPage, GuidelineDetailPage). The list page supports status filter chips and search; the detail page supports view/edit/create modes and auto-links new guidelines to runs via a `?runId=` query param.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, continue, task by task, committing at appropriate intervals, and keeping a detailed diary as you go"
+
+**Assistant interpretation:** Continue implementing the remaining phases from the task list, committing after each phase, updating the diary after each commit.
+
+**Inferred user intent:** Complete the frontend implementation in a disciplined loop: implement → compile-check → commit → diary-update.
+
+### What I did
+- Created `components/Guidelines/parts.ts` and `index.ts` (barrel exports).
+- Created `GuidelineSummaryCard.tsx` — displays guideline with scope badge, status chip, priority label, truncated body, linked run count, Edit/Archive/Activate buttons.
+- Created `GuidelineForm.tsx` — three modes (view/edit/create) with MUI TextFields, scope select, edit/preview tabs for Markdown body.
+- Created `GuidelineLinkedRuns.tsx` — list of run summary rows with annotation/pending counts and navigation.
+- Created `pages/GuidelinesListPage.tsx` — uses `useListGuidelinesQuery`, status filter chips (All/Active/Draft/Archived), search field, GuidelineSummaryCard list, "New Guideline" button.
+- Created `pages/GuidelineDetailPage.tsx` — detects mode from route (`/new` vs `/:id`), handles create-then-link-to-run flow via `runId` query param.
+- Created Storybook stories for all three components and both pages.
+- Fixed import path: stories must import from `@storybook/react` (not `@storybook/react-vite`).
+- Fixed non-null assertions: `mockGuidelines[0]!` to satisfy strict TypeScript.
+
+### Why
+- Guidelines are the reusable policy layer that reviewers reference when providing feedback. They need CRUD management pages.
+- The `?runId=` auto-link pattern lets reviewers create a guideline from the run detail page and be returned to the run.
+
+### What worked
+- `tsc --noEmit` passed clean after fixing the Storybook import path issue.
+- The GuidelineForm edit/preview tabs use MUI Tabs component for a clean UX.
+
+### What didn't work
+- First attempt used `import type { Meta, StoryObj } from "@storybook/react-vite"` — this doesn't exist. Fixed to `@storybook/react`.
+- `mockGuidelines[0]` returns `ReviewGuideline | undefined` — needed non-null assertion `!` for strict mode.
+
+### What I learned
+- The existing codebase consistently uses `@storybook/react` for type imports. Always check existing stories before writing new ones.
+
+### What was tricky to build
+- `GuidelineForm`'s three modes share the same JSX but differ in which fields are read-only and which submit payload type they produce (`CreateGuidelineRequest` vs `UpdateGuidelineRequest`). The `canSave` validation differs: create requires slug, edit does not.
+
+### What warrants a second pair of eyes
+- `GuidelineDetailPage`'s create-then-link flow: the `createGuideline` mutation returns the new entity, then `linkGuidelineToRun` is called. If the link fails, the guideline exists but isn't linked. Should this be a single server-side operation?
+
+### What should be done in the future
+- `GuidelineLinkedRuns` currently receives an empty `runs` array — need a backend endpoint that returns runs linked to a specific guideline.
+
+### Code review instructions
+- Start in `ui/src/components/Guidelines/index.ts` for barrel exports.
+- Read `GuidelineForm.tsx` (most complex), then `GuidelineSummaryCard.tsx`.
+- Check `ui/src/pages/GuidelinesListPage.tsx` and `GuidelineDetailPage.tsx`.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 11: Sidebar, routes & navigation
+
+**Commit (code):** `26cfeed` — "feat(ui): Phase 12 — add Guidelines sidebar entry and routes"
+
+Wired the guidelines pages into the app's navigation: added a "Guidelines" entry with `MenuBookIcon` to the Review section of the sidebar, added three routes to `App.tsx`, and exported the new pages from the barrel. This was a small but critical integration step — without it, the pages exist but can't be reached.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 10)
+
+### What I did
+- Added `MenuBookIcon` import and "Guidelines" nav item to `reviewItems` in `AnnotationSidebar.tsx`.
+- Added `GuidelinesListPage` and `GuidelineDetailPage` exports to `pages/index.ts`.
+- Added three routes to `App.tsx`: `guidelines`, `guidelines/new`, `guidelines/:guidelineId`.
+- Imported new page components in `App.tsx`.
+
+### Why
+- Pages without routes are unreachable. The sidebar entry provides discoverability.
+
+### What worked
+- Three small targeted edits, all compiled clean on first try.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Route order matters: `guidelines/new` must come before `guidelines/:guidelineId` to avoid `:guidelineId` matching "new".
+
+### What was tricky to build
+- N/A.
+
+### What warrants a second pair of eyes
+- Verify that the sidebar's `isActive` check (`location.pathname.startsWith(item.path)`) correctly highlights "Guidelines" when on `/annotations/guidelines/guideline-001`.
+
+### What should be done in the future
+- N/A.
+
+### Code review instructions
+- `git diff d79e3b2..26cfeed` — three files changed (sidebar, barrel, routes).
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 12: Mailbox context integration (MessagePreviewTable)
+
+**Commit (code):** `d2f25df` — "feat(ui): Phase 13 — add MailboxBadge column to MessagePreviewTable"
+
+Added a Mailbox column to the message preview table in the sender detail page. The `MailboxBadge` component (created in Phase 5) renders a compact inline badge showing which mailbox each message belongs to. Skipped the AnnotationTable and AnnotationDetail mailbox tasks because the `Annotation` type doesn't carry `mailboxName` — that field only exists on `MessagePreview`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 10)
+
+### What I did
+- Added `MailboxBadge` import to `MessagePreviewTable.tsx`.
+- Added "Mailbox" column header after "Subject".
+- Added table cell rendering `MailboxBadge` (inline variant) when `msg.mailboxName` is truthy, otherwise a dash.
+
+### Why
+- Reviewers need to see which mailbox a message belongs to when reviewing sender-level context.
+
+### What worked
+- Clean compile, single targeted edit.
+
+### What didn't work
+- Phase 13 tasks 13A/13B (mailbox in AnnotationTable/AnnotationDetail) can't be implemented because `Annotation` doesn't have `mailboxName`. Only `MessagePreview` does.
+
+### What I learned
+- The data model doesn't have mailbox provenance on annotations — it's on messages. Future backend work would need to denormalize or join to support annotation-level mailbox filtering.
+
+### What was tricky to build
+- N/A.
+
+### What warrants a second pair of eyes
+- N/A.
+
+### What should be done in the future
+- Add `mailboxName` to `Annotation` type (backend change) to enable annotation-level mailbox filtering and badges.
+
+### Code review instructions
+- `git diff 26cfeed..d2f25df` — one file changed.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 13: Redux slice enhancements
+
+**Commit (code):** `473439e` — "feat(ui): Phase 14 — add commentDrawerOpen and filterMailbox to annotationUiSlice"
+
+Added two new fields to the `ReviewQueueState` slice: `commentDrawerOpen` (boolean) and `filterMailbox` (string | null), with corresponding actions. These enable the ReviewQueuePage to use Redux for drawer state (instead of local `useState`) and support future mailbox filtering.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 10)
+
+### What I did
+- Added `commentDrawerOpen: boolean` and `filterMailbox: string | null` to `ReviewQueueState`.
+- Added `openCommentDrawer`, `closeCommentDrawer`, `setFilterMailbox` reducers.
+- Exported new actions from the slice.
+- Initial values: `commentDrawerOpen: false`, `filterMailbox: null`.
+
+### Why
+- Drawer state in Redux enables cross-component coordination (e.g., BatchActionBar opens drawer, ReviewCommentDrawer reads state).
+- `filterMailbox` prepares the state for future mailbox filter pills.
+
+### What worked
+- Clean compile. Backward-compatible — existing consumers unaffected.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Adding optional state to an existing Redux slice is safe as long as defaults match the old behavior.
+
+### What was tricky to build
+- N/A.
+
+### What warrants a second pair of eyes
+- Verify that `ReviewQueuePage` still uses local `useState` for `commentDrawerOpen` — it should be migrated to the Redux action in a follow-up.
+
+### What should be done in the future
+- Migrate `ReviewQueuePage`'s local `commentDrawerOpen` state to use `useAppSelector(s => s.annotationUi.reviewQueue.commentDrawerOpen)` and dispatch `openCommentDrawer`/`closeCommentDrawer`.
+
+### Code review instructions
+- `git diff d2f25df..473439e` — one file changed.
+- Validate: `cd ui && npx tsc --noEmit`
+
+---
+
+## Step 14: Backend Phase 2 recovery analysis and execution plan
+
+Before changing more backend code, I stopped to analyze the half-finished Phase 2 worktree and the exact failures from the earlier attempt. The immediate problem was not just a lint error: the implementation drifted away from the design intent by splitting review-state updates from optional feedback/guideline artifacts and then ignoring errors from those later operations.
+
+This step documents the recovery plan before implementation so the rest of the work can proceed in a controlled loop: clean up the duplicated handler/type surface, move review-with-artifacts into transactional repository methods, rewire handlers to call those methods, validate with `gofmt`, `go test`, and `make lint`, and only then commit the backend Phase 2 changes.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Ok, add detailed tasks for these steps to the ticket, then do them task by task. commit at appropriate intervals, and keep your diary. In fact, enter a detailed diary entry now b efore working so that keep track of what is happening."
+
+**Assistant interpretation:** Record the current backend recovery situation in the ticket docs first, then execute the backend cleanup and completion work one task at a time with disciplined commits.
+
+**Inferred user intent:** Prevent more thrashing by explicitly documenting the failure state and recovery plan before continuing implementation.
+
+### What I did
+- Inspected the current dirty backend files:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_annotations.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_feedback.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_senders.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/server.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/types.go`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/types_feedback.go`
+- Confirmed the already-committed backend state: `15de236` (Phase 1 only).
+- Confirmed the Vite proxy was already present in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/vite.config.ts` for `/api` and `/auth`.
+- Added a new `2R. Backend recovery & hardening` subsection to `tasks.md` to track the recovery work explicitly.
+
+### Why
+- The backend worktree already contained useful code, but it was in an unstable intermediate state. Continuing to pile on changes without first documenting the failure modes would make it easier to repeat the same mistakes.
+- The design guide explicitly requires review-state update + optional feedback creation + optional guideline linking to succeed or fail together when triggered by one user action.
+
+### What worked
+- The inspection clarified that the Vite proxy work was already complete and did not need additional changes.
+- The route additions, mailbox propagation, and standalone feedback/guideline handlers are directionally correct and worth preserving.
+
+### What didn't work
+- The earlier Phase 2 attempt introduced redundant request types and helper handlers, which caused `unused` lint failures.
+- More importantly, `handleReviewAnnotation` and `handleBatchReview` were extended by updating review state first and then doing optional feedback/guideline work with ignored errors (`_ = ...`). That violates the transactional shape described in the design doc.
+- The worktree therefore became "compilable in parts" but not ready to commit safely.
+
+### What I learned
+- The real bug was semantic, not cosmetic. The lint failures were just a symptom. Even if the earlier code had been cleaned enough to compile, it still would have returned success for partially-applied review actions.
+- The correct recovery path is to push the combined operation into the repository layer, not to keep layering conditional logic in handlers.
+
+### What was tricky to build
+- The sharp edge here is that the frontend contract and the design doc both treat review + comment + guideline links as one logical action, but the old repository surface only had `UpdateAnnotationReviewState` and `BatchUpdateReviewState`. Extending handlers directly is tempting, but it creates ordering and error-propagation problems immediately.
+
+### What warrants a second pair of eyes
+- The transactional repository API shape for single-review vs batch-review artifact creation. The implementation should be reviewed for correctness around failure handling and backward compatibility, not just successful-path behavior.
+
+### What should be done in the future
+- After Phase 2 is complete, add repository and handler tests that explicitly simulate failure in feedback creation or guideline linking and verify that review state is not committed independently.
+
+### Code review instructions
+- Start with the new recovery checklist in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ttmp/2026/04/03/SMN-20260403-RUN-REVIEW--agent-run-review-requests-guidelines-and-mailbox-aware-analysis-workflow/tasks.md` under `2R. Backend recovery & hardening`.
+- Compare the dirty worktree against commit `15de236` to understand what Phase 2 is trying to add.
+- Review the design section `11. Pseudocode For A Combined Batch Review Flow` in `design/01-agent-run-review-guidelines-and-mailbox-implementation-guide.md` before reviewing the repository refactor.
+
+### Technical details
+- Existing committed backend baseline: `15de236` — schema/types/repository only.
+- Current dirty worktree already contains:
+  - standalone feedback handlers
+  - standalone guideline handlers
+  - run-guideline link handlers
+  - sender-detail mailbox propagation
+  - non-transactional extensions to review handlers
+- Recovery plan:
+  1. remove duplicate / unused request types and helper handlers
+  2. add transactional repository methods for single + batch review with artifacts
+  3. rewire review handlers to call those repository methods
+  4. keep standalone endpoints and sender mailbox support
+  5. validate with `gofmt`, `go test -tags sqlite_fts5 ./...`, and `make lint`
+  6. commit Phase 2 only after all three succeed
+
+---
+
+## Step 15: Backend Phase 2 implementation and cleanup
+
+**Commit (code):** `0f62cb4` — "feat(backend): Phase 2 — transactional review handlers, feedback/guideline endpoints, mailbox sender detail"
+
+This step completed the backend HTTP layer and fixed the core semantic bug from the earlier attempt. The crucial change was moving review-state update + optional feedback creation + optional run-guideline linking into transactional repository methods, then rewiring the existing review handlers to call those methods instead of chaining best-effort side effects in the handler layer.
+
+The work also kept the useful parts of the half-finished Phase 2 branch: standalone feedback endpoints, standalone guideline endpoints, run-guideline link endpoints, and sender-detail mailbox propagation. The cleanup focused on removing duplicate handler/type scaffolding and getting the tree back to a state where `gofmt`, `go test`, and `make lint` all pass together.
+
+### Prompt Context
+
+**User prompt (verbatim):** "continue, our previous buddy had issues getting things done and seems to have lost the sauve. You should be able to help at this point. 
+
+Analyze the situation and the failures they encountered ,and tell me what should be done next."
+
+**Assistant interpretation:** Recover the backend Phase 2 work, fix the broken/duplicated implementation approach, and continue from the current dirty state with a sound plan.
+
+**Inferred user intent:** Get the backend unstuck and back onto a disciplined implementation path instead of continuing ad hoc edits.
+
+**Commit (docs):** `cfbd212` — "docs(ticket): add backend Phase 2 recovery checklist and diary step"
+
+### What I did
+- Added repository-level transactional methods in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotate/repository_feedback.go`:
+  - `ReviewAnnotationWithArtifacts(...)`
+  - `BatchReviewWithArtifacts(...)`
+- Added internal transaction helpers:
+  - `getAnnotationTx(...)`
+  - `updateAnnotationReviewStateTx(...)`
+  - `batchUpdateReviewStateTx(...)`
+  - `createReviewFeedbackTx(...)`
+  - `linkGuidelineToRunTx(...)`
+  - `inferSingleRunIDForAnnotationsTx(...)`
+- Added new backend input types in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotate/types.go`:
+  - `ReviewCommentInput`
+  - `ReviewAnnotationActionInput`
+  - `BatchReviewActionInput`
+- Rewired `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_annotations.go`:
+  - `handleReviewAnnotation` now calls `ReviewAnnotationWithArtifacts`
+  - `handleBatchReview` now calls `BatchReviewWithArtifacts`
+  - added `toAnnotateReviewComment(...)` mapper
+- Kept and finalized new standalone endpoint handlers in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_feedback.go`:
+  - feedback CRUD-ish endpoints
+  - guideline list/get/create/update
+  - run-guideline list/link/unlink
+- Registered the new routes in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/server.go`.
+- Added `mailboxName` to sender-detail message previews in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/types.go` and `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_senders.go`.
+- Removed redundant/unused Phase 2 scaffolding from `types_feedback.go` and `handlers_feedback.go`.
+- Validated with:
+  - `gofmt -w pkg/annotate/types.go pkg/annotate/repository_feedback.go pkg/annotationui/handlers_annotations.go pkg/annotationui/handlers_feedback.go pkg/annotationui/handlers_senders.go pkg/annotationui/server.go pkg/annotationui/types.go pkg/annotationui/types_feedback.go`
+  - `go test -tags sqlite_fts5 ./...`
+  - `make lint`
+
+### Why
+- The design doc requires combined review actions to be atomic. A handler that updates review state first and then does best-effort feedback/guideline work is incorrect because it can return success after a partial failure.
+- The repository layer is the right place for that transaction boundary because it already owns SQL, IDs, and DB transactions.
+
+### What worked
+- The transactional repository approach cleaned up both correctness and linting at the same time.
+- `inferSingleRunIDForAnnotationsTx(...)` gives batch review a way to link guidelines when `agentRunId` is omitted but all selected annotations belong to the same run.
+- Final validation succeeded: `go test -tags sqlite_fts5 ./...` and `make lint` both passed before the code commit.
+
+### What didn't work
+- The first docs-only commit attempt failed because older staged versions of backend files were still in the index. Pre-commit ran tests against the stale staged copy, not the cleaned working tree.
+- An earlier handler attempt imported `strconv` in `handlers_feedback.go` for a helper that had already been removed, which caused both `go test` and `golangci-lint` to fail with an `unused import` error.
+- The previous Phase 2 draft also introduced duplicate extended request types that were no longer needed once `handlers_annotations.go` became the single source of truth for extended review payload parsing.
+
+### What I learned
+- When a staged index contains stale Go files, fixing the working tree is not enough — you must restage or explicitly unstage those files before retrying a commit.
+- The cleanest boundary for this ticket is:
+  - repository owns transaction shape and SQL
+  - handlers own JSON parsing and HTTP error mapping
+  - shared HTTP DTO types live in `pkg/annotationui/types*.go`
+
+### What was tricky to build
+- The hardest part was batch guideline linking semantics. `guidelineIds` apply to a run, but a batch of annotation IDs may span multiple runs. The solution was:
+  - use explicit `agentRunId` if provided
+  - otherwise infer a single run ID from the selected annotations
+  - return an error if guideline linking is requested across multiple runs
+
+### What warrants a second pair of eyes
+- Review the behavior of `BatchReviewWithArtifacts(...)` when `guidelineIds` are present but annotation IDs span multiple runs. The current behavior is intentionally strict and returns an error instead of guessing.
+- Review whether standalone feedback/guideline create endpoints should start populating `created_by` once authentication/user identity is threaded into the sqlite annotation server.
+
+### What should be done in the future
+- Add explicit repository + handler tests for transaction rollback cases:
+  - feedback creation fails after review-state update attempt
+  - guideline linking fails after feedback creation attempt
+  - multi-run batch guideline linking returns an error and does not commit partial changes
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotate/repository_feedback.go` and read the two new public methods first:
+  - `ReviewAnnotationWithArtifacts`
+  - `BatchReviewWithArtifacts`
+- Then review `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_annotations.go` to confirm the handler layer is now thin.
+- Then review `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/handlers_feedback.go` and `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/pkg/annotationui/server.go` for endpoint wiring.
+- Validate with:
+  - `go test -tags sqlite_fts5 ./...`
+  - `make lint`
+
+### Technical details
+- New routes registered:
+  - `GET /api/review-feedback`
+  - `GET /api/review-feedback/{id}`
+  - `POST /api/review-feedback`
+  - `PATCH /api/review-feedback/{id}`
+  - `GET /api/review-guidelines`
+  - `GET /api/review-guidelines/{id}`
+  - `POST /api/review-guidelines`
+  - `PATCH /api/review-guidelines/{id}`
+  - `GET /api/annotation-runs/{id}/guidelines`
+  - `POST /api/annotation-runs/{id}/guidelines`
+  - `DELETE /api/annotation-runs/{id}/guidelines/{guidelineId}`
+- Sender detail now selects `mailbox_name` in the messages query and exposes it via `MessagePreview.mailboxName`.
+- Docs commit recorded before code recovery: `cfbd212`.
+- Code commit after full validation: `0f62cb4`.
+
+---
+
+## Step 16: Review queue checkbox lag reduction
+
+This step addressed a UX/performance bug in the review queue: selecting a checkbox felt delayed, as if the Redux action were dispatched a second later. After inspecting the code path, the real problem was render work, not dispatch latency. The annotation table recomputed related-annotation lists for every row on every render, even though only the expanded row ever displays them.
+
+The fix was deliberately small and low-risk: only call `getRelated(ann)` for the currently expanded row. This preserves behavior while removing an unnecessary O(N²)-style hot path from normal selection toggles.
+
+### Prompt Context
+
+**User prompt (verbatim):** "why is there a delay when I select a checkbox in the review queue? The redux action is dispatched like a second later"
+
+**Assistant interpretation:** Investigate the perceived delay when toggling a row checkbox in the review queue and identify whether the issue is Redux dispatch, React rendering, or component structure.
+
+**Inferred user intent:** Make checkbox selection feel immediate in the review queue UI.
+
+### What I did
+- Inspected:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationRow.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/store/annotationUiSlice.ts`
+- Identified the hot path in `AnnotationTable.tsx`:
+  - `relatedAnnotations={getRelated?.(ann) ?? []}`
+  - this ran for every row on every render
+- Changed `AnnotationTable.tsx` so `getRelated?.(ann)` only runs when `isExpanded` is true.
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- Checkbox selection triggers a parent rerender, which rerendered the whole annotation table.
+- The original implementation was doing expensive related-annotation filtering for rows whose detail sections were collapsed and therefore could not show the computed data anyway.
+
+### What worked
+- The fix is minimal and localized to the table component.
+- TypeScript check passed immediately after the change.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- The perceived delay was likely not Redux dispatch latency at all. The action dispatch is cheap; the expensive work was the follow-on render path.
+- When a table renders both rows and hidden detail sections, it is easy to accidentally compute expanded-only data for every row.
+
+### What was tricky to build
+- The main subtlety was distinguishing between a delayed dispatch and a delayed paint. Redux DevTools can make it look like the action itself is late when the browser is actually busy rerendering a heavy component tree.
+
+### What warrants a second pair of eyes
+- If the queue still feels slow on large datasets, the next likely improvements are:
+  - memoizing row/detail components with `React.memo`
+  - precomputing a related-annotation map with `useMemo`
+  - reducing whole-table rerenders from selection changes
+
+### What should be done in the future
+- If this only partially improves the experience, profile `ReviewQueuePage` with React DevTools and consider memoizing `AnnotationRow` and `AnnotationDetail`.
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`.
+- Look at the `AnnotationDetail` props inside the `annotations.map(...)` loop.
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - then manually toggle checkboxes in `/annotations/review`
+
+### Technical details
+- Old behavior:
+  - every row called `getRelated?.(ann)` on every render
+- New behavior:
+  - only the expanded row calls `getRelated?.(ann)`
+  - collapsed rows get `relatedAnnotations={[]}`
+
+---
+
+## Step 17: Reduce whole-table rerenders during selection and expansion
+
+This step applied the broader performance fix for the review queue and run-detail annotation tables. The previous optimization removed one hot path, but the table architecture still encouraged unnecessary rerender work: each selection update re-executed the parent map, recreated per-row closures, and rendered a hidden detail row for every annotation.
+
+The new structure introduces a memoized `AnnotationTableItem` that owns both the visible row and the optional detail row. The table now derives a `selectedSet` with `useMemo`, computes the expanded row's related annotations once, and only mounts `AnnotationDetail` for the expanded row instead of rendering a collapsed detail component for every annotation.
+
+### Prompt Context
+
+**User prompt (verbatim):** "what's the best fix overall?"
+
+**Assistant interpretation:** Implement the most effective medium-sized frontend fix for review-queue checkbox lag, not just a micro-optimization.
+
+**Inferred user intent:** Make selection feel immediate by reducing unnecessary rerender work and commit the result with diary documentation.
+
+### What I did
+- Reworked `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`:
+  - added `selectedSet = useMemo(() => new Set(selected), [selected])`
+  - added `expandedAnnotation` and `expandedRelated` memoization
+  - added memoized `AnnotationTableItem`
+  - stopped rendering `AnnotationDetail` for collapsed rows
+- Stabilized handlers passed into `AnnotationTable` from:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- The original shape meant that selection changes were disproportionately expensive relative to the small UI change being made.
+- Rendering hidden detail rows for every annotation adds work and component churn with no user-visible benefit.
+- Per-row closure creation made it harder for memoization to help.
+
+### What worked
+- The table now has a clearer separation between row-level updates and table-level bookkeeping.
+- TypeScript passed without follow-up fixes.
+- The change benefits both `ReviewQueuePage` and `RunDetailPage`, since both share `AnnotationTable`.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- In data tables, avoiding a heavy computation is good, but avoiding whole-subtree rerenders is usually better.
+- It is often cheaper to render nothing than to render many collapsed components.
+
+### What was tricky to build
+- The main design choice was where to put memoization. Memoizing `AnnotationRow` alone would not have been enough because the table was still constructing per-row props and detail rows on every pass.
+- The comparator for `AnnotationTableItem` was intentionally focused on stable visual state (`annotation`, `isSelected`, `isExpanded`, `relatedAnnotations`, `columnCount`, presence of navigation support) rather than raw callback identity.
+
+### What warrants a second pair of eyes
+- If there are still noticeable slowdowns with very large annotation sets, the next likely candidate is table virtualization.
+- If behavior around row actions ever becomes more dynamic, the memo comparator should be revisited to ensure ignoring callback identity remains safe.
+
+### What should be done in the future
+- Profile with React DevTools on a large dataset.
+- Consider `react-window`/virtualization if the queue regularly renders hundreds or thousands of rows.
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`.
+- Confirm:
+  - `selectedSet` is memoized
+  - only one expanded detail row is mounted
+  - `AnnotationTableItem` is wrapped in `React.memo`
+- Then inspect handler stabilization in:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - manually toggle row checkboxes in `/annotations/review`
+
+### Technical details
+- Old behavior:
+  - `selected.includes(ann.id)` ran for every row
+  - row/detail JSX and per-row closures were rebuilt for every annotation
+  - collapsed `AnnotationDetail` rows were still mounted
+- New behavior:
+  - `selectedSet.has(annotation.id)` handles selection lookup
+  - the expanded row's related annotations are memoized once
+  - `AnnotationTableItem` can skip rerender when its visible state is unchanged
+  - only the expanded detail row is mounted
+
+---
+
+## Step 18: Switch reject/explain to a modal and add per-row dismiss-with-note on detail pages
+
+This step addressed a UX issue discovered during manual use: the existing batch `Reject & Explain` flow rendered inline below the batch action bar, which forced the reviewer to scroll down to the form after clicking the action. The request was to turn that into a small modal instead. At the same time, the same explanatory-dismiss flow was added to detail-style pages such as sender detail, where a reviewer may want to reject a single annotation with context while inspecting one sender.
+
+### Prompt Context
+
+**User prompt (verbatim):** "reject & explain should open a little modal, because otherwise i have to scroll down all the way. Also add dismiss & explain to individaul pages like : http://localhost:5050/annotations/senders/no-reply%40strava.com"
+
+**Assistant interpretation:** Change the shared review-comment affordance from an inline drawer/collapse to a dialog-based modal, and expose a per-annotation dismiss-with-feedback action on sender detail and similar detail pages.
+
+**Inferred user intent:** Make reject/explain easier to use without scrolling and make single-item review feedback available while inspecting individual entities.
+
+### What I did
+- Reworked `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx`:
+  - switched from `Collapse` + inline box to MUI `Dialog`
+  - kept the existing form fields and guideline attachment flow
+  - added form reset on open/cancel/submit
+- Extended `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationRow.tsx`:
+  - added an optional `Dismiss & Explain` action button (`SpeakerNotesIcon`)
+- Extended `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationTable.tsx`:
+  - added optional `onDismissExplain`
+  - forwarded it through the memoized table item to the row component
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/SenderDetailPage.tsx`:
+  - added per-row comment-dialog state
+  - wired `Dismiss & Explain` for single annotations
+  - passed `mailboxName` when the sender's recent messages resolve to a single mailbox
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`:
+  - added per-row `Dismiss & Explain` modal for run annotations
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/store/annotationUiSlice.ts` and `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`:
+  - added `toggleExpandedId` so the review queue's expand handler can stay stable after the earlier memoization work
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- The inline batch form was visually present but ergonomically poor once the table grew taller than the viewport.
+- Sender/run detail pages are where a reviewer often has the richest context for writing a useful explanation, so they needed the single-item feedback path too.
+
+### What worked
+- Using the shared `ReviewCommentDrawer` as a dialog preserved the existing submit payload and kept the change localized.
+- Making `onDismissExplain` optional on `AnnotationTable` allowed the new row action to appear only where needed.
+- TypeScript passed after the wiring changes.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Reusing the same form component across batch, single-item, and run-level flows works well, but the container interaction (inline vs modal) matters a lot for usability.
+- Memoized row components need stable callbacks; the earlier performance work made it worth tightening the review-queue expand action too.
+
+### What was tricky to build
+- The most subtle part was keeping the memoized table-item optimization correct while adding another row action. Callback stability matters more once `React.memo` is involved.
+- Sender detail does not expose annotation-level mailbox names directly, so the safest mailbox behavior was to pass a mailbox only when recent messages imply a single unique mailbox.
+
+### What warrants a second pair of eyes
+- If reviewers want the same `Dismiss & Explain` affordance on additional pages beyond sender/run detail, the shared table support is already in place and only page-level wiring remains.
+- The exact icon choice for the new row action may be worth quick UI feedback after manual use.
+
+### What should be done in the future
+- If desired, wire `onDismissExplain` into `ReviewQueuePage` too for per-row explanatory dismiss directly from the queue.
+- Add Storybook coverage for the row action if the table stories become part of UI review.
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx` and confirm it now renders a `Dialog`.
+- Then inspect `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/AnnotationTable/AnnotationRow.tsx` for the optional row action button.
+- Finally inspect:
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/SenderDetailPage.tsx`
+  - `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/RunDetailPage.tsx`
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - manually open batch `Reject & Explain` in `/annotations/review`
+  - manually click the new per-row `Dismiss & Explain` action on a sender detail annotation
+
+### Technical details
+- Old behavior:
+  - batch `Reject & Explain` expanded inline below the page controls
+  - sender/run detail tables only supported immediate dismiss with no note dialog
+- New behavior:
+  - batch/single/run feedback entry uses a centered dialog
+  - sender and run annotation rows can open `Dismiss & Explain`
+  - review queue expansion toggling now has a stable Redux action via `toggleExpandedId`
+
+---
+
+## Step 19: Fix mixed-run batch review guideline linking in the review queue
+
+This step addressed a code-review bug in `ReviewQueuePage`: batch dismiss-with-feedback requests could include guideline IDs without an explicit `agentRunId`. The backend only allows run-guideline linking when the selection either provides an `agentRunId` or can be inferred to belong to a single run. In the review queue, selections can span multiple runs, so attaching a guideline in that state caused the transactional batch review to fail and roll back.
+
+### Prompt Context
+
+**User prompt (verbatim):** a pasted review comment pointing out that `ReviewQueuePage.tsx` sends `guidelineIds` in batch review without `agentRunId`, and that mixed-run selections fail in `BatchReviewWithArtifacts(...)`.
+
+**Assistant interpretation:** Resolve the review finding safely in the frontend instead of papering over it. Preserve correct single-run linking while preventing impossible mixed-run guideline attachment.
+
+**Inferred user intent:** Fix the bug and commit the change.
+
+### What I did
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx`:
+  - derived `selectedAnnotations` from current selection
+  - computed unique `selectedRunIds`
+  - derived `singleSelectedRunId` when the selection belongs to exactly one run
+  - sent `agentRunId: singleSelectedRunId` in batch dismiss-with-feedback requests
+- Updated `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx`:
+  - added optional `guidelinesEnabled` and `guidelinesDisabledReason` props
+  - disabled guideline attachment UI when the current batch selection spans multiple runs
+  - reset selected guideline state when guideline attachment is disabled
+- Passed the new modal props from `ReviewQueuePage` so mixed-run selections show a clear explanation instead of letting the user submit an invalid guideline-linking request.
+- Ran `cd ui && npx tsc --noEmit`.
+
+### Why
+- Sending the first run ID from a mixed-run selection would have been unsafe because it could silently link a guideline to the wrong run.
+- Letting the UI offer an invalid combination leads to a confusing rollback/error path for the reviewer.
+- The safest UX is:
+  - if the selection is single-run, send `agentRunId`
+  - if the selection spans multiple runs, allow comment-based dismiss but disable guideline linking
+
+### What worked
+- The frontend now matches the backend's transactional constraints.
+- Single-run batch selections still support guideline attachment.
+- Mixed-run selections no longer present an invalid guideline-linking path.
+- TypeScript passed cleanly.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Guideline linking is stricter than feedback creation because guidelines are run-scoped artifacts, not selection-scoped artifacts.
+- A small amount of selection-derived frontend state can prevent a much uglier transactional backend failure.
+
+### What was tricky to build
+- The key design choice was whether to always pass some `agentRunId` or disable the feature in mixed-run mode. The latter is more correct because the review queue can legitimately mix annotations from unrelated runs.
+
+### What warrants a second pair of eyes
+- It would be worth manually verifying that the modal copy is understandable when a reviewer selects annotations from multiple runs.
+- If reviewers often want to attach guidelines across mixed-run selections, the product model may need a higher-level batch-linking concept later, but the current backend semantics are intentionally strict.
+
+### What should be done in the future
+- Consider surfacing a lightweight run-count hint in the batch bar or modal so users understand why guideline attachment is disabled.
+
+### Code review instructions
+- Start in `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/pages/ReviewQueuePage.tsx` and inspect:
+  - `selectedAnnotations`
+  - `selectedRunIds`
+  - `singleSelectedRunId`
+  - the `batchReview(...)` payload in `handleCommentSubmit`
+- Then inspect `/home/manuel/workspaces/2026-04-03/js-repl-smailnail/smailnail/ui/src/components/ReviewFeedback/ReviewCommentDrawer.tsx` for the new guideline-disable props.
+- Validate with:
+  - `cd ui && npx tsc --noEmit`
+  - manually select annotations from one run and confirm guideline attach still works
+  - manually select annotations from multiple runs and confirm guideline attach is disabled
+
+### Technical details
+- Old behavior:
+  - batch dismiss-with-feedback sent `guidelineIds` without `agentRunId`
+  - mixed-run selections could reach a backend rollback path
+- New behavior:
+  - single-run selections send `agentRunId`
+  - mixed-run selections can still submit comments, but guideline attachment is disabled in the modal

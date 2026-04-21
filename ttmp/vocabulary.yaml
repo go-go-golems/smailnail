@@ -37,6 +37,10 @@ topics:
       description: Search and filtering features
     - slug: ux-design
       description: Functionality-first UX and interaction design
+    - slug: code-review
+      description: Code review artifacts and analysis
+    - slug: react
+      description: React frontend development
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes

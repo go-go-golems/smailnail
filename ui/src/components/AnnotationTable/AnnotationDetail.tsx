@@ -8,6 +8,10 @@ import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import type { Annotation } from "../../types/annotations";
+import type { ReviewFeedback } from "../../types/reviewFeedback";
+import type { ReviewGuideline } from "../../types/reviewGuideline";
+import { FeedbackCard } from "../ReviewFeedback";
+import { GuidelineCard } from "../RunGuideline/GuidelineCard";
 import { MarkdownRenderer, TagChip, SourceBadge, ReviewStateBadge } from "../shared";
 import { parts } from "./parts";
 
@@ -16,6 +20,10 @@ export interface AnnotationDetailProps {
   isExpanded: boolean;
   /** Other annotations on the same target */
   relatedAnnotations?: Annotation[];
+  /** Review feedback attached to this annotation */
+  feedback?: ReviewFeedback[];
+  /** Guidelines relevant to this annotation, typically via its run */
+  guidelines?: ReviewGuideline[];
   onNavigateTarget?: () => void;
   columnCount: number;
 }
@@ -24,6 +32,8 @@ export function AnnotationDetail({
   annotation,
   isExpanded,
   relatedAnnotations = [],
+  feedback = [],
+  guidelines = [],
   onNavigateTarget,
   columnCount,
 }: AnnotationDetailProps) {
@@ -81,6 +91,36 @@ export function AnnotationDetail({
               >
                 View {annotation.targetType}: {annotation.targetId}
               </Button>
+            )}
+
+            {/* Feedback attached to this annotation */}
+            {feedback.length > 0 && (
+              <>
+                <Divider sx={{ my: 1.5 }} />
+                <Typography variant="overline" sx={{ display: "block", mb: 1 }}>
+                  Review feedback ({feedback.length})
+                </Typography>
+                <Box sx={{ mb: relatedAnnotations.length > 0 ? 1.5 : 0 }}>
+                  {feedback.map((item) => (
+                    <FeedbackCard key={item.id} feedback={item} />
+                  ))}
+                </Box>
+              </>
+            )}
+
+            {/* Linked guidelines relevant to this annotation */}
+            {guidelines.length > 0 && (
+              <>
+                <Divider sx={{ my: 1.5 }} />
+                <Typography variant="overline" sx={{ display: "block", mb: 1 }}>
+                  Linked guidelines for this run ({guidelines.length})
+                </Typography>
+                <Box sx={{ mb: relatedAnnotations.length > 0 ? 1.5 : 0 }}>
+                  {guidelines.map((guideline) => (
+                    <GuidelineCard key={guideline.id} guideline={guideline} compact />
+                  ))}
+                </Box>
+              </>
             )}
 
             {/* Related annotations on same target */}

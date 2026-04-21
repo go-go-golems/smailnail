@@ -14,7 +14,7 @@ import (
 
 const (
 	metadataTable        = "mirror_metadata"
-	currentSchemaVersion = 3
+	currentSchemaVersion = 4
 )
 
 type schemaMigration struct {
@@ -79,7 +79,11 @@ func schemaMigrations() []schemaMigration {
 		},
 		{
 			version:    3,
-			statements: annotate.SchemaMigrationV3Statements(),
+			statements: annotate.SchemaMigrationV3CoreStatements(),
+		},
+		{
+			version:    4,
+			statements: annotate.SchemaMigrationV4Statements(),
 		},
 	}
 }
@@ -178,6 +182,8 @@ func schemaVersion(ctx context.Context, db *sqlx.DB) (int, error) {
 		return 2, nil
 	case "3":
 		return 3, nil
+	case "4":
+		return 4, nil
 	default:
 		return 0, fmt.Errorf("unsupported mirror schema version %q", raw)
 	}

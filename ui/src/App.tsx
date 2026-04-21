@@ -21,6 +21,8 @@ import {
   SenderDetailPage,
   GroupsPage,
   QueryEditorPage,
+  GuidelinesListPage,
+  GuidelineDetailPage,
 } from "./pages";
 import { useAppDispatch, useAppSelector } from "./store";
 
@@ -173,6 +175,9 @@ export function App() {
           <Route path="senders" element={<SendersPage />} />
           <Route path="senders/:email" element={<SenderDetailPage />} />
           <Route path="groups" element={<GroupsPage />} />
+          <Route path="guidelines" element={<GuidelinesListPage />} />
+          <Route path="guidelines/new" element={<GuidelineDetailPage />} />
+          <Route path="guidelines/:guidelineId" element={<GuidelineDetailPage />} />
         </Route>
         <Route path="/query" element={<AnnotationLayout />}>
           <Route index element={<QueryEditorPage />} />

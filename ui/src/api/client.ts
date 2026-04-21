@@ -1,29 +1,31 @@
 import type {
-  Account,
-  AccountListItem,
-  ApiResponse,
-  CurrentUser,
+  AccountsResponse,
   CreateAccountInput,
+  CreateAccountResponse,
   CreateRuleInput,
+  CreateRuleResponse,
   DryRunInput,
-  DryRunResult,
+  GetCurrentUserResponse,
+  DryRunResponse,
+  GetAccountResponse,
+  GetRuleResponse,
+  MailboxesResponse,
   ListMessagesParams,
-  MailboxInfo,
-  MessageView,
-  RuleRecord,
+  MessageResponse,
+  MessagesResponse,
+  RulesResponse,
   TestInput,
-  TestResult,
+  TestAccountResultResponse,
   UpdateAccountInput,
+  UpdateAccountResponse,
   UpdateRuleInput,
+  UpdateRuleResponse,
 } from "./types";
 
 class ApiClient {
   private baseUrl = "/api";
 
-  private async request<T>(
-    path: string,
-    options?: RequestInit,
-  ): Promise<ApiResponse<T>> {
+  private async request<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -31,7 +33,7 @@ class ApiClient {
     });
 
     if (response.status === 204) {
-      return { data: undefined as T };
+      return {} as T;
     }
 
     const body = await response.json();
@@ -42,35 +44,40 @@ class ApiClient {
       throw new ApiRequestError(errorCode, errorMessage, response.status);
     }
 
-    return body as ApiResponse<T>;
+    return body as T;
   }
 
-  async listAccounts(): Promise<ApiResponse<AccountListItem[]>> {
-    return this.request<AccountListItem[]>("/accounts");
+  async listAccounts(): Promise<AccountsResponse> {
+    return this.request<AccountsResponse>("/accounts");
   }
 
-  async getCurrentUser(): Promise<ApiResponse<CurrentUser>> {
-    return this.request<CurrentUser>("/me");
+  async getCurrentUser(): Promise<GetCurrentUserResponse> {
+    return this.request<GetCurrentUserResponse>("/me");
   }
 
-  async createAccount(
-    input: CreateAccountInput,
-  ): Promise<ApiResponse<Account>> {
-    return this.request<Account>("/accounts", {
+  async createAccount(input: CreateAccountInput): Promise<CreateAccountResponse> {
+    return this.request<CreateAccountResponse>("/accounts", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        providerHint: "",
+        insecure: false,
+        authKind: "",
+        isDefault: false,
+        mcpEnabled: false,
+        ...input,
+      }),
     });
   }
 
-  async getAccount(id: string): Promise<ApiResponse<Account>> {
-    return this.request<Account>(`/accounts/${encodeURIComponent(id)}`);
+  async getAccount(id: string): Promise<GetAccountResponse> {
+    return this.request<GetAccountResponse>(`/accounts/${encodeURIComponent(id)}`);
   }
 
   async updateAccount(
     id: string,
     input: UpdateAccountInput,
-  ): Promise<ApiResponse<Account>> {
-    return this.request<Account>(`/accounts/${encodeURIComponent(id)}`, {
+  ): Promise<UpdateAccountResponse> {
+    return this.request<UpdateAccountResponse>(`/accounts/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     });
@@ -85,8 +92,8 @@ class ApiClient {
   async testAccount(
     id: string,
     input?: TestInput,
-  ): Promise<ApiResponse<TestResult>> {
-    return this.request<TestResult>(
+  ): Promise<TestAccountResultResponse> {
+    return this.request<TestAccountResultResponse>(
       `/accounts/${encodeURIComponent(id)}/test`,
       {
         method: "POST",
@@ -95,18 +102,14 @@ class ApiClient {
     );
   }
 
-  async listMailboxes(
-    accountId: string,
-  ): Promise<ApiResponse<MailboxInfo[]>> {
-    return this.request<MailboxInfo[]>(
-      `/accounts/${encodeURIComponent(accountId)}/mailboxes`,
-    );
+  async listMailboxes(accountId: string): Promise<MailboxesResponse> {
+    return this.request<MailboxesResponse>(`/accounts/${encodeURIComponent(accountId)}/mailboxes`);
   }
 
   async listMessages(
     accountId: string,
     params: ListMessagesParams,
-  ): Promise<ApiResponse<MessageView[]>> {
+  ): Promise<MessagesResponse> {
     const qs = new URLSearchParams();
     qs.set("mailbox", params.mailbox);
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
@@ -115,7 +118,7 @@ class ApiClient {
     if (params.unreadOnly) qs.set("unread_only", "true");
     if (params.includeContent) qs.set("include_content", "true");
     if (params.contentType) qs.set("content_type", params.contentType);
-    return this.request<MessageView[]>(
+    return this.request<MessagesResponse>(
       `/accounts/${encodeURIComponent(accountId)}/messages?${qs.toString()}`,
     );
   }
@@ -124,34 +127,30 @@ class ApiClient {
     accountId: string,
     mailbox: string,
     uid: number,
-  ): Promise<ApiResponse<MessageView>> {
+  ): Promise<MessageResponse> {
     const qs = new URLSearchParams({ mailbox });
-    return this.request<MessageView>(
+    return this.request<MessageResponse>(
       `/accounts/${encodeURIComponent(accountId)}/messages/${uid}?${qs.toString()}`,
     );
   }
 
-  // Rules
-  async listRules(): Promise<ApiResponse<RuleRecord[]>> {
-    return this.request<RuleRecord[]>("/rules");
+  async listRules(): Promise<RulesResponse> {
+    return this.request<RulesResponse>("/rules");
   }
 
-  async createRule(input: CreateRuleInput): Promise<ApiResponse<RuleRecord>> {
-    return this.request<RuleRecord>("/rules", {
+  async createRule(input: CreateRuleInput): Promise<CreateRuleResponse> {
+    return this.request<CreateRuleResponse>("/rules", {
       method: "POST",
       body: JSON.stringify(input),
     });
   }
 
-  async getRule(id: string): Promise<ApiResponse<RuleRecord>> {
-    return this.request<RuleRecord>(`/rules/${encodeURIComponent(id)}`);
+  async getRule(id: string): Promise<GetRuleResponse> {
+    return this.request<GetRuleResponse>(`/rules/${encodeURIComponent(id)}`);
   }
 
-  async updateRule(
-    id: string,
-    input: UpdateRuleInput,
-  ): Promise<ApiResponse<RuleRecord>> {
-    return this.request<RuleRecord>(`/rules/${encodeURIComponent(id)}`, {
+  async updateRule(id: string, input: UpdateRuleInput): Promise<UpdateRuleResponse> {
+    return this.request<UpdateRuleResponse>(`/rules/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     });
@@ -163,17 +162,11 @@ class ApiClient {
     });
   }
 
-  async dryRunRule(
-    id: string,
-    input?: DryRunInput,
-  ): Promise<ApiResponse<DryRunResult>> {
-    return this.request<DryRunResult>(
-      `/rules/${encodeURIComponent(id)}/dry-run`,
-      {
-        method: "POST",
-        body: input ? JSON.stringify(input) : undefined,
-      },
-    );
+  async dryRunRule(id: string, input?: DryRunInput): Promise<DryRunResponse> {
+    return this.request<DryRunResponse>(`/rules/${encodeURIComponent(id)}/dry-run`, {
+      method: "POST",
+      body: input ? JSON.stringify(input) : undefined,
+    });
   }
 }
 

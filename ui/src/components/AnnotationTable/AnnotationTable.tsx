@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, memo, useMemo } from "react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -10,6 +10,8 @@ import Checkbox from "@mui/material/Checkbox";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { Annotation } from "../../types/annotations";
+import type { ReviewFeedback } from "../../types/reviewFeedback";
+import type { ReviewGuideline } from "../../types/reviewGuideline";
 import { AnnotationRow } from "./AnnotationRow";
 import { AnnotationDetail } from "./AnnotationDetail";
 import { parts } from "./parts";
@@ -30,13 +32,107 @@ export interface AnnotationTableProps {
   onApprove: (id: string) => void;
   /** Dismiss a single annotation */
   onDismiss: (id: string) => void;
+  /** Dismiss a single annotation with a note */
+  onDismissExplain?: (id: string) => void;
   /** Navigate to an annotation's target */
   onNavigateTarget?: (targetType: string, targetId: string) => void;
   /** Find related annotations for the expanded row */
   getRelated?: (annotation: Annotation) => Annotation[];
+  /** Find feedback for the expanded row */
+  getFeedback?: (annotation: Annotation) => ReviewFeedback[];
+  /** Find guidelines relevant to the expanded row */
+  getGuidelines?: (annotation: Annotation) => ReviewGuideline[];
+}
+
+interface AnnotationTableItemProps {
+  annotation: Annotation;
+  isSelected: boolean;
+  isExpanded: boolean;
+  relatedAnnotations: Annotation[];
+  feedback: ReviewFeedback[];
+  guidelines: ReviewGuideline[];
+  onToggleSelect: (id: string) => void;
+  onToggleExpand: (id: string) => void;
+  onApprove: (id: string) => void;
+  onDismiss: (id: string) => void;
+  onDismissExplain?: (id: string) => void;
+  onNavigateTarget?: (targetType: string, targetId: string) => void;
+  columnCount: number;
 }
 
 const COLUMN_COUNT = 8;
+const EMPTY_RELATED: Annotation[] = [];
+const EMPTY_FEEDBACK: ReviewFeedback[] = [];
+const EMPTY_GUIDELINES: ReviewGuideline[] = [];
+
+const AnnotationTableItem = memo(
+  function AnnotationTableItem({
+    annotation,
+    isSelected,
+    isExpanded,
+    relatedAnnotations,
+    feedback,
+    guidelines,
+    onToggleSelect,
+    onToggleExpand,
+    onApprove,
+    onDismiss,
+    onDismissExplain,
+    onNavigateTarget,
+    columnCount,
+  }: AnnotationTableItemProps) {
+    return (
+      <Fragment>
+        <AnnotationRow
+          annotation={annotation}
+          isSelected={isSelected}
+          isExpanded={isExpanded}
+          onToggleSelect={() => onToggleSelect(annotation.id)}
+          onToggleExpand={() => onToggleExpand(annotation.id)}
+          onApprove={() => onApprove(annotation.id)}
+          onDismiss={() => onDismiss(annotation.id)}
+          onDismissExplain={
+            onDismissExplain ? () => onDismissExplain(annotation.id) : undefined
+          }
+          onNavigateTarget={
+            onNavigateTarget
+              ? () => onNavigateTarget(annotation.targetType, annotation.targetId)
+              : undefined
+          }
+        />
+        {isExpanded ? (
+          <AnnotationDetail
+            annotation={annotation}
+            isExpanded={true}
+            relatedAnnotations={relatedAnnotations}
+            feedback={feedback}
+            guidelines={guidelines}
+            onNavigateTarget={
+              onNavigateTarget
+                ? () => onNavigateTarget(annotation.targetType, annotation.targetId)
+                : undefined
+            }
+            columnCount={columnCount}
+          />
+        ) : null}
+      </Fragment>
+    );
+  },
+  (prev, next) =>
+    prev.annotation === next.annotation &&
+    prev.isSelected === next.isSelected &&
+    prev.isExpanded === next.isExpanded &&
+    prev.relatedAnnotations === next.relatedAnnotations &&
+    prev.feedback === next.feedback &&
+    prev.guidelines === next.guidelines &&
+    prev.onToggleSelect === next.onToggleSelect &&
+    prev.onToggleExpand === next.onToggleExpand &&
+    prev.onApprove === next.onApprove &&
+    prev.onDismiss === next.onDismiss &&
+    prev.onDismissExplain === next.onDismissExplain &&
+    prev.onNavigateTarget === next.onNavigateTarget &&
+    prev.columnCount === next.columnCount,
+);
 
 export function AnnotationTable({
   annotations,
@@ -47,12 +143,42 @@ export function AnnotationTable({
   onToggleExpand,
   onApprove,
   onDismiss,
+  onDismissExplain,
   onNavigateTarget,
   getRelated,
+  getFeedback,
+  getGuidelines,
 }: AnnotationTableProps) {
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
   const allSelected =
     annotations.length > 0 && selected.length === annotations.length;
   const someSelected = selected.length > 0 && !allSelected;
+
+  const expandedAnnotation = useMemo(
+    () => annotations.find((annotation) => annotation.id === expandedId) ?? null,
+    [annotations, expandedId],
+  );
+
+  const expandedRelated = useMemo(() => {
+    if (!expandedAnnotation || !getRelated) {
+      return EMPTY_RELATED;
+    }
+    return getRelated(expandedAnnotation);
+  }, [expandedAnnotation, getRelated]);
+
+  const expandedFeedback = useMemo(() => {
+    if (!expandedAnnotation || !getFeedback) {
+      return EMPTY_FEEDBACK;
+    }
+    return getFeedback(expandedAnnotation);
+  }, [expandedAnnotation, getFeedback]);
+
+  const expandedGuidelines = useMemo(() => {
+    if (!expandedAnnotation || !getGuidelines) {
+      return EMPTY_GUIDELINES;
+    }
+    return getGuidelines(expandedAnnotation);
+  }, [expandedAnnotation, getGuidelines]);
 
   if (annotations.length === 0) {
     return (
@@ -99,40 +225,26 @@ export function AnnotationTable({
           </TableRow>
         </TableHead>
         <TableBody>
-          {annotations.map((ann) => {
-            const isSelected = selected.includes(ann.id);
-            const isExpanded = expandedId === ann.id;
+          {annotations.map((annotation) => {
+            const isExpanded = expandedId === annotation.id;
 
             return (
-              <Fragment key={ann.id}>
-                <AnnotationRow
-                  annotation={ann}
-                  isSelected={isSelected}
-                  isExpanded={isExpanded}
-                  onToggleSelect={() => onToggleSelect(ann.id)}
-                  onToggleExpand={() => onToggleExpand(ann.id)}
-                  onApprove={() => onApprove(ann.id)}
-                  onDismiss={() => onDismiss(ann.id)}
-                  onNavigateTarget={
-                    onNavigateTarget
-                      ? () =>
-                          onNavigateTarget(ann.targetType, ann.targetId)
-                      : undefined
-                  }
-                />
-                <AnnotationDetail
-                  annotation={ann}
-                  isExpanded={isExpanded}
-                  relatedAnnotations={getRelated?.(ann) ?? []}
-                  onNavigateTarget={
-                    onNavigateTarget
-                      ? () =>
-                          onNavigateTarget(ann.targetType, ann.targetId)
-                      : undefined
-                  }
-                  columnCount={COLUMN_COUNT}
-                />
-              </Fragment>
+              <AnnotationTableItem
+                key={annotation.id}
+                annotation={annotation}
+                isSelected={selectedSet.has(annotation.id)}
+                isExpanded={isExpanded}
+                relatedAnnotations={isExpanded ? expandedRelated : EMPTY_RELATED}
+                feedback={isExpanded ? expandedFeedback : EMPTY_FEEDBACK}
+                guidelines={isExpanded ? expandedGuidelines : EMPTY_GUIDELINES}
+                onToggleSelect={onToggleSelect}
+                onToggleExpand={onToggleExpand}
+                onApprove={onApprove}
+                onDismiss={onDismiss}
+                onDismissExplain={onDismissExplain}
+                onNavigateTarget={onNavigateTarget}
+                columnCount={COLUMN_COUNT}
+              />
             );
           })}
         </TableBody>

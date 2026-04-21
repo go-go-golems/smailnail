@@ -24,6 +24,7 @@ jobs:
       dockerfile: ./Dockerfile
       build_context: .
       test_command: |
+        go install github.com/bufbuild/buf/cmd/buf@v1.68.3
         go generate ./...
         go test -tags sqlite_fts5 ./...
       go_version_file: go.mod

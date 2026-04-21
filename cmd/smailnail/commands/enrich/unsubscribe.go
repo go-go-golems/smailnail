@@ -20,8 +20,12 @@ type UnsubscribeCommand struct {
 }
 
 type unsubscribeSettings struct {
-	enrichSettings
-	EmitLinks bool `glazed:"emit-links"`
+	SQLitePath string `glazed:"sqlite-path"`
+	AccountKey string `glazed:"account-key"`
+	Mailbox    string `glazed:"mailbox"`
+	Rebuild    bool   `glazed:"rebuild"`
+	DryRun     bool   `glazed:"dry-run"`
+	EmitLinks  bool   `glazed:"emit-links"`
 }
 
 func NewUnsubscribeCommand() (*UnsubscribeCommand, error) {
@@ -70,7 +74,13 @@ func (c *UnsubscribeCommand) RunIntoGlazeProcessor(ctx context.Context, parsedVa
 	}
 	defer cleanup()
 
-	report, err := (&enrichpkg.UnsubscribeEnricher{}).Enrich(ctx, db, toOptions(settings.enrichSettings))
+	report, err := (&enrichpkg.UnsubscribeEnricher{}).Enrich(ctx, db, toOptions(enrichSettings{
+		SQLitePath: settings.SQLitePath,
+		AccountKey: settings.AccountKey,
+		Mailbox:    settings.Mailbox,
+		Rebuild:    settings.Rebuild,
+		DryRun:     settings.DryRun,
+	}))
 	if err != nil {
 		return err
 	}

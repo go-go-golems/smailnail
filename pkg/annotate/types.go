@@ -157,3 +157,165 @@ type AgentRunDetail struct {
 	Logs        []AnnotationLog `json:"logs"`
 	Groups      []TargetGroup   `json:"groups"`
 }
+
+// ── Review Feedback ────────────────────────────────────────────
+
+const (
+	FeedbackScopeAnnotation = "annotation"
+	FeedbackScopeSelection  = "selection"
+	FeedbackScopeRun        = "run"
+	FeedbackScopeGuideline  = "guideline"
+
+	FeedbackKindComment          = "comment"
+	FeedbackKindRejectRequest    = "reject_request"
+	FeedbackKindGuidelineRequest = "guideline_request"
+	FeedbackKindClarification    = "clarification"
+
+	FeedbackStatusOpen         = "open"
+	FeedbackStatusAcknowledged = "acknowledged"
+	FeedbackStatusResolved     = "resolved"
+	FeedbackStatusArchived     = "archived"
+)
+
+type ReviewFeedback struct {
+	ID           string           `db:"id" json:"id"`
+	ScopeKind    string           `db:"scope_kind" json:"scopeKind"`
+	AgentRunID   string           `db:"agent_run_id" json:"agentRunId"`
+	MailboxName  string           `db:"mailbox_name" json:"mailboxName"`
+	FeedbackKind string           `db:"feedback_kind" json:"feedbackKind"`
+	Status       string           `db:"status" json:"status"`
+	Title        string           `db:"title" json:"title"`
+	BodyMarkdown string           `db:"body_markdown" json:"bodyMarkdown"`
+	CreatedBy    string           `db:"created_by" json:"createdBy"`
+	CreatedAt    time.Time        `db:"created_at" json:"createdAt"`
+	UpdatedAt    time.Time        `db:"updated_at" json:"updatedAt"`
+	Targets      []FeedbackTarget `db:"-" json:"targets"`
+}
+
+type FeedbackTarget struct {
+	FeedbackID string `db:"feedback_id" json:"feedbackId"`
+	TargetType string `db:"target_type" json:"targetType"`
+	TargetID   string `db:"target_id" json:"targetId"`
+}
+
+type CreateFeedbackInput struct {
+	ScopeKind    string
+	AgentRunID   string
+	MailboxName  string
+	FeedbackKind string
+	Title        string
+	BodyMarkdown string
+	CreatedBy    string
+	Targets      []FeedbackTargetInput
+}
+
+type FeedbackTargetInput struct {
+	TargetType string
+	TargetID   string
+}
+
+type ListFeedbackFilter struct {
+	ScopeKind    string
+	AgentRunID   string
+	Status       string
+	FeedbackKind string
+	MailboxName  string
+	TargetType   string
+	TargetID     string
+	Limit        int
+}
+
+type UpdateFeedbackInput struct {
+	Status string
+}
+
+type ReviewCommentInput struct {
+	FeedbackKind string
+	Title        string
+	BodyMarkdown string
+}
+
+type ReviewAnnotationActionInput struct {
+	AnnotationID string
+	ReviewState  string
+	MailboxName  string
+	Comment      *ReviewCommentInput
+	GuidelineIDs []string
+	CreatedBy    string
+}
+
+type BatchReviewActionInput struct {
+	IDs          []string
+	ReviewState  string
+	AgentRunID   string
+	MailboxName  string
+	Comment      *ReviewCommentInput
+	GuidelineIDs []string
+	CreatedBy    string
+}
+
+// ── Review Guidelines ──────────────────────────────────────────
+
+const (
+	GuidelineScopeGlobal   = "global"
+	GuidelineScopeMailbox  = "mailbox"
+	GuidelineScopeSender   = "sender"
+	GuidelineScopeDomain   = "domain"
+	GuidelineScopeWorkflow = "workflow"
+
+	GuidelineStatusActive   = "active"
+	GuidelineStatusArchived = "archived"
+	GuidelineStatusDraft    = "draft"
+)
+
+type ReviewGuideline struct {
+	ID           string    `db:"id" json:"id"`
+	Slug         string    `db:"slug" json:"slug"`
+	Title        string    `db:"title" json:"title"`
+	ScopeKind    string    `db:"scope_kind" json:"scopeKind"`
+	Status       string    `db:"status" json:"status"`
+	Priority     int       `db:"priority" json:"priority"`
+	BodyMarkdown string    `db:"body_markdown" json:"bodyMarkdown"`
+	CreatedBy    string    `db:"created_by" json:"createdBy"`
+	CreatedAt    time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+type CreateGuidelineInput struct {
+	Slug         string
+	Title        string
+	ScopeKind    string
+	BodyMarkdown string
+	CreatedBy    string
+}
+
+type UpdateGuidelineInput struct {
+	Title        *string
+	ScopeKind    *string
+	Status       *string
+	Priority     *int
+	BodyMarkdown *string
+}
+
+type ListGuidelinesFilter struct {
+	Status    string
+	ScopeKind string
+	Search    string
+	Limit     int
+}
+
+type SenderGuidelineGroup struct {
+	RunID       string            `json:"runId"`
+	SourceLabel string            `json:"sourceLabel"`
+	SourceKind  string            `json:"sourceKind"`
+	Guidelines  []ReviewGuideline `json:"guidelines"`
+}
+
+// ── Run-Guideline Links ───────────────────────────────────────
+
+type RunGuidelineLink struct {
+	AgentRunID  string    `db:"agent_run_id" json:"agentRunId"`
+	GuidelineID string    `db:"guideline_id" json:"guidelineId"`
+	LinkedBy    string    `db:"linked_by" json:"linkedBy"`
+	LinkedAt    time.Time `db:"linked_at" json:"linkedAt"`
+}

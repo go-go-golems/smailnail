@@ -28,10 +28,11 @@ type SenderDetail struct {
 }
 
 type MessagePreview struct {
-	UID       uint32 `db:"uid" json:"uid"`
-	Subject   string `db:"subject" json:"subject"`
-	Date      string `db:"date" json:"date"`
-	SizeBytes int    `db:"size_bytes" json:"sizeBytes"`
+	UID         uint32 `db:"uid" json:"uid"`
+	Subject     string `db:"subject" json:"subject"`
+	Date        string `db:"date" json:"date"`
+	SizeBytes   int    `db:"size_bytes" json:"sizeBytes"`
+	MailboxName string `db:"mailbox_name" json:"mailboxName"`
 }
 
 type SavedQuery struct {

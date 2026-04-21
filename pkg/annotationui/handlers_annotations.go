@@ -5,16 +5,8 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 )
-
-type reviewRequest struct {
-	ReviewState string `json:"reviewState"`
-}
-
-type batchReviewRequest struct {
-	IDs         []string `json:"ids"`
-	ReviewState string   `json:"reviewState"`
-}
 
 func (h *appHandler) handleListAnnotations(w http.ResponseWriter, r *http.Request) {
 	limit, err := parseLimitQuery(r, "limit", 500)
@@ -23,20 +15,30 @@ func (h *appHandler) handleListAnnotations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	annotations, err := h.annotations.ListAnnotations(r.Context(), annotate.ListAnnotationsFilter{
+	req := &annotationuiv1.AnnotationListRequest{
 		TargetType:  strings.TrimSpace(r.URL.Query().Get("targetType")),
-		TargetID:    strings.TrimSpace(r.URL.Query().Get("targetId")),
+		TargetId:    strings.TrimSpace(r.URL.Query().Get("targetId")),
 		Tag:         strings.TrimSpace(r.URL.Query().Get("tag")),
 		ReviewState: strings.TrimSpace(r.URL.Query().Get("reviewState")),
 		SourceKind:  strings.TrimSpace(r.URL.Query().Get("sourceKind")),
-		AgentRunID:  strings.TrimSpace(r.URL.Query().Get("agentRunId")),
+		AgentRunId:  strings.TrimSpace(r.URL.Query().Get("agentRunId")),
 		Limit:       limit,
+	}
+
+	annotations, err := h.annotations.ListAnnotations(r.Context(), annotate.ListAnnotationsFilter{
+		TargetType:  req.GetTargetType(),
+		TargetID:    req.GetTargetId(),
+		Tag:         req.GetTag(),
+		ReviewState: req.GetReviewState(),
+		SourceKind:  req.GetSourceKind(),
+		AgentRunID:  req.GetAgentRunId(),
+		Limit:       int(req.GetLimit()),
 	})
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, annotations)
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.AnnotationListResponse{Items: annotateAnnotationsToProto(annotations)})
 }
 
 func (h *appHandler) handleGetAnnotation(w http.ResponseWriter, r *http.Request) {
@@ -49,20 +51,27 @@ func (h *appHandler) handleGetAnnotation(w http.ResponseWriter, r *http.Request)
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, annotation)
+	writeProtoJSON(w, http.StatusOK, annotateAnnotationToProto(annotation))
 }
 
 func (h *appHandler) handleReviewAnnotation(w http.ResponseWriter, r *http.Request) {
-	req := reviewRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.ReviewAnnotationRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if !isValidReviewState(req.ReviewState) {
+	if !isValidReviewState(req.GetReviewState()) {
 		writeMessageError(w, http.StatusBadRequest, "reviewState must be one of to_review, reviewed, dismissed")
 		return
 	}
 
-	annotation, err := h.annotations.UpdateAnnotationReviewState(r.Context(), r.PathValue("id"), req.ReviewState)
+	annotation, err := h.annotations.ReviewAnnotationWithArtifacts(r.Context(), annotate.ReviewAnnotationActionInput{
+		AnnotationID: r.PathValue("id"),
+		ReviewState:  strings.TrimSpace(req.GetReviewState()),
+		MailboxName:  strings.TrimSpace(req.GetMailboxName()),
+		Comment:      protoCommentToAnnotate(req.GetComment()),
+		GuidelineIDs: req.GetGuidelineIds(),
+		CreatedBy:    requestReviewActor(r),
+	})
 	if err != nil {
 		if isNotFoundError(err) {
 			writeNotFound(w, err.Error())
@@ -71,23 +80,31 @@ func (h *appHandler) handleReviewAnnotation(w http.ResponseWriter, r *http.Reque
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, annotation)
+	writeProtoJSON(w, http.StatusOK, annotateAnnotationToProto(annotation))
 }
 
 func (h *appHandler) handleBatchReview(w http.ResponseWriter, r *http.Request) {
-	req := batchReviewRequest{}
-	if !decodeJSONBody(w, r, &req) {
+	req := &annotationuiv1.BatchReviewRequest{}
+	if !decodeProtoJSONBody(w, r, req) {
 		return
 	}
-	if len(req.IDs) == 0 {
+	if len(req.GetIds()) == 0 {
 		writeMessageError(w, http.StatusBadRequest, "ids must not be empty")
 		return
 	}
-	if !isValidReviewState(req.ReviewState) {
+	if !isValidReviewState(req.GetReviewState()) {
 		writeMessageError(w, http.StatusBadRequest, "reviewState must be one of to_review, reviewed, dismissed")
 		return
 	}
-	if err := h.annotations.BatchUpdateReviewState(r.Context(), req.IDs, req.ReviewState); err != nil {
+	if err := h.annotations.BatchReviewWithArtifacts(r.Context(), annotate.BatchReviewActionInput{
+		IDs:          req.GetIds(),
+		ReviewState:  strings.TrimSpace(req.GetReviewState()),
+		AgentRunID:   strings.TrimSpace(req.GetAgentRunId()),
+		MailboxName:  strings.TrimSpace(req.GetMailboxName()),
+		Comment:      protoCommentToAnnotate(req.GetComment()),
+		GuidelineIDs: req.GetGuidelineIds(),
+		CreatedBy:    requestReviewActor(r),
+	}); err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -100,16 +117,23 @@ func (h *appHandler) handleListGroups(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	groups, err := h.annotations.ListGroups(r.Context(), annotate.ListGroupsFilter{
+
+	req := &annotationuiv1.GroupListRequest{
 		ReviewState: strings.TrimSpace(r.URL.Query().Get("reviewState")),
 		SourceKind:  strings.TrimSpace(r.URL.Query().Get("sourceKind")),
 		Limit:       limit,
+	}
+
+	groups, err := h.annotations.ListGroups(r.Context(), annotate.ListGroupsFilter{
+		ReviewState: req.GetReviewState(),
+		SourceKind:  req.GetSourceKind(),
+		Limit:       int(req.GetLimit()),
 	})
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, groups)
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.GroupListResponse{Items: annotateGroupsToProto(groups)})
 }
 
 func (h *appHandler) handleGetGroup(w http.ResponseWriter, r *http.Request) {
@@ -127,10 +151,10 @@ func (h *appHandler) handleGetGroup(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, annotate.GroupDetail{
+	writeProtoJSON(w, http.StatusOK, annotateGroupDetailToProto(annotate.GroupDetail{
 		TargetGroup: *group,
 		Members:     members,
-	})
+	}))
 }
 
 func (h *appHandler) handleListLogs(w http.ResponseWriter, r *http.Request) {
@@ -139,16 +163,23 @@ func (h *appHandler) handleListLogs(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	logs, err := h.annotations.ListLogs(r.Context(), annotate.ListLogsFilter{
+
+	req := &annotationuiv1.LogListRequest{
 		SourceKind: strings.TrimSpace(r.URL.Query().Get("sourceKind")),
-		AgentRunID: strings.TrimSpace(r.URL.Query().Get("agentRunId")),
+		AgentRunId: strings.TrimSpace(r.URL.Query().Get("agentRunId")),
 		Limit:      limit,
+	}
+
+	logs, err := h.annotations.ListLogs(r.Context(), annotate.ListLogsFilter{
+		SourceKind: req.GetSourceKind(),
+		AgentRunID: req.GetAgentRunId(),
+		Limit:      int(req.GetLimit()),
 	})
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, logs)
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.LogListResponse{Items: annotateLogsToProto(logs)})
 }
 
 func (h *appHandler) handleGetLog(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +192,7 @@ func (h *appHandler) handleGetLog(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, logEntry)
+	writeProtoJSON(w, http.StatusOK, annotateLogToProto(logEntry))
 }
 
 func (h *appHandler) handleListRuns(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +201,7 @@ func (h *appHandler) handleListRuns(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, runs)
+	writeProtoJSON(w, http.StatusOK, &annotationuiv1.AgentRunListResponse{Items: annotateRunsToProto(runs)})
 }
 
 func (h *appHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +214,7 @@ func (h *appHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, run)
+	writeProtoJSON(w, http.StatusOK, annotateRunDetailToProto(run))
 }
 
 func isValidReviewState(reviewState string) bool {

@@ -3,7 +3,6 @@ package smailnaild
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,11 +15,14 @@ import (
 	"time"
 
 	"github.com/emersion/go-imap/v2/imapclient"
+	appv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/app/v1"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/secrets"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestHostedHTTPFlowAgainstLocalDovecot(t *testing.T) {
@@ -56,29 +58,23 @@ func TestHostedHTTPFlowAgainstLocalDovecot(t *testing.T) {
 	accountID := createHostedAccount(t, server.URL, fixture)
 	postJSON(t, server.URL+"/api/accounts/"+accountID+"/test", `{}`)
 
-	var mailboxesResponse struct {
-		Data []accounts.MailboxInfo `json:"data"`
-	}
-	getJSON(t, server.URL+"/api/accounts/"+accountID+"/mailboxes", &mailboxesResponse)
+	var mailboxesResponse appv1.ListMailboxesResponse
+	getProtoJSON(t, server.URL+"/api/accounts/"+accountID+"/mailboxes", &mailboxesResponse)
 	if len(mailboxesResponse.Data) == 0 {
 		t.Fatal("expected mailbox list")
 	}
 
-	var messagesResponse struct {
-		Data []accounts.MessageView `json:"data"`
-	}
-	getJSON(t, server.URL+"/api/accounts/"+accountID+"/messages?query="+url.QueryEscape(subject), &messagesResponse)
+	var messagesResponse appv1.ListMessagesResponse
+	getProtoJSON(t, server.URL+"/api/accounts/"+accountID+"/messages?query="+url.QueryEscape(subject), &messagesResponse)
 	if len(messagesResponse.Data) == 0 {
 		t.Fatalf("expected seeded message %q in message preview", subject)
 	}
 
 	ruleID := createHostedRule(t, server.URL, accountID, subject)
 
-	var dryRunResponse struct {
-		Data rules.DryRunResult `json:"data"`
-	}
-	postJSONInto(t, server.URL+"/api/rules/"+ruleID+"/dry-run", `{"imapAccountId":"`+accountID+`"}`, &dryRunResponse)
-	if dryRunResponse.Data.MatchedCount == 0 {
+	var dryRunResponse appv1.DryRunRuleResponse
+	postProtoJSONInto(t, server.URL+"/api/rules/"+ruleID+"/dry-run", `{"imapAccountId":"`+accountID+`"}`, &dryRunResponse)
+	if dryRunResponse.GetData().GetMatchedCount() == 0 {
 		t.Fatalf("expected dry run to match seeded message")
 	}
 }
@@ -174,10 +170,8 @@ func appendHostedFixtureMessage(t *testing.T, fixture hostedFixture, subject str
 func createHostedAccount(t *testing.T, baseURL string, fixture hostedFixture) string {
 	t.Helper()
 
-	var response struct {
-		Data accounts.Account `json:"data"`
-	}
-	postJSONInto(t, baseURL+"/api/accounts", fmt.Sprintf(`{
+	var response appv1.AccountResponse
+	postProtoJSONInto(t, baseURL+"/api/accounts", fmt.Sprintf(`{
 		"label":"Local Dovecot",
 		"providerHint":"local",
 		"server":"%s",
@@ -188,7 +182,7 @@ func createHostedAccount(t *testing.T, baseURL string, fixture hostedFixture) st
 		"insecure":true,
 		"authKind":"password"
 	}`, fixture.server, fixture.port, fixture.username, fixture.password, fixture.mailbox), &response)
-	return response.Data.ID
+	return response.GetData().GetId()
 }
 
 func createHostedRule(t *testing.T, baseURL, accountID, subject string) string {
@@ -199,11 +193,9 @@ func createHostedRule(t *testing.T, baseURL, accountID, subject string) string {
 		"ruleYaml":"name: Hosted dry run\ndescription: Hosted dry run\nsearch:\n  subject_contains: %s\noutput:\n  format: json\n  limit: 10\n  fields:\n    - uid\n    - subject\n    - from\nactions:\n  move_to: Archive\n"
 	}`, accountID, subject)
 
-	var response struct {
-		Data rules.RuleRecord `json:"data"`
-	}
-	postJSONInto(t, baseURL+"/api/rules", body, &response)
-	return response.Data.ID
+	var response appv1.RuleResponse
+	postProtoJSONInto(t, baseURL+"/api/rules", body, &response)
+	return response.GetData().GetId()
 }
 
 func postJSON(t *testing.T, url, body string) {
@@ -223,7 +215,7 @@ func postJSON(t *testing.T, url, body string) {
 	}
 }
 
-func postJSONInto(t *testing.T, url, body string, target any) {
+func postProtoJSONInto(t *testing.T, url, body string, target proto.Message) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBufferString(body))
 	if err != nil {
@@ -234,28 +226,38 @@ func postJSONInto(t *testing.T, url, body string, target any) {
 	if err != nil {
 		t.Fatalf("Do() error = %v", err)
 	}
-	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode >= 300 {
+		defer func() { _ = res.Body.Close() }()
 		t.Fatalf("POST %s returned %d", url, res.StatusCode)
 	}
-	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
+	if err := protojson.Unmarshal(readHostedBody(t, res), target); err != nil {
 		t.Fatalf("decode response error = %v", err)
 	}
 }
 
-func getJSON(t *testing.T, url string, target any) {
+func getProtoJSON(t *testing.T, url string, target proto.Message) {
 	t.Helper()
 	res, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("GET %s error = %v", url, err)
 	}
-	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode >= 300 {
+		defer func() { _ = res.Body.Close() }()
 		t.Fatalf("GET %s returned %d", url, res.StatusCode)
 	}
-	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
+	if err := protojson.Unmarshal(readHostedBody(t, res), target); err != nil {
 		t.Fatalf("decode response error = %v", err)
 	}
+}
+
+func readHostedBody(t *testing.T, res *http.Response) []byte {
+	t.Helper()
+	defer func() { _ = res.Body.Close() }()
+	body := new(bytes.Buffer)
+	if _, err := body.ReadFrom(res.Body); err != nil {
+		t.Fatalf("read response body error = %v", err)
+	}
+	return body.Bytes()
 }
 
 func hostedGetenvDefault(key, fallback string) string {

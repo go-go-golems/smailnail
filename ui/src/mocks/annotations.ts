@@ -13,6 +13,8 @@ import type {
   SavedQuery,
   QueryResult,
 } from "../types/annotations";
+import type { ReviewFeedback } from "../types/reviewFeedback";
+import type { ReviewGuideline } from "../types/reviewGuideline";
 
 // ── Annotations ──────────────────────────────────────────────
 
@@ -324,18 +326,21 @@ export const mockMessages: MessagePreview[] = [
     subject: "TechCrunch Daily - April 1, 2026",
     date: "2026-04-01T08:00:00Z",
     sizeBytes: 45320,
+    mailboxName: "INBOX",
   },
   {
     uid: 1000,
     subject: "TechCrunch Daily - March 31, 2026",
     date: "2026-03-31T08:00:00Z",
     sizeBytes: 42100,
+    mailboxName: "INBOX",
   },
   {
     uid: 999,
     subject: "TechCrunch Daily - March 30, 2026",
     date: "2026-03-30T08:00:00Z",
     sizeBytes: 38900,
+    mailboxName: "INBOX",
   },
 ];
 
@@ -374,3 +379,131 @@ export const mockQueryResult: QueryResult = {
   durationMs: 12,
   rowCount: 5,
 };
+
+// ── Review Feedback ─────────────────────────────────────────
+
+export const mockFeedback: ReviewFeedback[] = [
+  {
+    id: "fb-001",
+    scopeKind: "selection",
+    agentRunId: "run-42",
+    mailboxName: "INBOX",
+    feedbackKind: "reject_request",
+    status: "open",
+    title: "Misclassified financial messages",
+    bodyMarkdown:
+      "Please separate invoices and receipts from promotional newsletters. The agent treated invoice notifications as marketing mail.",
+    createdBy: "manuel",
+    createdAt: "2026-04-03T14:30:00Z",
+    updatedAt: "2026-04-03T14:30:00Z",
+    targets: [
+      { targetType: "annotation", targetId: "ann-001" },
+      { targetType: "annotation", targetId: "ann-002" },
+      { targetType: "annotation", targetId: "ann-007" },
+    ],
+  },
+  {
+    id: "fb-002",
+    scopeKind: "run",
+    agentRunId: "run-42",
+    mailboxName: "",
+    feedbackKind: "comment",
+    status: "resolved",
+    title: "Good thread reconstruction",
+    bodyMarkdown:
+      "The agent correctly identified conversation threads across mailboxes. Keep this behavior.",
+    createdBy: "manuel",
+    createdAt: "2026-04-03T14:15:00Z",
+    updatedAt: "2026-04-03T15:00:00Z",
+    targets: [],
+  },
+  {
+    id: "fb-003",
+    scopeKind: "run",
+    agentRunId: "run-41",
+    mailboxName: "",
+    feedbackKind: "clarification",
+    status: "acknowledged",
+    title: "Unclear heuristic thresholds",
+    bodyMarkdown:
+      "The volume-detector threshold of 50 messages seems too low for some mailing lists. Consider raising to 100.",
+    createdBy: "manuel",
+    createdAt: "2026-04-02T09:00:00Z",
+    updatedAt: "2026-04-02T10:00:00Z",
+    targets: [],
+  },
+  {
+    id: "fb-004",
+    scopeKind: "annotation",
+    agentRunId: "run-41",
+    mailboxName: "Billing",
+    feedbackKind: "guideline_request",
+    status: "open",
+    title: "Need guideline for billing senders",
+    bodyMarkdown:
+      "AWS billing emails should always be tagged as transactional, not bulk-sender, regardless of volume.",
+    createdBy: "manuel",
+    createdAt: "2026-04-01T16:00:00Z",
+    updatedAt: "2026-04-01T16:00:00Z",
+    targets: [
+      { targetType: "annotation", targetId: "ann-006" },
+    ],
+  },
+];
+
+// ── Review Guidelines ───────────────────────────────────────
+
+export const mockGuidelines: ReviewGuideline[] = [
+  {
+    id: "guideline-001",
+    slug: "transactional-vs-promotional",
+    title: "Separate transactional mail from promotional mail",
+    scopeKind: "workflow",
+    status: "active",
+    priority: 50,
+    bodyMarkdown:
+      "If the primary purpose of an email is to deliver a receipt, confirmation, or account action notification, do not tag it as a newsletter regardless of the sender's domain or unsubscribe header presence.\n\nKey signals:\n- Subject contains \"receipt\", \"confirmation\", \"invoice\"\n- Sender is a known billing platform (stripe, shopify, etc.)\n- Email has no promotional imagery or marketing links",
+    createdBy: "manuel",
+    createdAt: "2026-04-01T00:00:00Z",
+    updatedAt: "2026-04-03T00:00:00Z",
+  },
+  {
+    id: "guideline-002",
+    slug: "billing-mail-classification",
+    title: "Billing and invoice classification",
+    scopeKind: "global",
+    status: "active",
+    priority: 30,
+    bodyMarkdown:
+      "Billing and invoice emails should be categorized separately from promotional mail regardless of sender domain. Look for keywords like invoice, receipt, payment, billing in the subject or body.",
+    createdBy: "manuel",
+    createdAt: "2026-03-28T00:00:00Z",
+    updatedAt: "2026-04-02T00:00:00Z",
+  },
+  {
+    id: "guideline-003",
+    slug: "sender-domain-normalization",
+    title: "Sender domain normalization",
+    scopeKind: "sender",
+    status: "draft",
+    priority: 0,
+    bodyMarkdown:
+      "When the same sender appears from multiple domains (e.g. notifications@company.com and noreply@company.com), treat them as the same sender for classification purposes.",
+    createdBy: "manuel",
+    createdAt: "2026-04-03T00:00:00Z",
+    updatedAt: "2026-04-03T00:00:00Z",
+  },
+  {
+    id: "guideline-004",
+    slug: "newsletter-vs-circular",
+    title: "Community circulars vs commercial newsletters",
+    scopeKind: "mailbox",
+    status: "archived",
+    priority: 20,
+    bodyMarkdown:
+      "Circular emails from community groups, school PTAs, and neighborhood associations are not commercial newsletters even if they have unsubscribe headers.",
+    createdBy: "manuel",
+    createdAt: "2026-03-20T00:00:00Z",
+    updatedAt: "2026-03-30T00:00:00Z",
+  },
+];

@@ -3,7 +3,6 @@ package annotationui
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,9 +13,12 @@ import (
 	"time"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 	"github.com/go-go-golems/smailnail/pkg/mirror"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type annotationUITestFixture struct {
@@ -84,10 +86,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []annotate.Annotation
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) != 2 {
-			t.Fatalf("expected 2 annotations, got %d", len(payload))
+		var payload annotationuiv1.AnnotationListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 2 {
+			t.Fatalf("expected 2 annotations, got %d", len(payload.Items))
 		}
 	})
 
@@ -97,8 +99,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload annotate.Annotation
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.Annotation
+		decodeProtoJSONResponse(t, rec, &payload)
 		if payload.ReviewState != annotate.ReviewStateReviewed {
 			t.Fatalf("reviewState = %q", payload.ReviewState)
 		}
@@ -111,10 +113,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		}
 
 		check := performRequest(t, handler, http.MethodGet, "/api/annotations?agentRunId=run-42", "")
-		var payload []annotate.Annotation
-		decodeJSONResponse(t, check, &payload)
+		var payload annotationuiv1.AnnotationListResponse
+		decodeProtoJSONResponse(t, check, &payload)
 		foundDismissed := 0
-		for _, annotation := range payload {
+		for _, annotation := range payload.Items {
 			if annotation.ReviewState == annotate.ReviewStateDismissed {
 				foundDismissed++
 			}
@@ -130,8 +132,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload annotate.GroupDetail
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.GroupDetail
+		decodeProtoJSONResponse(t, rec, &payload)
 		if len(payload.Members) != 2 {
 			t.Fatalf("expected 2 members, got %d", len(payload.Members))
 		}
@@ -143,10 +145,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []annotate.AnnotationLog
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) != 2 {
-			t.Fatalf("expected 2 logs, got %d", len(payload))
+		var payload annotationuiv1.LogListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 2 {
+			t.Fatalf("expected 2 logs, got %d", len(payload.Items))
 		}
 	})
 
@@ -156,13 +158,266 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload annotate.AgentRunDetail
-		decodeJSONResponse(t, rec, &payload)
-		if payload.RunID != "run-42" {
-			t.Fatalf("runID = %q", payload.RunID)
+		var payload annotationuiv1.AgentRunDetail
+		decodeProtoJSONResponse(t, rec, &payload)
+		if payload.RunId != "run-42" {
+			t.Fatalf("runID = %q", payload.RunId)
 		}
 		if len(payload.Annotations) != 2 || len(payload.Logs) != 2 || len(payload.Groups) != 1 {
 			t.Fatalf("unexpected detail sizes: annotations=%d logs=%d groups=%d", len(payload.Annotations), len(payload.Logs), len(payload.Groups))
+		}
+	})
+
+	t.Run("review annotation request accepts generated contract payload and creates feedback artifacts", func(t *testing.T) {
+		repo := annotate.NewRepository(db)
+		guideline, err := repo.CreateGuideline(context.Background(), annotate.CreateGuidelineInput{
+			Slug:         "artifact-linking-test",
+			Title:        "Artifact linking test",
+			ScopeKind:    annotate.GuidelineScopeWorkflow,
+			BodyMarkdown: "Use this to validate review request codegen.",
+			CreatedBy:    "tester",
+		})
+		if err != nil {
+			t.Fatalf("CreateGuideline() error = %v", err)
+		}
+
+		body := &annotationuiv1.ReviewAnnotationRequest{
+			ReviewState:  annotate.ReviewStateDismissed,
+			MailboxName:  "INBOX",
+			GuidelineIds: []string{guideline.ID},
+			Comment: &annotationuiv1.ReviewComment{
+				FeedbackKind: annotate.FeedbackKindRejectRequest,
+				Title:        "Needs human correction",
+				BodyMarkdown: "Generated through protojson request decoding.",
+			},
+		}
+		rec := performProtoRequest(t, handler, http.MethodPatch, "/api/annotations/"+fixture.AnnotationOneID+"/review", body)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var updated annotationuiv1.Annotation
+		decodeProtoJSONResponse(t, rec, &updated)
+		if updated.ReviewState != annotate.ReviewStateDismissed {
+			t.Fatalf("reviewState = %q", updated.ReviewState)
+		}
+
+		feedbackRec := performRequest(t, handler, http.MethodGet, "/api/review-feedback?agentRunId=run-42", "")
+		if feedbackRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", feedbackRec.Code, feedbackRec.Body.String())
+		}
+		var feedbackPayload annotationuiv1.ReviewFeedbackListResponse
+		decodeProtoJSONResponse(t, feedbackRec, &feedbackPayload)
+		if len(feedbackPayload.Items) == 0 {
+			t.Fatalf("expected feedback items, got 0")
+		}
+
+		guidelineRec := performRequest(t, handler, http.MethodGet, "/api/annotation-runs/run-42/guidelines", "")
+		if guidelineRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", guidelineRec.Code, guidelineRec.Body.String())
+		}
+		var guidelinePayload annotationuiv1.ReviewGuidelineListResponse
+		decodeProtoJSONResponse(t, guidelineRec, &guidelinePayload)
+		if len(guidelinePayload.Items) == 0 {
+			t.Fatalf("expected linked guideline items, got 0")
+		}
+	})
+
+	t.Run("feedback and guideline endpoints return generated contract shapes", func(t *testing.T) {
+		createFeedback := &annotationuiv1.CreateFeedbackRequest{
+			ScopeKind:    annotate.FeedbackScopeRun,
+			AgentRunId:   "run-42",
+			MailboxName:  "INBOX",
+			FeedbackKind: annotate.FeedbackKindComment,
+			Title:        "Run-level note",
+			BodyMarkdown: "Created through generated contract request.",
+			Targets: []*annotationuiv1.FeedbackTarget{{
+				TargetType: annotate.FeedbackScopeAnnotation,
+				TargetId:   fixture.AnnotationTwoID,
+			}},
+		}
+		feedbackCreateRec := performProtoRequest(t, handler, http.MethodPost, "/api/review-feedback", createFeedback)
+		if feedbackCreateRec.Code != http.StatusCreated {
+			t.Fatalf("status = %d body=%s", feedbackCreateRec.Code, feedbackCreateRec.Body.String())
+		}
+		var createdFeedback annotationuiv1.ReviewFeedback
+		decodeProtoJSONResponse(t, feedbackCreateRec, &createdFeedback)
+		if createdFeedback.Title != "Run-level note" {
+			t.Fatalf("title = %q", createdFeedback.Title)
+		}
+		status := annotate.FeedbackStatusResolved
+		feedbackUpdateRec := performProtoRequest(t, handler, http.MethodPatch, "/api/review-feedback/"+createdFeedback.Id, &annotationuiv1.UpdateFeedbackRequest{Status: &status})
+		if feedbackUpdateRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", feedbackUpdateRec.Code, feedbackUpdateRec.Body.String())
+		}
+		var updatedFeedback annotationuiv1.ReviewFeedback
+		decodeProtoJSONResponse(t, feedbackUpdateRec, &updatedFeedback)
+		if updatedFeedback.Status != annotate.FeedbackStatusResolved {
+			t.Fatalf("status = %q", updatedFeedback.Status)
+		}
+
+		createGuideline := &annotationuiv1.CreateGuidelineRequest{
+			Slug:         "proto-guideline",
+			Title:        "Proto-guideline",
+			ScopeKind:    annotate.GuidelineScopeGlobal,
+			BodyMarkdown: "Created through generated contract request.",
+		}
+		guidelineCreateRec := performProtoRequest(t, handler, http.MethodPost, "/api/review-guidelines", createGuideline)
+		if guidelineCreateRec.Code != http.StatusCreated {
+			t.Fatalf("status = %d body=%s", guidelineCreateRec.Code, guidelineCreateRec.Body.String())
+		}
+		var createdGuideline annotationuiv1.ReviewGuideline
+		decodeProtoJSONResponse(t, guidelineCreateRec, &createdGuideline)
+		if createdGuideline.Slug != "proto-guideline" {
+			t.Fatalf("slug = %q", createdGuideline.Slug)
+		}
+
+		updatedTitle := "Proto-guideline updated"
+		guidelineUpdateRec := performProtoRequest(t, handler, http.MethodPatch, "/api/review-guidelines/"+createdGuideline.Id, &annotationuiv1.UpdateGuidelineRequest{Title: &updatedTitle})
+		if guidelineUpdateRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", guidelineUpdateRec.Code, guidelineUpdateRec.Body.String())
+		}
+		var updatedGuideline annotationuiv1.ReviewGuideline
+		decodeProtoJSONResponse(t, guidelineUpdateRec, &updatedGuideline)
+		if updatedGuideline.Title != updatedTitle {
+			t.Fatalf("title = %q", updatedGuideline.Title)
+		}
+
+		feedbackListRec := performRequest(t, handler, http.MethodGet, "/api/review-feedback?agentRunId=run-42", "")
+		if feedbackListRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", feedbackListRec.Code, feedbackListRec.Body.String())
+		}
+		var feedbackList annotationuiv1.ReviewFeedbackListResponse
+		decodeProtoJSONResponse(t, feedbackListRec, &feedbackList)
+		if len(feedbackList.Items) == 0 {
+			t.Fatalf("expected feedback list items, got 0")
+		}
+
+		guidelineListRec := performRequest(t, handler, http.MethodGet, "/api/review-guidelines", "")
+		if guidelineListRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", guidelineListRec.Code, guidelineListRec.Body.String())
+		}
+		var guidelineList annotationuiv1.ReviewGuidelineListResponse
+		decodeProtoJSONResponse(t, guidelineListRec, &guidelineList)
+		if len(guidelineList.Items) == 0 {
+			t.Fatalf("expected guideline list items, got 0")
+		}
+
+		linkGuidelineRec := performProtoRequest(t, handler, http.MethodPost, "/api/annotation-runs/run-42/guidelines", &annotationuiv1.LinkRunGuidelineRequest{GuidelineId: createdGuideline.Id})
+		if linkGuidelineRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", linkGuidelineRec.Code, linkGuidelineRec.Body.String())
+		}
+
+		guidelineRunsRec := performRequest(t, handler, http.MethodGet, "/api/review-guidelines/"+createdGuideline.Id+"/runs", "")
+		if guidelineRunsRec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", guidelineRunsRec.Code, guidelineRunsRec.Body.String())
+		}
+		var guidelineRuns annotationuiv1.AgentRunListResponse
+		decodeProtoJSONResponse(t, guidelineRunsRec, &guidelineRuns)
+		if len(guidelineRuns.Items) != 1 {
+			t.Fatalf("expected 1 linked run, got %d", len(guidelineRuns.Items))
+		}
+		if guidelineRuns.Items[0].RunId != "run-42" {
+			t.Fatalf("runId = %q", guidelineRuns.Items[0].RunId)
+		}
+	})
+
+	t.Run("feedback list supports scopeKind filter", func(t *testing.T) {
+		repo := annotate.NewRepository(db)
+		_, err := repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeRun,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindComment,
+			Title:        "Run feedback",
+			BodyMarkdown: "Run scoped note",
+			CreatedBy:    "tester",
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(run) error = %v", err)
+		}
+		_, err = repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeAnnotation,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindClarification,
+			Title:        "Annotation feedback",
+			BodyMarkdown: "Annotation scoped note",
+			CreatedBy:    "tester",
+			Targets: []annotate.FeedbackTargetInput{{
+				TargetType: annotate.FeedbackScopeAnnotation,
+				TargetID:   fixture.AnnotationOneID,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(annotation) error = %v", err)
+		}
+
+		rec := performRequest(t, handler, http.MethodGet, "/api/review-feedback?agentRunId=run-42&scopeKind=run", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload annotationuiv1.ReviewFeedbackListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) == 0 {
+			t.Fatalf("expected scoped feedback items, got 0")
+		}
+		for _, item := range payload.Items {
+			if item.ScopeKind != annotate.FeedbackScopeRun {
+				t.Fatalf("unexpected scopeKind %q in filtered result", item.ScopeKind)
+			}
+		}
+	})
+
+	t.Run("feedback list supports target filters", func(t *testing.T) {
+		repo := annotate.NewRepository(db)
+		_, err := repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeAnnotation,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindRejectRequest,
+			Title:        "Needs correction",
+			BodyMarkdown: "Only for annotation one.",
+			CreatedBy:    "tester",
+			Targets: []annotate.FeedbackTargetInput{{
+				TargetType: annotate.FeedbackScopeAnnotation,
+				TargetID:   fixture.AnnotationOneID,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(targeted-1) error = %v", err)
+		}
+		_, err = repo.CreateReviewFeedback(context.Background(), annotate.CreateFeedbackInput{
+			ScopeKind:    annotate.FeedbackScopeAnnotation,
+			AgentRunID:   "run-42",
+			FeedbackKind: annotate.FeedbackKindClarification,
+			Title:        "Different target",
+			BodyMarkdown: "Only for annotation two.",
+			CreatedBy:    "tester",
+			Targets: []annotate.FeedbackTargetInput{{
+				TargetType: annotate.FeedbackScopeAnnotation,
+				TargetID:   fixture.AnnotationTwoID,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("CreateReviewFeedback(targeted-2) error = %v", err)
+		}
+
+		rec := performRequest(t, handler, http.MethodGet, "/api/review-feedback?scopeKind=annotation&targetType=annotation&targetId="+fixture.AnnotationOneID, "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload annotationuiv1.ReviewFeedbackListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) == 0 {
+			t.Fatalf("expected targeted feedback items, got 0")
+		}
+		for _, item := range payload.Items {
+			if item.ScopeKind != annotate.FeedbackScopeAnnotation {
+				t.Fatalf("unexpected scopeKind %q", item.ScopeKind)
+			}
+			if len(item.Targets) != 1 || item.Targets[0].TargetId != fixture.AnnotationOneID {
+				t.Fatalf("unexpected targets: %#v", item.Targets)
+			}
 		}
 	})
 
@@ -172,16 +427,16 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []SenderRow
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) != 1 {
-			t.Fatalf("expected 1 sender, got %d", len(payload))
+		var payload annotationuiv1.SenderListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 1 {
+			t.Fatalf("expected 1 sender, got %d", len(payload.Items))
 		}
-		if payload[0].Email != "news@example.com" {
-			t.Fatalf("email = %q", payload[0].Email)
+		if payload.Items[0].Email != "news@example.com" {
+			t.Fatalf("email = %q", payload.Items[0].Email)
 		}
-		if len(payload[0].Tags) != 1 {
-			t.Fatalf("expected 1 tag, got %d", len(payload[0].Tags))
+		if len(payload.Items[0].Tags) != 1 {
+			t.Fatalf("expected 1 tag, got %d", len(payload.Items[0].Tags))
 		}
 	})
 
@@ -191,8 +446,8 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload SenderDetail
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.SenderDetail
+		decodeProtoJSONResponse(t, rec, &payload)
 		if len(payload.Annotations) != 2 {
 			t.Fatalf("expected 2 annotations, got %d", len(payload.Annotations))
 		}
@@ -209,14 +464,77 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		}
 	})
 
+	t.Run("sender guideline endpoint groups linked guidelines by run", func(t *testing.T) {
+		repo := annotate.NewRepository(db)
+		guidelineOne, err := repo.CreateGuideline(context.Background(), annotate.CreateGuidelineInput{
+			Slug:         "sender-guideline-one",
+			Title:        "Sender guideline one",
+			ScopeKind:    annotate.GuidelineScopeWorkflow,
+			BodyMarkdown: "Applies to run 42 sender review.",
+			CreatedBy:    "tester",
+		})
+		if err != nil {
+			t.Fatalf("CreateGuideline(one) error = %v", err)
+		}
+		guidelineTwo, err := repo.CreateGuideline(context.Background(), annotate.CreateGuidelineInput{
+			Slug:         "sender-guideline-two",
+			Title:        "Sender guideline two",
+			ScopeKind:    annotate.GuidelineScopeWorkflow,
+			BodyMarkdown: "Also applies to run 42 sender review.",
+			CreatedBy:    "tester",
+		})
+		if err != nil {
+			t.Fatalf("CreateGuideline(two) error = %v", err)
+		}
+		if err := repo.LinkGuidelineToRun(context.Background(), "run-42", guidelineOne.ID, "tester"); err != nil {
+			t.Fatalf("LinkGuidelineToRun(one) error = %v", err)
+		}
+		if err := repo.LinkGuidelineToRun(context.Background(), "run-42", guidelineTwo.ID, "tester"); err != nil {
+			t.Fatalf("LinkGuidelineToRun(two) error = %v", err)
+		}
+
+		rec := performRequest(t, handler, http.MethodGet, "/api/mirror/senders/news%40example.com/guidelines", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload annotationuiv1.SenderGuidelineListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) != 1 {
+			t.Fatalf("expected 1 sender guideline group, got %d", len(payload.Items))
+		}
+		if payload.Items[0].RunId != "run-42" {
+			t.Fatalf("runId = %q", payload.Items[0].RunId)
+		}
+		if payload.Items[0].SourceLabel != "triage-agent-v1" {
+			t.Fatalf("sourceLabel = %q", payload.Items[0].SourceLabel)
+		}
+		if len(payload.Items[0].Guidelines) < 2 {
+			t.Fatalf("expected at least 2 guidelines, got %d", len(payload.Items[0].Guidelines))
+		}
+		foundOne := false
+		foundTwo := false
+		for _, guideline := range payload.Items[0].Guidelines {
+			if guideline.Slug == "sender-guideline-one" {
+				foundOne = true
+			}
+			if guideline.Slug == "sender-guideline-two" {
+				foundTwo = true
+			}
+		}
+		if !foundOne || !foundTwo {
+			t.Fatalf("expected sender guidelines to be present, got %#v", payload.Items[0].Guidelines)
+		}
+	})
+
 	t.Run("execute query returns rows", func(t *testing.T) {
 		rec := performRequest(t, handler, http.MethodPost, "/api/query/execute", `{"sql":"SELECT tag, COUNT(*) AS count FROM annotations GROUP BY tag ORDER BY tag ASC"}`)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload QueryResult
-		decodeJSONResponse(t, rec, &payload)
+		var payload annotationuiv1.QueryResult
+		decodeProtoJSONResponse(t, rec, &payload)
 		if len(payload.Columns) != 2 {
 			t.Fatalf("expected 2 columns, got %d", len(payload.Columns))
 		}
@@ -241,12 +559,12 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
 
-		var payload []SavedQuery
-		decodeJSONResponse(t, rec, &payload)
-		if len(payload) < 5 {
-			t.Fatalf("expected embedded plus external presets, got %d", len(payload))
+		var payload annotationuiv1.SavedQueryListResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Items) < 5 {
+			t.Fatalf("expected embedded plus external presets, got %d", len(payload.Items))
 		}
-		if !containsQueryNamed(payload, "sender-count") {
+		if !containsQueryNamed(payload.Items, "sender-count") {
 			t.Fatalf("expected external preset sender-count")
 		}
 	})
@@ -256,10 +574,10 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 		}
-		var initial []SavedQuery
-		decodeJSONResponse(t, rec, &initial)
-		if len(initial) != 1 {
-			t.Fatalf("expected 1 initial saved query, got %d", len(initial))
+		var initial annotationuiv1.SavedQueryListResponse
+		decodeProtoJSONResponse(t, rec, &initial)
+		if len(initial.Items) != 1 {
+			t.Fatalf("expected 1 initial saved query, got %d", len(initial.Items))
 		}
 
 		create := performRequest(t, handler, http.MethodPost, "/api/query/saved", `{"name":"my-senders","folder":"custom","description":"Custom sender analysis","sql":"SELECT email FROM senders ORDER BY email"}`)
@@ -267,17 +585,17 @@ func TestHandlerServesAnnotationAPIAndSPA(t *testing.T) {
 			t.Fatalf("status = %d body=%s", create.Code, create.Body.String())
 		}
 
-		var created SavedQuery
-		decodeJSONResponse(t, create, &created)
+		var created annotationuiv1.SavedQuery
+		decodeProtoJSONResponse(t, create, &created)
 		if created.Name != "my-senders" || created.Folder != "custom" {
-			t.Fatalf("unexpected created query: %#v", created)
+			t.Fatalf("unexpected created query: name=%q folder=%q", created.Name, created.Folder)
 		}
 
 		after := performRequest(t, handler, http.MethodGet, "/api/query/saved", "")
-		var saved []SavedQuery
-		decodeJSONResponse(t, after, &saved)
-		if len(saved) != 2 {
-			t.Fatalf("expected 2 saved queries, got %d", len(saved))
+		var saved annotationuiv1.SavedQueryListResponse
+		decodeProtoJSONResponse(t, after, &saved)
+		if len(saved.Items) != 2 {
+			t.Fatalf("expected 2 saved queries, got %d", len(saved.Items))
 		}
 	})
 }
@@ -503,16 +821,25 @@ func performRequest(t *testing.T, handler http.Handler, method, path, body strin
 	return rec
 }
 
-func decodeJSONResponse(t *testing.T, rec *httptest.ResponseRecorder, dest any) {
+func performProtoRequest(t *testing.T, handler http.Handler, method, path string, msg proto.Message) *httptest.ResponseRecorder {
 	t.Helper()
-	if err := json.NewDecoder(rec.Body).Decode(dest); err != nil {
-		t.Fatalf("Decode() error = %v body=%s", err, rec.Body.String())
+	body, err := protojson.Marshal(msg)
+	if err != nil {
+		t.Fatalf("protojson.Marshal() error = %v", err)
+	}
+	return performRequest(t, handler, method, path, string(body))
+}
+
+func decodeProtoJSONResponse(t *testing.T, rec *httptest.ResponseRecorder, dest proto.Message) {
+	t.Helper()
+	if err := protojson.Unmarshal(rec.Body.Bytes(), dest); err != nil {
+		t.Fatalf("protojson.Unmarshal() error = %v body=%s", err, rec.Body.String())
 	}
 }
 
-func containsQueryNamed(queries []SavedQuery, name string) bool {
+func containsQueryNamed(queries []*annotationuiv1.SavedQuery, name string) bool {
 	for _, query := range queries {
-		if query.Name == name {
+		if query.GetName() == name {
 			return true
 		}
 	}

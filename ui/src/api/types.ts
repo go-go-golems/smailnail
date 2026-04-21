@@ -1,193 +1,109 @@
-// API response envelope
-export interface ApiResponse<T> {
-  data: T;
-  meta?: Record<string, unknown>;
-}
+import type {
+  Account as GeneratedAccount,
+  AccountListItem as GeneratedAccountListItem,
+  AccountResponse,
+  CreateAccountRequest,
+  CreateRuleRequest,
+  CurrentUser as GeneratedCurrentUser,
+  CurrentUserResponse,
+  DryRunResult as GeneratedDryRunResult,
+  DryRunRuleRequest,
+  DryRunRuleResponse,
+  ErrorResponse,
+  GetMessageResponse,
+  InfoResponse,
+  ListAccountsMeta,
+  ListAccountsResponse,
+  ListMailboxesMeta,
+  ListMailboxesResponse,
+  ListMessagesMeta,
+  ListMessagesRequest,
+  ListMessagesResponse,
+  ListRulesMeta,
+  ListRulesResponse,
+  MailboxInfo as GeneratedMailboxInfo,
+  MessageView as GeneratedMessageView,
+  RuleRecord as GeneratedRuleRecord,
+  RuleResponse,
+  TestAccountRequest,
+  TestAccountResponse,
+  TestResult as GeneratedTestResult,
+  UpdateAccountRequest,
+  UpdateRuleRequest,
+} from "../gen/smailnail/app/v1/hosted";
 
-export interface ApiError {
-  error: {
-    code: string;
-    message: string;
-    details?: Record<string, unknown>;
-  };
-}
+export type ApiError = ErrorResponse;
+export type AppInfo = InfoResponse;
 
-export interface CurrentUser {
-  id: string;
-  primaryEmail?: string;
-  displayName?: string;
-  avatarUrl?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
+export type CurrentUser = GeneratedCurrentUser;
+export type GetCurrentUserResponse = Omit<CurrentUserResponse, "data"> & { data: CurrentUser };
 
-// Account types matching backend JSON shapes
-export interface Account {
-  id: string;
-  userId: string;
-  label: string;
-  providerHint: string;
-  server: string;
-  port: number;
-  username: string;
-  mailboxDefault: string;
-  insecure: boolean;
-  authKind: string;
-  secretKeyId: string;
-  isDefault: boolean;
-  mcpEnabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+export type Account = GeneratedAccount;
+export type LatestTestSummary = NonNullable<GeneratedAccountListItem["latestTest"]>;
+export type AccountListItem = GeneratedAccountListItem;
+export type AccountsMeta = ListAccountsMeta;
+export type AccountsResponse = ListAccountsResponse;
+export type GetAccountResponse = Omit<AccountResponse, "data"> & { data: Account };
+export type CreateAccountResponse = Omit<AccountResponse, "data"> & { data: Account };
+export type UpdateAccountResponse = Omit<AccountResponse, "data"> & { data: Account };
 
-export interface LatestTestSummary {
-  success: boolean;
-  warningCode?: string;
-  errorCode?: string;
-  createdAt: string;
-}
-
-export interface AccountListItem extends Account {
-  latestTest?: LatestTestSummary;
-}
-
-export interface CreateAccountInput {
-  label: string;
+export type CreateAccountInput = Omit<
+  CreateAccountRequest,
+  "providerHint" | "insecure" | "authKind" | "isDefault" | "mcpEnabled"
+> & {
   providerHint?: string;
-  server: string;
-  port: number;
-  username: string;
-  password: string;
-  mailboxDefault: string;
   insecure?: boolean;
   authKind?: string;
   isDefault?: boolean;
   mcpEnabled?: boolean;
-}
+};
 
-export interface UpdateAccountInput {
-  label?: string;
-  providerHint?: string;
-  server?: string;
-  port?: number;
-  username?: string;
-  password?: string;
-  mailboxDefault?: string;
-  insecure?: boolean;
-  authKind?: string;
-  isDefault?: boolean;
-  mcpEnabled?: boolean;
-}
+export type UpdateAccountInput = UpdateAccountRequest;
 
-export interface TestResult {
-  id: string;
-  imapAccountId: string;
-  testMode: string;
-  success: boolean;
-  tcpOk: boolean;
-  loginOk: boolean;
-  mailboxSelectOk: boolean;
-  listOk: boolean;
-  sampleFetchOk: boolean;
-  writeProbeOk?: boolean;
-  warningCode?: string;
-  errorCode?: string;
-  errorMessage?: string;
-  detailsJson: string;
-  createdAt: string;
-}
+export type TestResult = Omit<GeneratedTestResult, "details"> & {
+  details?: Record<string, unknown>;
+};
+export type TestInput = TestAccountRequest;
+export type TestAccountResultResponse = Omit<TestAccountResponse, "data"> & { data: TestResult };
 
-export interface TestInput {
-  mode?: string;
-}
+export type MailboxInfo = GeneratedMailboxInfo;
+export type MailboxesMeta = ListMailboxesMeta;
+export type MailboxesResponse = ListMailboxesResponse;
 
-// Mailbox types
-export interface MailboxInfo {
-  name: string;
-  path: string;
-}
+export type MessageView = Omit<GeneratedMessageView, "from" | "to" | "mimeParts"> & {
+  from?: GeneratedMessageView["from"];
+  to?: GeneratedMessageView["to"];
+  mimeParts?: GeneratedMessageView["mimeParts"];
+};
 
-// Message types
-export interface AddressView {
-  name?: string;
-  address: string;
-}
-
-export interface MimePartView {
-  type?: string;
-  subtype?: string;
-  size?: number;
-  content?: string;
-  filename?: string;
-  charset?: string;
-}
-
-export interface MessageView {
-  uid: number;
-  seqNum: number;
-  subject?: string;
-  from?: AddressView[];
-  to?: AddressView[];
-  date?: string;
-  flags?: string[];
-  size: number;
-  mimeParts?: MimePartView[];
-  totalCount?: number;
-}
-
-export interface ListMessagesParams {
-  mailbox: string;
+export type ListMessagesParams = Omit<
+  ListMessagesRequest,
+  "limit" | "offset" | "query" | "unreadOnly" | "includeContent" | "contentType"
+> & {
   limit?: number;
   offset?: number;
   query?: string;
   unreadOnly?: boolean;
   includeContent?: boolean;
   contentType?: string;
-}
+};
 
-// Rule types
-export interface RuleRecord {
-  id: string;
-  userId: string;
-  imapAccountId: string;
-  name: string;
-  description: string;
-  status: string;
-  sourceKind: string;
-  ruleYaml: string;
-  lastPreviewCount: number;
-  lastRunAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+export type MessagesMeta = ListMessagesMeta;
+export type MessagesResponse = ListMessagesResponse;
+export type MessageResponse = Omit<GetMessageResponse, "data"> & { data: MessageView };
 
-export interface CreateRuleInput {
-  imapAccountId: string;
-  name: string;
-  description: string;
-  status: string;
-  sourceKind: string;
-  ruleYaml: string;
-}
+export type RuleRecord = GeneratedRuleRecord;
+export type RulesMeta = ListRulesMeta;
+export type RulesResponse = ListRulesResponse;
+export type GetRuleResponse = Omit<RuleResponse, "data"> & { data: RuleRecord };
+export type CreateRuleResponse = Omit<RuleResponse, "data"> & { data: RuleRecord };
+export type UpdateRuleResponse = Omit<RuleResponse, "data"> & { data: RuleRecord };
 
-export interface UpdateRuleInput {
-  imapAccountId?: string;
-  name?: string;
-  description?: string;
-  status?: string;
-  sourceKind?: string;
-  ruleYaml?: string;
-}
-
-export interface DryRunInput {
-  imapAccountId?: string;
-}
-
-export interface DryRunResult {
-  ruleId: string;
-  imapAccountId: string;
-  matchedCount: number;
-  actionPlan: Record<string, unknown>;
+export type CreateRuleInput = CreateRuleRequest;
+export type UpdateRuleInput = UpdateRuleRequest;
+export type DryRunInput = DryRunRuleRequest;
+export type DryRunResult = Omit<GeneratedDryRunResult, "actionPlan" | "sampleRows"> & {
+  actionPlan?: Record<string, unknown>;
   sampleRows: MessageView[];
-  createdAt: string;
-}
+};
+export type DryRunResponse = Omit<DryRunRuleResponse, "data"> & { data: DryRunResult };

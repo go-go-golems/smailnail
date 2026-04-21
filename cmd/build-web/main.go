@@ -71,6 +71,11 @@ func buildAndExportFrontend(ctx context.Context) error {
 		return errors.Wrap(err, "export built frontend into embed/public")
 	}
 
+	gitkeepPath := filepath.Join(embedDir, ".gitkeep")
+	if err := os.WriteFile(gitkeepPath, []byte{}, 0644); err != nil {
+		return errors.Wrap(err, "create .gitkeep in embed/public")
+	}
+
 	return nil
 }
 

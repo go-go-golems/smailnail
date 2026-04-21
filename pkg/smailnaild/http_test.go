@@ -3,13 +3,13 @@ package smailnaild
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	appv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/app/v1"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/accounts"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/identity"
 	"github.com/go-go-golems/smailnail/pkg/smailnaild/rules"
@@ -17,6 +17,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type fakeAccountAPI struct {
@@ -166,17 +168,15 @@ func TestNewHandlerHealthAndInfo(t *testing.T) {
 		t.Fatalf("api/info status = %d", infoRec.Code)
 	}
 
-	var payload infoResponse
-	if err := json.Unmarshal(infoRec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("failed to decode info response: %v", err)
-	}
+	var payload appv1.InfoResponse
+	decodeProtoJSONResponse(t, infoRec, &payload)
 	if payload.Service != "smailnaild" {
 		t.Fatalf("unexpected service: %q", payload.Service)
 	}
-	if payload.Database.Driver != "sqlite3" {
-		t.Fatalf("unexpected database driver: %q", payload.Database.Driver)
+	if payload.GetDatabase().GetDriver() != "sqlite3" {
+		t.Fatalf("unexpected database driver: %q", payload.GetDatabase().GetDriver())
 	}
-	if !payload.StartedAt.Equal(startedAt) {
+	if payload.StartedAt != startedAt.Format(time.RFC3339Nano) {
 		t.Fatalf("unexpected startedAt: %v", payload.StartedAt)
 	}
 }
@@ -255,6 +255,11 @@ func TestNewHandlerAccountAndRuleRoutes(t *testing.T) {
 		if accountAPI.lastCreateInput.Label != "Work" {
 			t.Fatalf("last label = %q", accountAPI.lastCreateInput.Label)
 		}
+		var payload appv1.AccountResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if payload.GetData().GetId() != "acc-1" {
+			t.Fatalf("account id = %q", payload.GetData().GetId())
+		}
 	})
 
 	t.Run("list messages parses query params", func(t *testing.T) {
@@ -267,6 +272,11 @@ func TestNewHandlerAccountAndRuleRoutes(t *testing.T) {
 		}
 		if accountAPI.lastListInput.Mailbox != "Archive" || accountAPI.lastListInput.Limit != 5 || accountAPI.lastListInput.Offset != 2 || !accountAPI.lastListInput.UnreadOnly {
 			t.Fatalf("unexpected list input: %+v", accountAPI.lastListInput)
+		}
+		var payload appv1.ListMessagesResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if len(payload.Data) != 1 || payload.GetMeta().GetTotalCount() != 1 {
+			t.Fatalf("unexpected list messages payload: count=%d totalCount=%d", len(payload.Data), payload.GetMeta().GetTotalCount())
 		}
 	})
 
@@ -293,6 +303,11 @@ func TestNewHandlerAccountAndRuleRoutes(t *testing.T) {
 		}
 		if ruleAPI.lastDryRunInput.IMAPAccountID != "acc-1" {
 			t.Fatalf("unexpected dry-run input: %+v", ruleAPI.lastDryRunInput)
+		}
+		var payload appv1.DryRunRuleResponse
+		decodeProtoJSONResponse(t, rec, &payload)
+		if payload.GetData().GetImapAccountId() != "acc-1" {
+			t.Fatalf("unexpected dry-run payload account: %q", payload.GetData().GetImapAccountId())
 		}
 	})
 
@@ -363,14 +378,10 @@ func TestNewHandlerMeRouteWithSessionCookie(t *testing.T) {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
 
-	var payload struct {
-		Data identity.User `json:"data"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("failed to decode me response: %v", err)
-	}
-	if payload.Data.ID != "user-1" {
-		t.Fatalf("user id = %q", payload.Data.ID)
+	var payload appv1.CurrentUserResponse
+	decodeProtoJSONResponse(t, rec, &payload)
+	if payload.GetData().GetId() != "user-1" {
+		t.Fatalf("user id = %q", payload.GetData().GetId())
 	}
 }
 
@@ -416,6 +427,13 @@ func TestNewHandlerMeRouteRejectsExpiredSession(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func decodeProtoJSONResponse(t *testing.T, rec *httptest.ResponseRecorder, dest proto.Message) {
+	t.Helper()
+	if err := protojson.Unmarshal(rec.Body.Bytes(), dest); err != nil {
+		t.Fatalf("protojson.Unmarshal() error = %v body=%s", err, rec.Body.String())
 	}
 }
 

@@ -21,6 +21,8 @@ export interface BatchActionBarProps {
   onApprove: () => void;
   /** Dismiss selected items */
   onDismiss: () => void;
+  /** Reject and explain (opens comment drawer) */
+  onRejectExplain?: () => void;
   /** Reset selected items to to_review */
   onReset?: () => void;
 }
@@ -32,6 +34,7 @@ export function BatchActionBar({
   onToggleAll,
   onApprove,
   onDismiss,
+  onRejectExplain,
   onReset,
 }: BatchActionBarProps) {
   const hasSelection = selectedCount > 0;
@@ -86,6 +89,18 @@ export function BatchActionBar({
         >
           Dismiss
         </Button>
+        {onRejectExplain && (
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            startIcon={<CancelIcon />}
+            disabled={!hasSelection}
+            onClick={onRejectExplain}
+          >
+            Reject & Explain
+          </Button>
+        )}
         {onReset && (
           <Button
             size="small"

@@ -8,10 +8,12 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-go-golems/smailnail/pkg/annotate"
+	annotationuiv1 "github.com/go-go-golems/smailnail/pkg/gen/smailnail/annotationui/v1"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -37,13 +39,6 @@ type HandlerOptions struct {
 	PublicFS   fs.FS
 }
 
-type infoResponse struct {
-	Service   string       `json:"service"`
-	Version   string       `json:"version"`
-	StartedAt time.Time    `json:"startedAt"`
-	Database  DatabaseInfo `json:"database"`
-}
-
 type appHandler struct {
 	db          *sqlx.DB
 	dbInfo      DatabaseInfo
@@ -53,6 +48,8 @@ type appHandler struct {
 	presetDirs  []string
 	publicFS    fs.FS
 }
+
+const defaultAnnotationUIActor = "local-reviewer"
 
 func NewHTTPServer(options ServerOptions) *http.Server {
 	return &http.Server{
@@ -141,11 +138,11 @@ func (h *appHandler) registerHealthRoutes(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, infoResponse{
+		writeProtoJSON(w, http.StatusOK, &annotationuiv1.InfoResponse{
 			Service:   "smailnail-sqlite",
 			Version:   "dev",
-			StartedAt: h.startedAt,
-			Database:  h.dbInfo,
+			StartedAt: formatProtoTime(h.startedAt),
+			Database:  databaseInfoToProto(h.dbInfo),
 		})
 	})
 }
@@ -167,6 +164,25 @@ func (h *appHandler) registerAPIRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/mirror/senders", h.handleListSenders)
 	mux.HandleFunc("GET /api/mirror/senders/{email}", h.handleGetSender)
+	mux.HandleFunc("GET /api/mirror/senders/{email}/guidelines", h.handleListSenderGuidelines)
+
+	// ── Review feedback ────────────────────────────────────────────
+	mux.HandleFunc("GET /api/review-feedback", h.handleListFeedback)
+	mux.HandleFunc("GET /api/review-feedback/{id}", h.handleGetFeedback)
+	mux.HandleFunc("POST /api/review-feedback", h.handleCreateFeedback)
+	mux.HandleFunc("PATCH /api/review-feedback/{id}", h.handleUpdateFeedback)
+
+	// ── Review guidelines ──────────────────────────────────────────────
+	mux.HandleFunc("GET /api/review-guidelines", h.handleListGuidelines)
+	mux.HandleFunc("GET /api/review-guidelines/{id}", h.handleGetGuideline)
+	mux.HandleFunc("GET /api/review-guidelines/{id}/runs", h.handleListGuidelineRuns)
+	mux.HandleFunc("POST /api/review-guidelines", h.handleCreateGuideline)
+	mux.HandleFunc("PATCH /api/review-guidelines/{id}", h.handleUpdateGuideline)
+
+	// ── Run-guideline links ────────────────────────────────────────────
+	mux.HandleFunc("GET /api/annotation-runs/{id}/guidelines", h.handleListRunGuidelines)
+	mux.HandleFunc("POST /api/annotation-runs/{id}/guidelines", h.handleLinkRunGuideline)
+	mux.HandleFunc("DELETE /api/annotation-runs/{id}/guidelines/{guidelineId}", h.handleUnlinkRunGuideline)
 
 	mux.HandleFunc("POST /api/query/execute", h.handleExecuteQuery)
 	mux.HandleFunc("GET /api/query/presets", h.handleGetPresets)
@@ -238,37 +254,31 @@ func writeNotFound(w http.ResponseWriter, message string) {
 	})
 }
 
-func decodeJSONBody(w http.ResponseWriter, r *http.Request, dest any) bool {
-	defer func() {
-		_ = r.Body.Close()
-	}()
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(dest); err != nil {
-		writeMessageError(w, http.StatusBadRequest, errors.Wrap(err, "decode json").Error())
-		return false
+func requestReviewActor(r *http.Request) string {
+	if r == nil {
+		return defaultAnnotationUIActor
 	}
-	if decoder.More() {
-		writeMessageError(w, http.StatusBadRequest, "request body must contain a single JSON object")
-		return false
+	for _, header := range []string{"X-Smailnail-User", "X-Forwarded-User", "X-Remote-User", "X-User"} {
+		if value := strings.TrimSpace(r.Header.Get(header)); value != "" {
+			return value
+		}
 	}
-	return true
+	return defaultAnnotationUIActor
 }
 
-func parseLimitQuery(r *http.Request, key string, defaultValue int) (int, error) {
+func parseLimitQuery(r *http.Request, key string, defaultValue int32) (int32, error) {
 	raw := strings.TrimSpace(r.URL.Query().Get(key))
 	if raw == "" {
 		return defaultValue, nil
 	}
-	var value int
-	if _, err := fmt.Sscanf(raw, "%d", &value); err != nil {
+	value, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
 		return 0, errors.Wrapf(err, "parse %s", key)
 	}
 	if value <= 0 {
 		return 0, fmt.Errorf("%s must be positive", key)
 	}
-	return value, nil
+	return int32(value), nil
 }
 
 func normalizeDirList(dirs []string) []string {

@@ -1,0 +1,6 @@
+# Changelog
+
+## 2026-04-06
+
+- Initial workspace created
+

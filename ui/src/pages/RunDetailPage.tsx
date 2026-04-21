@@ -9,6 +9,8 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   useGetRunQuery,
+  useGetRunGuidelinesQuery,
+  useListReviewFeedbackQuery,
   useBatchReviewMutation,
   useReviewAnnotationMutation,
 } from "../api/annotations";
@@ -16,17 +18,34 @@ import { StatBox } from "../components/shared";
 import { AnnotationTable } from "../components/AnnotationTable";
 import { RunTimeline } from "../components/RunTimeline";
 import { GroupCard } from "../components/GroupCard";
+import { RunGuidelineSection } from "../components/RunGuideline";
+import { RunFeedbackSection, ReviewCommentDrawer } from "../components/ReviewFeedback";
 import type { Annotation } from "../types/annotations";
+import type { FeedbackKind } from "../types/reviewFeedback";
 
 export function RunDetailPage() {
   const { runId } = useParams<{ runId: string }>();
   const navigate = useNavigate();
-  const { data: run, isLoading } = useGetRunQuery(runId ?? "");
-  const [batchReview] = useBatchReviewMutation();
-  const [reviewAnnotation] = useReviewAnnotationMutation();
-
   const [selected, setSelected] = useState<string[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [commentAnnotation, setCommentAnnotation] = useState<Annotation | null>(null);
+
+  const { data: run, isLoading } = useGetRunQuery(runId ?? "");
+  const { data: linkedGuidelines = [] } = useGetRunGuidelinesQuery(runId ?? "", { skip: !runId });
+  const { data: feedback = [] } = useListReviewFeedbackQuery(
+    { agentRunId: runId, scopeKind: "run" },
+    { skip: !runId },
+  );
+  const { data: annotationFeedback = [] } = useListReviewFeedbackQuery(
+    {
+      scopeKind: "annotation",
+      targetType: "annotation",
+      targetId: expandedId ?? "",
+    },
+    { skip: !expandedId },
+  );
+  const [batchReview] = useBatchReviewMutation();
+  const [reviewAnnotation] = useReviewAnnotationMutation();
 
   const annotations = run?.annotations ?? [];
   const logs = run?.logs ?? [];
@@ -54,6 +73,68 @@ export function RunDetailPage() {
       prev.length === annotations.length ? [] : annotations.map((a) => a.id),
     );
   }, [annotations]);
+
+  const handleToggleExpand = useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const handleApprove = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "reviewed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleDismiss = useCallback(
+    (id: string) => {
+      void reviewAnnotation({ id, reviewState: "dismissed" });
+    },
+    [reviewAnnotation],
+  );
+
+  const handleNavigateTarget = useCallback(
+    (targetType: string, targetId: string) => {
+      if (targetType === "sender") {
+        navigate(`/annotations/senders/${encodeURIComponent(targetId)}`);
+      }
+    },
+    [navigate],
+  );
+
+  const handleDismissExplain = useCallback(
+    (id: string) => {
+      const annotation = annotations.find((item) => item.id === id) ?? null;
+      setCommentAnnotation(annotation);
+    },
+    [annotations],
+  );
+
+  const handleCommentSubmit = useCallback(
+    (payload: {
+      feedbackKind: FeedbackKind;
+      title: string;
+      bodyMarkdown: string;
+      guidelineIds: string[];
+    }) => {
+      if (!commentAnnotation) {
+        return;
+      }
+
+      void reviewAnnotation({
+        id: commentAnnotation.id,
+        reviewState: "dismissed",
+        comment: {
+          feedbackKind: payload.feedbackKind,
+          title: payload.title,
+          bodyMarkdown: payload.bodyMarkdown,
+        },
+        guidelineIds:
+          payload.guidelineIds.length > 0 ? payload.guidelineIds : undefined,
+      });
+      setCommentAnnotation(null);
+    },
+    [commentAnnotation, reviewAnnotation],
+  );
 
   const pendingIds = useMemo(
     () =>
@@ -146,6 +227,14 @@ export function RunDetailPage() {
         />
       </Stack>
 
+      {/* Linked Guidelines */}
+      <Divider sx={{ my: 3 }} />
+      <RunGuidelineSection
+        runId={runId ?? ""}
+        guidelines={linkedGuidelines}
+        onCreateAndLink={() => navigate(`/annotations/guidelines/new?runId=${runId}`)}
+      />
+
       {/* Timeline */}
       {logs.length > 0 && (
         <>
@@ -156,6 +245,13 @@ export function RunDetailPage() {
           <Divider sx={{ my: 3 }} />
         </>
       )}
+
+      {/* Run-Level Feedback */}
+      <Divider sx={{ my: 3 }} />
+      <RunFeedbackSection
+        runId={runId ?? ""}
+        feedback={feedback}
+      />
 
       {/* Groups */}
       {groups.length > 0 && (
@@ -190,23 +286,29 @@ export function RunDetailPage() {
         expandedId={expandedId}
         onToggleSelect={handleToggleSelect}
         onToggleAll={handleToggleAll}
-        onToggleExpand={(id) =>
-          setExpandedId((prev) => (prev === id ? null : id))
-        }
-        onApprove={(id) =>
-          void reviewAnnotation({ id, reviewState: "reviewed" })
-        }
-        onDismiss={(id) =>
-          void reviewAnnotation({ id, reviewState: "dismissed" })
-        }
-        onNavigateTarget={(targetType, targetId) => {
-          if (targetType === "sender") {
-            navigate(
-              `/annotations/senders/${encodeURIComponent(targetId)}`,
-            );
-          }
-        }}
+        onToggleExpand={handleToggleExpand}
+        onApprove={handleApprove}
+        onDismiss={handleDismiss}
+        onDismissExplain={handleDismissExplain}
+        onNavigateTarget={handleNavigateTarget}
         getRelated={getRelated}
+        getFeedback={(annotation) =>
+          expandedId === annotation.id ? annotationFeedback : []
+        }
+        getGuidelines={(annotation) =>
+          expandedId === annotation.id && annotation.agentRunId === (runId ?? "")
+            ? linkedGuidelines
+            : []
+        }
+      />
+
+      <ReviewCommentDrawer
+        open={commentAnnotation !== null}
+        mode="single"
+        targetCount={1}
+        agentRunId={commentAnnotation?.agentRunId}
+        onSubmit={handleCommentSubmit}
+        onCancel={() => setCommentAnnotation(null)}
       />
     </Box>
   );

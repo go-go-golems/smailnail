@@ -47,15 +47,7 @@ export function TestResultView({
     ? warningMessages[testResult.warningCode]
     : null;
 
-  // Parse details for sample info
-  let details: Record<string, unknown> = {};
-  if (testResult.detailsJson) {
-    try {
-      details = JSON.parse(testResult.detailsJson);
-    } catch {
-      // ignore
-    }
-  }
+  const details = testResult.details ?? {};
 
   return (
     <div

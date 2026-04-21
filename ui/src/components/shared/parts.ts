@@ -14,4 +14,8 @@ export const parts = {
   filterPills: "filter-pills",
   countSummary: "count-summary",
   markdownBody: "markdown-body",
+  mailboxBadge: "mailbox-badge",
+  feedbackStatusBadge: "feedback-status-badge",
+  feedbackKindBadge: "feedback-kind-badge",
+  guidelineScopeBadge: "guideline-scope-badge",
 } as const;

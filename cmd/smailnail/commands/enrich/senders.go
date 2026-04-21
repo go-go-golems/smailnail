@@ -20,8 +20,12 @@ type SendersCommand struct {
 }
 
 type sendersSettings struct {
-	enrichSettings
-	ShowPrivateRelay bool `glazed:"show-private-relay"`
+	SQLitePath       string `glazed:"sqlite-path"`
+	AccountKey       string `glazed:"account-key"`
+	Mailbox          string `glazed:"mailbox"`
+	Rebuild          bool   `glazed:"rebuild"`
+	DryRun           bool   `glazed:"dry-run"`
+	ShowPrivateRelay bool   `glazed:"show-private-relay"`
 }
 
 func NewSendersCommand() (*SendersCommand, error) {
@@ -58,7 +62,7 @@ func NewSendersCommand() (*SendersCommand, error) {
 func (c *SendersCommand) RunIntoGlazeProcessor(ctx context.Context, parsedValues *values.Values, gp middlewares.Processor) error {
 	settings := &sendersSettings{}
 	if err := parsedValues.DecodeSectionInto("enrich-senders", settings); err != nil {
-		return err
+		return fmt.Errorf("DecodeSectionInto failed: %w", err)
 	}
 	if err := requireSQLitePath(settings.SQLitePath); err != nil {
 		return err
@@ -70,7 +74,13 @@ func (c *SendersCommand) RunIntoGlazeProcessor(ctx context.Context, parsedValues
 	}
 	defer cleanup()
 
-	report, err := (&enrichpkg.SenderEnricher{}).Enrich(ctx, db, toOptions(settings.enrichSettings))
+	report, err := (&enrichpkg.SenderEnricher{}).Enrich(ctx, db, toOptions(enrichSettings{
+		SQLitePath: settings.SQLitePath,
+		AccountKey: settings.AccountKey,
+		Mailbox:    settings.Mailbox,
+		Rebuild:    settings.Rebuild,
+		DryRun:     settings.DryRun,
+	}))
 	if err != nil {
 		return err
 	}
