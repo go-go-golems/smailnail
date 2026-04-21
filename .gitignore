@@ -23,3 +23,7 @@ dist/
 .specstory
 data/
 tmp/
+
+# Generated embed assets
+pkg/smailnaild/web/embed/public/*
+!pkg/smailnaild/web/embed/public/.gitkeep

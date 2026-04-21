@@ -27,6 +27,7 @@ func writeProtoJSON(w http.ResponseWriter, statusCode int, payload proto.Message
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
+	// #nosec G705 -- body is JSON from protojson.Marshal, not user-controlled HTML/JS
 	_, _ = w.Write(body)
 }
 
