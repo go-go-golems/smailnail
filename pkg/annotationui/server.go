@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -276,6 +277,9 @@ func parseLimitQuery(r *http.Request, key string, defaultValue int) (int, error)
 	}
 	if value <= 0 {
 		return 0, fmt.Errorf("%s must be positive", key)
+	}
+	if value > math.MaxInt32 {
+		value = math.MaxInt32
 	}
 	return value, nil
 }
