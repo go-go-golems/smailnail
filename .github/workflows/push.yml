@@ -18,6 +18,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - run: go install github.com/bufbuild/buf/cmd/buf@v1.68.3
       -
         name: generate assets
         run: go generate ./...
