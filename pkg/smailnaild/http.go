@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -641,6 +642,9 @@ func parseOptionalInt(raw string, defaultValue int) (int, error) {
 	value, err := strconv.Atoi(raw)
 	if err != nil {
 		return 0, err
+	}
+	if value > math.MaxInt32 {
+		value = math.MaxInt32
 	}
 	return value, nil
 }

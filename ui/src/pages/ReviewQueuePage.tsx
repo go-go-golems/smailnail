@@ -74,7 +74,7 @@ export function ReviewQueuePage() {
   );
   const singleSelectedRunId =
     selectedRunIds.length === 1 ? selectedRunIds[0] : undefined;
-  const guidelinesEnabled = selectedRunIds.length <= 1;
+  const guidelinesEnabled = selectedRunIds.length === 1;
 
   // Compute tag counts for filter pills from the pending-review population.
   const { data: allAnnotations = [] } = useListAnnotationsQuery({

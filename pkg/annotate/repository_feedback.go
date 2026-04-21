@@ -560,7 +560,7 @@ func (r *Repository) ReviewAnnotationWithArtifacts(ctx context.Context, input Re
 		return nil, err
 	}
 
-	if input.Comment != nil && strings.TrimSpace(input.Comment.BodyMarkdown) != "" {
+	if input.Comment != nil && (strings.TrimSpace(input.Comment.Title) != "" || strings.TrimSpace(input.Comment.BodyMarkdown) != "") {
 		if _, err := r.createReviewFeedbackTx(ctx, tx, CreateFeedbackInput{
 			ScopeKind:    FeedbackScopeAnnotation,
 			AgentRunID:   annotation.AgentRunID,
@@ -621,7 +621,7 @@ func (r *Repository) BatchReviewWithArtifacts(ctx context.Context, input BatchRe
 		}
 	}
 
-	if input.Comment != nil && strings.TrimSpace(input.Comment.BodyMarkdown) != "" {
+	if input.Comment != nil && (strings.TrimSpace(input.Comment.Title) != "" || strings.TrimSpace(input.Comment.BodyMarkdown) != "") {
 		targets := make([]FeedbackTargetInput, 0, len(trimmedIDs))
 		for _, id := range trimmedIDs {
 			targets = append(targets, FeedbackTargetInput{TargetType: FeedbackScopeAnnotation, TargetID: id})
