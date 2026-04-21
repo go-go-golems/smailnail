@@ -608,17 +608,14 @@ func shouldSkipHostedRequestDebugLogging(r *http.Request) bool {
 
 func parseListMessagesRequest(r *http.Request) (*appv1.ListMessagesRequest, error) {
 	query := r.URL.Query()
-	limit, err := parseOptionalInt(query.Get("limit"), 20)
+	limit32, err := parseOptionalInt32(query.Get("limit"), 20)
 	if err != nil {
 		return nil, fmt.Errorf("limit must be a valid integer")
 	}
-	offset, err := parseOptionalInt(query.Get("offset"), 0)
+	offset32, err := parseOptionalInt32(query.Get("offset"), 0)
 	if err != nil {
 		return nil, fmt.Errorf("offset must be a valid integer")
 	}
-
-	limit32 := int32(limit)
-	offset32 := int32(offset)
 	queryText := strings.TrimSpace(query.Get("query"))
 	contentType := strings.TrimSpace(query.Get("content_type"))
 	unreadOnly := parseBoolQuery(query.Get("unread_only"))
@@ -635,7 +632,7 @@ func parseListMessagesRequest(r *http.Request) (*appv1.ListMessagesRequest, erro
 	}, nil
 }
 
-func parseOptionalInt(raw string, defaultValue int) (int, error) {
+func parseOptionalInt32(raw string, defaultValue int32) (int32, error) {
 	if strings.TrimSpace(raw) == "" {
 		return defaultValue, nil
 	}
@@ -643,10 +640,13 @@ func parseOptionalInt(raw string, defaultValue int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if value < 0 {
+		return 0, fmt.Errorf("value must be non-negative")
+	}
 	if value > math.MaxInt32 {
 		value = math.MaxInt32
 	}
-	return value, nil
+	return int32(value), nil
 }
 
 func parseBoolQuery(raw string) bool {
