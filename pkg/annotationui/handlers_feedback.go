@@ -25,7 +25,7 @@ func (h *appHandler) handleListFeedback(w http.ResponseWriter, r *http.Request) 
 		MailboxName:  strings.TrimSpace(r.URL.Query().Get("mailboxName")),
 		TargetType:   strings.TrimSpace(r.URL.Query().Get("targetType")),
 		TargetID:     strings.TrimSpace(r.URL.Query().Get("targetId")),
-		Limit:        limit,
+		Limit:        int(limit),
 	})
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())
@@ -121,7 +121,7 @@ func (h *appHandler) handleListGuidelines(w http.ResponseWriter, r *http.Request
 		Status:    strings.TrimSpace(r.URL.Query().Get("status")),
 		ScopeKind: strings.TrimSpace(r.URL.Query().Get("scopeKind")),
 		Search:    strings.TrimSpace(r.URL.Query().Get("search")),
-		Limit:     limit,
+		Limit:     int(limit),
 	})
 	if err != nil {
 		writeMessageError(w, http.StatusInternalServerError, err.Error())

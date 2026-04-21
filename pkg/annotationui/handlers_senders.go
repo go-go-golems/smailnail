@@ -42,7 +42,7 @@ func (h *appHandler) handleListSenders(w http.ResponseWriter, r *http.Request) {
 	req := &annotationuiv1.SenderListRequest{
 		Domain: strings.TrimSpace(r.URL.Query().Get("domain")),
 		Tag:    strings.TrimSpace(r.URL.Query().Get("tag")),
-		Limit:  int32(limit),
+		Limit:  limit,
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("hasAnnotations")); raw != "" {
 		parsed, err := strconv.ParseBool(raw)

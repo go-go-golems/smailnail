@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -636,15 +635,12 @@ func parseOptionalInt32(raw string, defaultValue int32) (int32, error) {
 	if strings.TrimSpace(raw) == "" {
 		return defaultValue, nil
 	}
-	value, err := strconv.Atoi(raw)
+	value, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil {
 		return 0, err
 	}
 	if value < 0 {
 		return 0, fmt.Errorf("value must be non-negative")
-	}
-	if value > math.MaxInt32 {
-		value = math.MaxInt32
 	}
 	return int32(value), nil
 }

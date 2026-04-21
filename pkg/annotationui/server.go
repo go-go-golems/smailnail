@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -266,22 +266,19 @@ func requestReviewActor(r *http.Request) string {
 	return defaultAnnotationUIActor
 }
 
-func parseLimitQuery(r *http.Request, key string, defaultValue int) (int, error) {
+func parseLimitQuery(r *http.Request, key string, defaultValue int32) (int32, error) {
 	raw := strings.TrimSpace(r.URL.Query().Get(key))
 	if raw == "" {
 		return defaultValue, nil
 	}
-	var value int
-	if _, err := fmt.Sscanf(raw, "%d", &value); err != nil {
+	value, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
 		return 0, errors.Wrapf(err, "parse %s", key)
 	}
 	if value <= 0 {
 		return 0, fmt.Errorf("%s must be positive", key)
 	}
-	if value > math.MaxInt32 {
-		value = math.MaxInt32
-	}
-	return value, nil
+	return int32(value), nil
 }
 
 func normalizeDirList(dirs []string) []string {

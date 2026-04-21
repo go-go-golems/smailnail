@@ -22,7 +22,7 @@ func (h *appHandler) handleListAnnotations(w http.ResponseWriter, r *http.Reques
 		ReviewState: strings.TrimSpace(r.URL.Query().Get("reviewState")),
 		SourceKind:  strings.TrimSpace(r.URL.Query().Get("sourceKind")),
 		AgentRunId:  strings.TrimSpace(r.URL.Query().Get("agentRunId")),
-		Limit:       int32(limit),
+		Limit:       limit,
 	}
 
 	annotations, err := h.annotations.ListAnnotations(r.Context(), annotate.ListAnnotationsFilter{
@@ -121,7 +121,7 @@ func (h *appHandler) handleListGroups(w http.ResponseWriter, r *http.Request) {
 	req := &annotationuiv1.GroupListRequest{
 		ReviewState: strings.TrimSpace(r.URL.Query().Get("reviewState")),
 		SourceKind:  strings.TrimSpace(r.URL.Query().Get("sourceKind")),
-		Limit:       int32(limit),
+		Limit:       limit,
 	}
 
 	groups, err := h.annotations.ListGroups(r.Context(), annotate.ListGroupsFilter{
@@ -167,7 +167,7 @@ func (h *appHandler) handleListLogs(w http.ResponseWriter, r *http.Request) {
 	req := &annotationuiv1.LogListRequest{
 		SourceKind: strings.TrimSpace(r.URL.Query().Get("sourceKind")),
 		AgentRunId: strings.TrimSpace(r.URL.Query().Get("agentRunId")),
-		Limit:      int32(limit),
+		Limit:      limit,
 	}
 
 	logs, err := h.annotations.ListLogs(r.Context(), annotate.ListLogsFilter{
