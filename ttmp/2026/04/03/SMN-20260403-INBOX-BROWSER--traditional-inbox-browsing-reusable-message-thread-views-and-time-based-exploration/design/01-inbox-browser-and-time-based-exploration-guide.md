@@ -15,26 +15,27 @@ Owners:
     - manuel
 RelatedFiles:
     - Path: pkg/annotationui/handlers_senders.go
-      Note: Existing composite handler pattern for sender-driven message browsing
-    - Path: pkg/annotationui/handlers_senders.go:Existing sender and recent-message browsing implementation.
+      Note: Sender browsing handlers (COMPLETED)
     - Path: pkg/annotationui/server.go:Current sqlite route registration.
     - Path: pkg/enrich/schema.go
-      Note: Threads and senders schema used by the browser views
-    - Path: pkg/enrich/schema.go:Threads and senders schema additions.
+      Note: Threads and senders schema (COMPLETED)
     - Path: pkg/enrich/threads.go
-      Note: Thread reconstruction logic and thread summary semantics
-    - Path: pkg/enrich/threads.go:Thread reconstruction and thread summary logic.
+      Note: Thread reconstruction logic (COMPLETED)
     - Path: pkg/mirror/schema.go
       Note: Messages table and FTS shape for inbox browsing
-    - Path: pkg/mirror/schema.go:Core messages table and FTS5 virtual table.
+    - Path: pkg/smailnaild/http.go
+      Note: Account/mailbox/message API (COMPLETED)
+    - Path: ui/src/features/mailbox/MailboxExplorer.tsx
+      Note: MailboxExplorer with MessageList/MessageDetail (COMPLETED)
     - Path: ui/src/pages/SenderDetailPage.tsx
+      Note: Sender detail with recent messages (COMPLETED)
       Note: Current sender detail page that should grow reusable embedded browser views
     - Path: ui/src/pages/SenderDetailPage.tsx:Current sender detail UX.
     - Path: ui/src/pages/SendersPage.tsx:Current sender list UX.
     - Path: ui/src/types/annotations.ts:Current UI DTOs. MessagePreview is the starting point for richer message/thread views.
 ExternalSources: []
-Summary: Detailed implementation guide for turning the sqlite annotation UI into a reusable inbox-style browsing environment for messages, threads, senders, tags, and time windows.
-LastUpdated: 2026-04-03T12:15:00-04:00
+Summary: Detailed implementation guide. ✅ Partially implemented: sender endpoints, mailbox/message browsing, schema infrastructure. Remaining: thread API, timeline endpoint, reusable thread views, time-based exploration.
+LastUpdated: 2026-04-08T00:00:00-04:00
 WhatFor: Hand this to a new intern before they build inbox browsing on top of the sqlite mirror.
 WhenToUse: Use when implementing message and thread browsing, sender filtering, or time-based exploration features.
 ---

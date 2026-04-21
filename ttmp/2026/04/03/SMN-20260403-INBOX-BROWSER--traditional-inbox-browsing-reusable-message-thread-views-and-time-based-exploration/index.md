@@ -15,23 +15,27 @@ Owners:
     - manuel
 RelatedFiles:
     - Path: pkg/annotationui/handlers_senders.go
-      Note: Existing sender browsing handler pattern
+      Note: Sender browsing handlers (COMPLETED)
     - Path: pkg/enrich/schema.go
-      Note: Thread and sender enrichment schema
+      Note: Thread and sender enrichment schema (COMPLETED)
     - Path: pkg/enrich/threads.go
-      Note: Thread reconstruction logic
+      Note: Thread reconstruction logic (COMPLETED)
     - Path: pkg/mirror/schema.go
       Note: Core message storage and FTS support
+    - Path: pkg/smailnaild/http.go
+      Note: Account/mailbox/message API (COMPLETED)
+    - Path: ui/src/features/mailbox/MailboxExplorer.tsx
+      Note: MailboxExplorer with MessageList/MessageDetail (COMPLETED)
     - Path: ui/src/pages/SenderDetailPage.tsx
-      Note: Current sender detail and recent message previews
+      Note: Sender detail with recent messages (COMPLETED)
     - Path: ui/src/pages/SendersPage.tsx
       Note: Current sender list UX
     - Path: ui/src/types/annotations.ts
       Note: Current frontend DTO constraints
 ExternalSources:
     - /home/manuel/code/wesen/corporate-headquarters/smailnail/ttmp/2026/04/03/SMN-20260403-ANNOTATION-UI--web-ui-for-browsing-annotations-review-workflow-and-managed-sql-queries/design/08-backend-api-specification-for-annotation-ui.md
-Summary: Functionality-first ticket for expanding the sqlite UI into reusable message/thread browsing flows with sender search, time filters, and email-client-style affordances.
-LastUpdated: 2026-04-03T12:15:00-04:00
+Summary: Ticket for inbox-style message/thread browsing. Progress: ✅ Backend sender endpoints, mailbox/message browsing, and schema infrastructure completed. Remaining: thread API, timeline endpoint, reusable thread views, time-based exploration, and unified filter model.
+LastUpdated: 2026-04-08T00:00:00-04:00
 WhatFor: Use this ticket to design and implement traditional inbox browsing on top of the sqlite mirror and enrich tables.
 WhenToUse: Use when adding message/thread browsing, sender filtering, or time-based exploration features.
 ---
@@ -39,7 +43,9 @@ WhenToUse: Use when adding message/thread browsing, sender filtering, or time-ba
 
 # Traditional inbox browsing, reusable message/thread views, and time-based exploration
 
-This ticket is about making the sqlite UI behave more like an actual mail analysis environment instead of only an annotation browser. The existing UI already exposes senders and recent message previews, which proves the data is present. The missing layer is a reusable browsing model for messages, threads, senders, tags, and time ranges.
+This ticket covers inbox-style message/thread browsing. **Progress (2026-04-08):** Backend sender endpoints, mailbox/message browsing, and MailboxExplorer components are implemented. Thread data exists in the schema but thread API endpoints and views are not yet built. Time-based exploration and unified filter model remain.
+
+The design guide is [design/01-inbox-browser-and-time-based-exploration-guide.md](./design/01-inbox-browser-and-time-based-exploration-guide.md) and the updated task list is in [tasks.md](./tasks.md).
 
 The detailed guide is [design/01-inbox-browser-and-time-based-exploration-guide.md](./design/01-inbox-browser-and-time-based-exploration-guide.md). It explains the current mirror/enrichment system, the product goals, proposed backend APIs, reusable frontend view models, search affordances, and an implementation sequence.
 
