@@ -88,3 +88,11 @@ frontend-check:
 
 build-embed: frontend-build
 	go build -tags "embed $(SQLITE_TAGS)" ./...
+
+.PHONY: logcopter-generate
+logcopter-generate:
+	GOWORK=off GOFLAGS="-tags=$(SQLITE_TAGS)" go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.smailnail -strip-prefix github.com/go-go-golems/smailnail ./cmd/... ./pkg/...
+
+.PHONY: logcopter-check
+logcopter-check:
+	GOWORK=off GOFLAGS="-tags=$(SQLITE_TAGS)" go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.smailnail -strip-prefix github.com/go-go-golems/smailnail -check ./cmd/... ./pkg/...
