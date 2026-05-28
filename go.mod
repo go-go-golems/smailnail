@@ -2,6 +2,8 @@ module github.com/go-go-golems/smailnail
 
 go 1.26.2
 
+toolchain go1.26.3
+
 require (
 	dagger.io/dagger v0.20.3
 	github.com/Masterminds/sprig/v3 v3.3.0
