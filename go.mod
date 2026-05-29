@@ -10,7 +10,7 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/go-go-golems/glazed v1.2.3
 	github.com/go-go-golems/go-go-goja v0.4.5
-	github.com/go-go-golems/go-go-mcp v0.0.18
+	github.com/go-go-golems/go-go-mcp v0.0.19
 	github.com/go-go-golems/logcopter v0.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.35.1
