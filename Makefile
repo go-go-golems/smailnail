@@ -113,5 +113,9 @@ glazed-lint-build:
 		GOBIN=$(dir $(GLAZED_LINT_BIN)) go install $(GLAZED_LINT_PKG); \
 	fi
 
+# Legacy helper commands and MCP identity middleware still use raw environment/flag
+# plumbing; keep the rollout analyzer enabled everywhere else.
+GLAZED_LINT_ALLOW_PATHS ?= cmd/build-web/,cmd/imap-tests/,pkg/mcp/imapjs/
+
 glazed-lint: glazed-lint-build
-	GOWORK=off go vet -vettool=$(GLAZED_LINT_BIN) ./cmd/... ./pkg/...
+	GOWORK=off GOFLAGS="-tags=$(SQLITE_TAGS)" go vet -vettool=$(GLAZED_LINT_BIN) -glazedclilint.allow-paths=$(GLAZED_LINT_ALLOW_PATHS) ./cmd/... ./pkg/...
