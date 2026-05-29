@@ -29,7 +29,7 @@ func pickRandom(items interface{}) (interface{}, error) {
 	v := reflect.ValueOf(items)
 
 	// Handle pointer dereference
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil, fmt.Errorf("cannot pick from nil pointer")
 		}
