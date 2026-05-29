@@ -1,0 +1,3 @@
+package smailnail
+
+//go:generate go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.smailnail -strip-prefix github.com/go-go-golems/smailnail ./cmd/... ./pkg/...
