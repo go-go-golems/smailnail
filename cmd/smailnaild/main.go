@@ -29,7 +29,9 @@ func main() {
 	helpSystem := help.NewHelpSystem()
 	helpcmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
-	if err := clay.InitGlazed("smailnaild", rootCmd); err != nil {
+	// smailnaild still relies on the legacy Clay/Glazed initialization path for
+	// command config/logging bootstrap; keep it explicit until the CLI is migrated.
+	if err := clay.InitGlazed("smailnaild", rootCmd); err != nil { //nolint:staticcheck
 		log.Fatal().Err(err).Msg("Failed to initialize root command")
 	}
 
