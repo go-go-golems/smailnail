@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	ggjengine "github.com/go-go-golems/go-go-goja/engine"
+	ggjengine "github.com/go-go-golems/go-go-goja/pkg/engine"
 	"github.com/go-go-golems/go-go-goja/pkg/jsdoc/extract"
 	"github.com/go-go-golems/go-go-goja/pkg/jsdoc/model"
 	smailnaildocs "github.com/go-go-golems/smailnail/pkg/js/modules/smailnail/docs"
@@ -181,8 +181,8 @@ func (d *fakeSieveDialer) DialSieve(_ context.Context, opts smailnailjs.SieveCon
 
 func TestModuleBuildRule(t *testing.T) {
 	module := NewModule()
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -221,8 +221,8 @@ func TestModuleBuildRule(t *testing.T) {
 func TestModuleIMAPSessionOperations(t *testing.T) {
 	dialer := &fakeDialer{}
 	module := NewModuleWithService(smailnailjs.New(smailnailjs.WithDialer(dialer)))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -313,8 +313,8 @@ func TestModuleIMAPSessionOperations(t *testing.T) {
 
 func TestModuleBuildSieveScriptAndConnectSieve(t *testing.T) {
 	module := NewModuleWithService(smailnailjs.New(smailnailjs.WithSieveDialer(&fakeSieveDialer{})))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -405,8 +405,8 @@ func TestModuleNewServiceConnectWithStoredAccount(t *testing.T) {
 		smailnailjs.WithDialer(dialer),
 		smailnailjs.WithStoredAccountResolver(resolver),
 	))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -447,8 +447,8 @@ func TestDocumentedSymbolsMatchRuntimeExports(t *testing.T) {
 		smailnailjs.WithDialer(&fakeDialer{}),
 		smailnailjs.WithSieveDialer(&fakeSieveDialer{}),
 	))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).

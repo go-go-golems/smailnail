@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/dop251/goja"
-	ggjengine "github.com/go-go-golems/go-go-goja/engine"
+	ggjengine "github.com/go-go-golems/go-go-goja/pkg/engine"
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	smailnailmodule "github.com/go-go-golems/smailnail/pkg/js/modules/smailnail"
@@ -26,8 +26,8 @@ func executeIMAPJSHandler(ctx context.Context, raw map[string]interface{}) (*pro
 
 	service := buildExecutionService(ctx)
 	module := smailnailmodule.NewModuleWithServiceAndContext(ctx, service)
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -36,7 +36,7 @@ func executeIMAPJSHandler(ctx context.Context, raw map[string]interface{}) (*pro
 		return newErrorToolResult("failed to build runtime", err), nil
 	}
 
-	rt, err := factory.NewRuntime(ctx)
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(ctx), ggjengine.WithLifetimeContext(ctx))
 	if err != nil {
 		return newErrorToolResult("failed to create runtime", err), nil
 	}
