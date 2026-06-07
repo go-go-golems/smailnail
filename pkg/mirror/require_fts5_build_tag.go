@@ -2,7 +2,6 @@
 
 package mirror
 
-// requires_sqlite_fts5_build_tag is a sentinel value that forces a compile
-// error when this file is included without the corresponding sqlite_fts5
-// or fts5 build tag. The variable is defined in the tagged build file.
-var requires_sqlite_fts5_build_tag = true
+// This undefined sentinel intentionally forces a compile error when this file
+// is included without the corresponding sqlite_fts5 or fts5 build tag.
+var _ = requires_sqlite_fts5_build_tag
