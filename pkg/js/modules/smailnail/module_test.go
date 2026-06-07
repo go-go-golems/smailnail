@@ -191,7 +191,7 @@ func TestModuleBuildRule(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestModuleIMAPSessionOperations(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestModuleBuildSieveScriptAndConnectSieve(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -415,7 +415,7 @@ func TestModuleNewServiceConnectWithStoredAccount(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -457,7 +457,7 @@ func TestDocumentedSymbolsMatchRuntimeExports(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
