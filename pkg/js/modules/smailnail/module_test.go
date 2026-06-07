@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	ggjengine "github.com/go-go-golems/go-go-goja/engine"
+	ggjengine "github.com/go-go-golems/go-go-goja/pkg/engine"
 	"github.com/go-go-golems/go-go-goja/pkg/jsdoc/extract"
 	"github.com/go-go-golems/go-go-goja/pkg/jsdoc/model"
 	smailnaildocs "github.com/go-go-golems/smailnail/pkg/js/modules/smailnail/docs"
@@ -181,8 +181,8 @@ func (d *fakeSieveDialer) DialSieve(_ context.Context, opts smailnailjs.SieveCon
 
 func TestModuleBuildRule(t *testing.T) {
 	module := NewModule()
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -191,7 +191,7 @@ func TestModuleBuildRule(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -221,8 +221,8 @@ func TestModuleBuildRule(t *testing.T) {
 func TestModuleIMAPSessionOperations(t *testing.T) {
 	dialer := &fakeDialer{}
 	module := NewModuleWithService(smailnailjs.New(smailnailjs.WithDialer(dialer)))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -231,7 +231,7 @@ func TestModuleIMAPSessionOperations(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -313,8 +313,8 @@ func TestModuleIMAPSessionOperations(t *testing.T) {
 
 func TestModuleBuildSieveScriptAndConnectSieve(t *testing.T) {
 	module := NewModuleWithService(smailnailjs.New(smailnailjs.WithSieveDialer(&fakeSieveDialer{})))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -323,7 +323,7 @@ func TestModuleBuildSieveScriptAndConnectSieve(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -405,8 +405,8 @@ func TestModuleNewServiceConnectWithStoredAccount(t *testing.T) {
 		smailnailjs.WithDialer(dialer),
 		smailnailjs.WithStoredAccountResolver(resolver),
 	))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -415,7 +415,7 @@ func TestModuleNewServiceConnectWithStoredAccount(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
@@ -447,8 +447,8 @@ func TestDocumentedSymbolsMatchRuntimeExports(t *testing.T) {
 		smailnailjs.WithDialer(&fakeDialer{}),
 		smailnailjs.WithSieveDialer(&fakeSieveDialer{}),
 	))
-	factory, err := ggjengine.NewBuilder().
-		WithModules(ggjengine.NativeModuleSpec{
+	factory, err := ggjengine.NewRuntimeFactoryBuilder().
+		WithModules(ggjengine.NativeModuleRegistrar{
 			ModuleName: module.Name(),
 			Loader:     module.Loader,
 		}).
@@ -457,7 +457,7 @@ func TestDocumentedSymbolsMatchRuntimeExports(t *testing.T) {
 		t.Fatalf("Build returned error: %v", err)
 	}
 
-	rt, err := factory.NewRuntime(context.Background())
+	rt, err := factory.NewRuntime(ggjengine.WithStartupContext(context.Background()), ggjengine.WithLifetimeContext(context.Background()))
 	if err != nil {
 		t.Fatalf("NewRuntime returned error: %v", err)
 	}
